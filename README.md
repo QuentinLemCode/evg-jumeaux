@@ -60,6 +60,7 @@ deploys it with no downtime. The repository is built so that loop is safe.
 ## Getting started
 
 ```bash
+nvm use                      # Node 26, from .nvmrc
 npm install
 cp .env.example .env         # then fill AUTH_SECRET
 openssl rand -base64 48      # → AUTH_SECRET
@@ -278,6 +279,9 @@ before relying on it, and `AGENTS.md` before editing anything by hand.
 
 ## Conventions
 
+- **Node 26**, pinned to the patch in `.nvmrc`. CI (`node-version-file`), the
+  Docker image and the VM's NodeSource repository all follow it, so there is
+  one place to bump and nothing to keep in sync by hand.
 - TypeScript everywhere, `strict`, no `any`.
 - **Code, comments, commits and markdown in English. User-facing strings in
   French.**

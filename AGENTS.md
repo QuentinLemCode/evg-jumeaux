@@ -55,6 +55,7 @@ terraform/             GCP VM, static IP, firewall, startup script
 
 | Concern | Choice | Notes |
 |---|---|---|
+| Runtime | Node **26** (`.nvmrc`, pinned to the patch) | One source of truth: CI, the Docker image and the VM all read it. `nvm use` before anything else. |
 | Language | TypeScript, `strict: true` | No `any`, no `@ts-ignore`. Ever. |
 | Framework | Next.js 15 (App Router) | Server Components for reads, Server Actions for writes |
 | Styling | Tailwind CSS v4 + the "Confetti" design system | Tokens in `src/app/globals.css`; enforced by `npm run lint:design` (spec 0010) |
@@ -67,6 +68,7 @@ terraform/             GCP VM, static IP, firewall, startup script
 ## 4. Commands
 
 ```bash
+nvm use                # Node 26, from .nvmrc — do this first
 npm install            # install dependencies
 npm run dev            # dev server on http://localhost:3000
 npm run typecheck      # tsc --noEmit — MUST pass before you claim done

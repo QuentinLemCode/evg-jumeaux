@@ -66,7 +66,10 @@ echo "=== [6/9] Utilisateur, Node, agents ==="
 id -u hermes &>/dev/null || useradd -m -s /bin/bash hermes
 usermod -aG docker hermes
 
-curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
+# Same major as .nvmrc and the application image. Node on this VM only runs
+# the agent CLIs and the deploy scripts — the app itself runs in a container —
+# but a mismatch here is exactly the kind of thing that bites at 2 a.m.
+curl -fsSL https://deb.nodesource.com/setup_26.x | bash -
 apt-get install -y nodejs
 
 su - hermes -c "curl -fsSL https://opencode.ai/install | bash"
