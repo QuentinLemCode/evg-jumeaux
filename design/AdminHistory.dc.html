@@ -1,0 +1,185 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gabarito:wght@500;700;900&family=Instrument+Sans:wght@400;500;600&display=swap">
+  <style>
+    body { margin: 0; }
+    a { color: #ff5d5d; text-decoration: none; }
+    a:hover { color: #e13c3c; }
+
+    .ah-root {
+      width: 390px; height: 844px; overflow: hidden; position: relative;
+      font-family: 'Instrument Sans', system-ui, sans-serif;
+      display: flex; flex-direction: column;
+    }
+    .ah-display { font-family: 'Gabarito', system-ui, sans-serif; }
+
+    .ah-rise { animation: ah-rise .44s cubic-bezier(.22,.9,.3,1) both; }
+    @keyframes ah-rise {
+      from { transform: translateY(16px); opacity: 0; }
+      to   { transform: translateY(0); opacity: 1; }
+    }
+
+    .ah-sticker { border: 3px solid #1d1a17; border-radius: 20px; background: #fff;
+      box-shadow: 3px 4px 0 #1d1a17; }
+    .ah-chip { display: inline-flex; align-items: center; flex: 0 0 auto; min-height: 44px; padding: 0 12px;
+      border: 2px solid #1d1a17; border-radius: 999px;
+      font-size: 12px; font-weight: 600; white-space: nowrap; }
+    /* Type mark: a drawn glyph, not an emoji, so it recolors with its badge. */
+    .ah-mark { display: flex; align-items: center; justify-content: center;
+      width: 34px; height: 34px; border: 2px solid #1d1a17; border-radius: 11px; }
+    .ah-mark svg { width: 19px; height: 19px; }
+    .ah-delta { font-family: 'Gabarito', system-ui, sans-serif;
+      font-size: 21px; font-weight: 900; letter-spacing: -.02em; white-space: nowrap; }
+    /* A scroller, not a clipper: the row is meant to be swipeable, and a
+       chip cut off flat against the gutter reads as a rendering bug. */
+    .ah-scroll { overflow-x: auto; scrollbar-width: none; }
+    .ah-scroll::-webkit-scrollbar { display: none; }
+    .ah-nav-item { display: flex; flex-direction: column; align-items: center; gap: 3px;
+      flex: 1; min-height: 56px; justify-content: center;
+      font-size: 10px; font-weight: 600; }
+    .ah-nav-item svg { width: 22px; height: 22px; }
+  </style>
+</helmet>
+
+<div class="ah-root" style="background: #fff8ee; color: #1d1a17">
+
+  <!-- header -->
+  <header style="padding: 20px 18px 0">
+    <p class="ah-display" style="margin: 0; font-size: 28px; font-weight: 900; letter-spacing: -.02em; text-wrap: pretty">Journal des admins</p>
+    <p style="margin: 3px 0 0; font-size: 12px; font-weight: 500; color: #6f6357">Chaque intervention sur les scores, avec son motif.</p>
+  </header>
+
+  <!-- the transparency contract, stated on the screen itself -->
+  <div class="ah-sticker ah-rise" style="display: flex; align-items: center; gap: 10px; margin: 14px 18px 0; padding: 10px 12px; background: #eafaf3; border-color: #17c98f; box-shadow: 3px 4px 0 #17c98f">
+    <span class="ah-mark" style="border-color: #17c98f; color: #17c98f; background: #fff">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z"/></svg>
+    </span>
+    <p style="margin: 0; font-size: 12px; line-height: 1.35">
+      <span style="font-weight: 700">Visible par tout le monde.</span>
+      Aucun point ne bouge sans apparaître ici.
+    </p>
+  </div>
+
+  <!-- filters -->
+  <div class="ah-scroll" style="display: flex; gap: 6px; padding: 14px 18px 0">
+    <span class="ah-chip" style="background: #1d1a17; color: #fff8ee">Tout</span>
+    <span class="ah-chip" style="background: #fff">Ajustements</span>
+    <span class="ah-chip" style="background: #fff">Annulations</span>
+    <span class="ah-chip" style="background: #fff">Arbitrages</span>
+  </div>
+
+  <!-- the log -->
+  <section style="display: flex; flex-direction: column; gap: 10px; padding: 14px 18px 0">
+
+    <article class="ah-sticker ah-rise" style="padding: 11px 12px; animation-delay: .08s">
+      <div style="display: flex; align-items: center; gap: 10px">
+        <span class="ah-mark" style="background: #ffe9e9; color: #ff5d5d">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 8.5h9.5a5 5 0 1 1 0 10H8.5"/><path d="M7 5 3.5 8.5 7 12"/></svg>
+        </span>
+        <span style="flex: 1; min-width: 0">
+          <span class="ah-display" style="display: block; font-size: 14px; font-weight: 700">Partie annulée</span>
+          <span style="display: block; font-size: 11px; color: #6f6357">Jumeau 1 · il y a 12 min</span>
+        </span>
+        <span class="ah-delta" style="color: #ff5d5d">−21</span>
+      </div>
+      <p style="margin: 9px 0 0; font-size: 12px; line-height: 1.4">
+        <span style="font-weight: 600">Palet</span> · Hugo 13 – 2 Baptiste
+        <span style="color: #6f6357"> → points retirés à Hugo</span>
+      </p>
+      <p style="margin: 5px 0 0; padding-left: 9px; border-left: 3px solid #ffd4d4; font-size: 12px; font-style: italic; color: #6f6357">
+        « Score saisi à l’envers, la partie est rejouée »
+      </p>
+    </article>
+
+    <article class="ah-sticker ah-rise" style="padding: 11px 12px; animation-delay: .16s">
+      <div style="display: flex; align-items: center; gap: 10px">
+        <span class="ah-mark" style="background: #eef4ff; color: #2ea8ff">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7.5h16"/><path d="M4 16.5h16"/><circle cx="9.5" cy="7.5" r="2.3"/><circle cx="15" cy="16.5" r="2.3"/></svg>
+        </span>
+        <span style="flex: 1; min-width: 0">
+          <span class="ah-display" style="display: block; font-size: 14px; font-weight: 700">Points ajustés</span>
+          <span style="display: block; font-size: 11px; color: #6f6357">Quentin · il y a 1 h</span>
+        </span>
+        <span class="ah-delta" style="color: #17c98f">+25</span>
+      </div>
+      <p style="margin: 9px 0 0; font-size: 12px; line-height: 1.4">
+        <span style="font-weight: 600">Clément</span>
+        <span style="color: #6f6357"> · hors application</span>
+      </p>
+      <p style="margin: 5px 0 0; padding-left: 9px; border-left: 3px solid #cfe4ff; font-size: 12px; font-style: italic; color: #6f6357">
+        « Vainqueur du concours de grimaces »
+      </p>
+    </article>
+
+    <article class="ah-sticker ah-rise" style="padding: 11px 12px; animation-delay: .24s">
+      <div style="display: flex; align-items: center; gap: 10px">
+        <span class="ah-mark" style="background: #f3efff; color: #7b5cff">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4.5v15"/><path d="M6 8.5h12"/><path d="M6 8.5 3.5 14.5h5L6 8.5Z"/><path d="M18 8.5l-2.5 6h5L18 8.5Z"/><path d="M8.5 19.5h7"/></svg>
+        </span>
+        <span style="flex: 1; min-width: 0">
+          <span class="ah-display" style="display: block; font-size: 14px; font-weight: 700">Contestation tranchée</span>
+          <span style="display: block; font-size: 11px; color: #6f6357">Jumeau 2 · il y a 2 h</span>
+        </span>
+        <span class="ah-delta" style="color: #17c98f">+15<span style="font-size: 12px; font-weight: 700"> ×2</span></span>
+      </div>
+      <p style="margin: 9px 0 0; font-size: 12px; line-height: 1.4">
+        <span style="font-weight: 600">Beer pong</span> · Antoine &amp; Lucas 10 – 7 Romain &amp; Thomas
+      </p>
+      <p style="margin: 5px 0 0; padding-left: 9px; border-left: 3px solid #ddd4ff; font-size: 12px; font-style: italic; color: #6f6357">
+        « Deux témoins confirment, le résultat initial est maintenu »
+      </p>
+    </article>
+
+    <article class="ah-sticker ah-rise" style="padding: 11px 12px; animation-delay: .32s">
+      <div style="display: flex; align-items: center; gap: 10px">
+        <span class="ah-mark" style="background: #fff3cf; color: #a06407">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>
+        </span>
+        <span style="flex: 1; min-width: 0">
+          <span class="ah-display" style="display: block; font-size: 14px; font-weight: 700">Invitation expirée</span>
+          <span style="display: block; font-size: 11px; color: #6f6357">Quentin · hier, 23 h 40</span>
+        </span>
+        <span class="ah-delta" style="color: #6f6357">0</span>
+      </div>
+      <p style="margin: 9px 0 0; font-size: 12px; line-height: 1.4">
+        <span style="font-weight: 600">Pétanque</span>
+        <span style="color: #6f6357"> · jamais acceptée, forcée à expirer</span>
+      </p>
+    </article>
+  </section>
+
+  <!-- bottom nav, Admin active -->
+  <nav style="margin-top: auto; display: flex; border-top: 3px solid #1d1a17; background: #fff">
+    <span class="ah-nav-item" style="color: #6f6357">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4h10v4a5 5 0 0 1-10 0V4Z"/><path d="M7 6H4.5A2.5 2.5 0 0 0 7 8.5"/><path d="M17 6h2.5A2.5 2.5 0 0 1 17 8.5"/><path d="M12 13v4"/><path d="M8.5 20h7l-.8-3H9.3l-.8 3Z"/></svg>
+      Classement
+    </span>
+    <span class="ah-nav-item" style="color: #6f6357">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="4.5"/><circle cx="9" cy="9" r="1.3" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.3" fill="currentColor" stroke="none"/><circle cx="15" cy="15" r="1.3" fill="currentColor" stroke="none"/></svg>
+      Jeux
+    </span>
+    <span class="ah-nav-item" style="color: #6f6357">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 12a8.5 8.5 0 1 0 2.7-6.2"/><path d="M3 4v4.2h4.2"/><path d="M12 8.2V12l2.8 1.8"/></svg>
+      Historique
+    </span>
+    <span class="ah-nav-item" style="color: #6f6357; position: relative">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 9.2a6 6 0 1 0-12 0c0 4.8-2 5.8-2 5.8h16s-2-1-2-5.8Z"/><path d="M10.4 18.6a2.1 2.1 0 0 0 3.2 0"/></svg>
+      Alertes
+      <span style="position: absolute; top: 9px; right: 11px; min-width: 16px; height: 16px; border: 2px solid #fff; border-radius: 999px; background: #ff5d5d; color: #fff; font-size: 9px; font-weight: 700; line-height: 16px; text-align: center">2</span>
+    </span>
+    <span class="ah-nav-item" style="color: #ff5d5d">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.2 5 6.2v5c0 4.5 3 8 7 9.1 4-1.1 7-4.6 7-9.1v-5l-7-3Z"/><path d="M9.4 12.2 11 13.8l3.6-3.6"/></svg>
+      Admin
+    </span>
+  </nav>
+</div>
+</x-dc>
+</body>
+</html>

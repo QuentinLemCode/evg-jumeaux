@@ -1,0 +1,1 @@
+ALTER TABLE `matches` ADD `forced_by` text REFERENCES users(id);

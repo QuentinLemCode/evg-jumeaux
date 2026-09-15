@@ -1,0 +1,179 @@
+name: Deploy
+
+# main → gate → build image → push to GHCR → zero-downtime deploy → verify.
+#
+# Nothing is built on the VM: the image is built here once and pulled there.
+# The deploy itself is blue/green behind a graceful Caddy reload, so a release
+# drops no connection and a failed release changes nothing.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: 'Redeploy an existing tag (e.g. sha-a1b2c3d). Empty = build HEAD.'
+        required: false
+        type: string
+
+# One deploy at a time: two concurrent runs would fight over which colour is
+# live. Never cancel one in flight — a half-switched stack is worse than a
+# queued release.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  gate:
+    name: Gate
+    if: inputs.image_tag == ''
+    uses: ./.github/workflows/ci.yml
+
+  build:
+    name: Build and push image
+    needs: [gate]
+    if: always() && (needs.gate.result == 'success' || inputs.image_tag != '')
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      tag: ${{ steps.meta.outputs.tag }}
+      commit: ${{ steps.meta.outputs.commit }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve the tag to deploy
+        id: meta
+        run: |
+          if [ -n "${{ inputs.image_tag }}" ]; then
+            echo "tag=${{ inputs.image_tag }}" >> "$GITHUB_OUTPUT"
+            echo "commit=${{ inputs.image_tag }}" >> "$GITHUB_OUTPUT"
+            echo "skip_build=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=sha-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+            echo "commit=${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+            echo "skip_build=false" >> "$GITHUB_OUTPUT"
+          fi
+          echo "repo=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+        if: steps.meta.outputs.skip_build == 'false'
+
+      - uses: docker/login-action@v3
+        if: steps.meta.outputs.skip_build == 'false'
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        if: steps.meta.outputs.skip_build == 'false'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: runner
+          push: true
+          tags: |
+            ghcr.io/${{ steps.meta.outputs.repo }}:${{ steps.meta.outputs.tag }}
+            ghcr.io/${{ steps.meta.outputs.repo }}:main
+          # Registry cache, so a deploy that only changes src/ does not rebuild
+          # node_modules and recompile better-sqlite3 from scratch.
+          cache-from: type=registry,ref=ghcr.io/${{ steps.meta.outputs.repo }}:buildcache
+          cache-to: type=registry,ref=ghcr.io/${{ steps.meta.outputs.repo }}:buildcache,mode=max
+          provenance: false
+
+      - name: Smoke-test the image before it goes near production
+        if: steps.meta.outputs.skip_build == 'false'
+        run: |
+          IMAGE="ghcr.io/${{ steps.meta.outputs.repo }}:${{ steps.meta.outputs.tag }}"
+          mkdir -p /tmp/smoke
+          # Migrations must run in the image that will serve them.
+          docker run --rm -e AUTH_SECRET=smoke-secret-at-least-32-characters-ok \
+            -v /tmp/smoke:/app/data "$IMAGE" npm run --silent db:migrate
+          CID=$(docker run -d -p 3000:3000 \
+            -e AUTH_SECRET=smoke-secret-at-least-32-characters-ok \
+            -e GIT_COMMIT=${{ steps.meta.outputs.commit }} \
+            -v /tmp/smoke:/app/data "$IMAGE")
+          for _ in $(seq 1 20); do
+            BODY=$(curl -fsS --max-time 3 http://localhost:3000/api/health 2>/dev/null || true)
+            if echo "$BODY" | grep -q '"status":"ok"'; then
+              echo "image is healthy: $BODY"
+              # It must also report the commit it was built for, or the deploy
+              # verification downstream is meaningless.
+              echo "$BODY" | grep -q "${{ steps.meta.outputs.commit }}" \
+                || { echo "::error::/api/health does not report GIT_COMMIT"; exit 1; }
+              docker rm -f "$CID" >/dev/null
+              exit 0
+            fi
+            sleep 3
+          done
+          echo "::error::the image never became healthy"
+          docker logs "$CID" | tail -40
+          docker rm -f "$CID" >/dev/null
+          exit 1
+
+  deploy:
+    name: Deploy to production
+    needs: [build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production
+    steps:
+      # The VM has no inbound ports in tunnel mode, so the runner joins the
+      # tailnet instead of the VM opening one.
+      - name: Join the tailnet
+        uses: tailscale/github-action@v3
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+
+      - name: Deploy
+        env:
+          HOST: ${{ vars.VM_HOSTNAME }}
+          TAG: ${{ needs.build.outputs.tag }}
+          COMMIT: ${{ needs.build.outputs.commit }}
+        run: |
+          # The VM checkout supplies the deploy SCRIPTS and the compose files;
+          # the application itself comes from the image. Resetting to main is
+          # therefore deliberate even when redeploying an older tag: we want
+          # the current deploy logic, not the logic that shipped with that tag.
+          ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=20 \
+            "hermes@${HOST}" \
+            "cd ~/site && git fetch --quiet origin main && git reset --hard --quiet origin/main && scripts/agent/deploy.sh --tag '${TAG}' --commit '${COMMIT}'"
+
+      - name: Verify the public endpoint
+        env:
+          COMMIT: ${{ needs.build.outputs.commit }}
+          # Composed from the secret so the domain is masked in the logs.
+          FQDN: ${{ vars.SITE_SUBDOMAIN || 'evg' }}.${{ secrets.DOMAIN }}
+        run: |
+          URL="https://${FQDN}/api/health"
+          for _ in $(seq 1 15); do
+            BODY=$(curl -fsS --max-time 5 "$URL" 2>/dev/null || true)
+            if echo "$BODY" | grep -q '"status":"ok"' && echo "$BODY" | grep -q "${COMMIT}"; then
+              echo "live: $BODY"
+              exit 0
+            fi
+            sleep 4
+          done
+          echo "::error::${URL} does not report the deployed commit"
+          echo "last response: ${BODY:-none}"
+          exit 1
+
+      - name: Tell me if the deploy failed
+        if: failure()
+        env:
+          WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          # Guarded in bash, not in `if:` — the `secrets` context is not
+          # available in a step condition.
+          [ -n "$WEBHOOK" ] || { echo "no webhook configured"; exit 0; }
+          # The VM watcher covers runtime failures; this covers the deploy
+          # itself, which the VM cannot report on because it never happened.
+          curl -fsS -H 'Content-Type: application/json' -X POST "$WEBHOOK" \
+            -d "$(printf '{"username":"Hermes","content":"🔴 Déploiement EVG échoué sur %s\\nLe site tourne toujours sur la version précédente.\\n%s"}' \
+                  "${{ needs.build.outputs.tag }}" \
+                  "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}")" || true

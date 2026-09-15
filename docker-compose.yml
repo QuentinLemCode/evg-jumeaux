@@ -1,0 +1,92 @@
+# The production stack. Blue/green so a deploy drops no connection.
+#
+#   cloudflared ──▶ caddy ──▶ app-blue  | app-green   (one colour live)
+#                              └── SQLite on ./data (shared)
+#                   sweeper ──▶ same volume
+#
+# The image is BUILT BY CI and pulled from GHCR — never built on the VM. That
+# removes the OOM risk on a 4 GB box and makes a deploy a pull plus a restart.
+#
+# `docker compose down -v` would delete nothing (the database is a bind mount,
+# not a volume) but would still stop everything. Use `stop`.
+#
+# Which colour runs is decided by COMPOSE_PROFILES in .env, rewritten by
+# scripts/agent/deploy.sh. Profiles, not `up`/`stop`, because a bare
+# `docker compose up -d` after a reboot must not start both colours at once.
+
+services:
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    profiles: ['tunnel']
+    command: ['tunnel', '--no-autoupdate', '--metrics', '0.0.0.0:2000', 'run']
+    env_file: ./cloudflared.env
+    depends_on:
+      - caddy
+    restart: unless-stopped
+    # No published ports: the connection is OUTBOUND. That is the whole point
+    # of the tunnel — nothing on this host is reachable from the internet.
+
+  caddy:
+    image: caddy:2-alpine
+    environment:
+      # ":8080" behind the tunnel (Cloudflare already terminated TLS), or the
+      # FQDN in public_ip mode, which switches Caddy into automatic HTTPS.
+      CADDY_SITE_ADDRESS: ${CADDY_SITE_ADDRESS:-:8080}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # Rewritten by the deploy script, then `caddy reload` — a graceful
+      # reload, which is what makes the colour switch lossless.
+      - ./caddy/upstream.conf:/etc/caddy/upstream.conf:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    restart: unless-stopped
+
+  app-blue: &app
+    image: ${IMAGE_REPOSITORY}:${IMAGE_TAG}
+    profiles: ['blue']
+    env_file: ./.env
+    environment:
+      NODE_ENV: production
+      DATABASE_PATH: /app/data/evg.db
+      # Read at request time by /api/health, which is how a deploy proves the
+      # container actually restarted.
+      GIT_COMMIT: ${GIT_COMMIT:-unknown}
+      APP_COLOR: blue
+    volumes:
+      - ./data:/app/data
+    expose:
+      - '3000'
+    restart: unless-stopped
+    healthcheck:
+      test: ['CMD-SHELL', 'curl -fsS http://localhost:3000/api/health || exit 1']
+      interval: 10s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+
+  app-green:
+    <<: *app
+    profiles: ['green']
+    environment:
+      NODE_ENV: production
+      DATABASE_PATH: /app/data/evg.db
+      GIT_COMMIT: ${GIT_COMMIT:-unknown}
+      APP_COLOR: green
+
+  sweeper:
+    image: ${IMAGE_REPOSITORY}:${IMAGE_TAG}
+    env_file: ./.env
+    environment:
+      NODE_ENV: production
+      DATABASE_PATH: /app/data/evg.db
+    volumes:
+      - ./data:/app/data
+    # Expires overdue invitations once a minute (spec 0004, rule 13). A single
+    # instance regardless of colour: two sweepers would race for the SQLite
+    # write lock for no benefit.
+    command: ['sh', '-c', 'while true; do npm run --silent sweep || true; sleep 60; done']
+    restart: unless-stopped
+
+volumes:
+  caddy_data:
+  caddy_config:

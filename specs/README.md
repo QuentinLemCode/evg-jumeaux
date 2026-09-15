@@ -1,0 +1,49 @@
+# Specifications
+
+This directory is the product contract. `src/` is an implementation of it.
+No code change lands without a spec change first — see `AGENTS.md` §6.
+
+## Status board
+
+| Id | Title | Status | Summary |
+|---|---|---|---|
+| `0001` | [Authentication and sessions](0001-authentication-and-sessions.md) | implemented | First name + 6-digit PIN, JWT cookie valid 4 days, escalating lockout (10 s → 30 min) |
+| `0002` | [Users and roles](0002-users-and-roles.md) | implemented | Static seeded roster, `admin` and `user` roles |
+| `0003` | [Games catalog](0003-games-catalog.md) | implemented | Admin-managed games: sides, players per side, points, margin bonus |
+| `0004` | [Match lifecycle](0004-match-lifecycle.md) | implemented | Invite → accept within 5 min → play → report → validate |
+| `0005` | [Scoring and leaderboard](0005-scoring-and-leaderboard.md) | implemented | Append-only point ledger, base points + itemised margin bonus |
+| `0006` | [Notifications](0006-notifications.md) | implemented | Web Push (VAPID) + in-app inbox, opt-in prompt |
+| `0007` | [Profiles and history](0007-profiles-and-history.md) | implemented | Per-player stats, match history, point-by-point breakdown, Parties / Journal switch |
+| `0008` | [Admin console](0008-admin-console.md) | implemented | Game CRUD, dispute resolution, manual adjustments, **public admin log** |
+| `0009` | [PWA and responsive shell](0009-pwa-and-responsive-shell.md) | implemented | Mobile-first shell, installable PWA, desktop layout |
+| `0010` | [Visual design system (« Confetti »)](0010-visual-design-system.md) | implemented | Cream paper, sticker cards, hard shadows, Gabarito, shared screen anatomy — enforced by `lint:design` |
+
+Status values: `draft` → `ready-for-code` → `implemented` → `superseded`.
+
+## Conventions
+
+- One spec per coherent feature, named `NNNN-kebab-case-title.md`.
+- Amend the existing spec and add a Changelog row. Never write
+  `0031-fix-the-thing.md` to patch `0004`.
+- English, present tense, behaviour not implementation.
+- Acceptance criteria are the deliverable: each is a checkbox a reviewer can
+  mark true or false without judgement.
+- Keep a spec under ~250 lines. Past that, it is two specs.
+
+## Glossary
+
+Fixed vocabulary — code, UI and specs use these words and no synonyms.
+
+| Term | Meaning |
+|---|---|
+| **Player** | A seeded user. There is no sign-up. |
+| **Game** | A game *type* ("palet", "rock-paper-scissors"), admin-managed. |
+| **Match** | One instance of a game between two or more sides. |
+| **Side** | A team in a team game, or a single player in a duel. |
+| **Invitation** | A player's pending participation in a match. Expires after 5 min. |
+| **Report** | The declaration of the winning side and the scores. |
+| **Validation** | A losing-side player confirming or disputing a report. |
+| **Point event** | One immutable row in the ledger: base win, margin bonus, or admin adjustment. |
+| **Busy** | A player already committed to a match, who cannot join another. |
+| **Admin log** | The public, chronological record of every admin intervention on points or results. |
+| **Sticker** | The app's card shape: 3px ink border, 20px radius, hard offset shadow. |

@@ -1,0 +1,1 @@
+ALTER TABLE `matches` ADD `resolution_note` text;

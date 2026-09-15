@@ -1,0 +1,19 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "instructions": ["AGENTS.md", "specs/README.md"],
+  "model": "{env:LLM_MODEL}",
+  "agent": {
+    "spec": {
+      "description": "Owns specs/. Turns a human request into a numbered, testable specification. Never writes application code."
+    },
+    "code": {
+      "description": "Owns src/. Implements an existing spec exactly, then runs typecheck + lint:design + tests + build."
+    },
+    "review": {
+      "description": "Read-only reviewer. Checks a diff against its spec and against AGENTS.md conventions."
+    },
+    "diagnose": {
+      "description": "Read-only. Given production logs, says in three lines what broke, the likely cause, and the first thing to check."
+    }
+  }
+}

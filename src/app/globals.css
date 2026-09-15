@@ -1,0 +1,262 @@
+@import 'tailwindcss';
+
+/*
+ * The "Confetti" design system (spec 0010).
+ *
+ * Every colour, radius, shadow and font in the app is defined HERE and nowhere
+ * else. A raw hex value anywhere under src/components or src/app fails
+ * `npm run lint:design` — not to be strict for its own sake, but because a
+ * look only survives if a new screen inherits it by default.
+ *
+ * Supersedes spec 0009 rule 19: the app is warm cream paper, not dark.
+ */
+@theme {
+  /* --- surfaces ---------------------------------------------------------- */
+  --color-bg: #fff8ee;
+  --color-bg-elevated: #fffdf8;
+  --color-surface: #ffffff;
+
+  /* --- ink and text ----------------------------------------------------- */
+  --color-ink: #1d1a17;
+  --color-text: #1d1a17;
+  --color-muted: #6f6357;
+  --color-faint: #a3988a;
+  --color-hairline: #e3d8c8;
+  --color-border: #1d1a17;
+
+  /* --- accents ---------------------------------------------------------- */
+  --color-coral: #ff5d5d;
+  --color-coral-deep: #e13c3c;
+  --color-tangerine: #ff9f1c;
+  --color-tangerine-deep: #a06407;
+  --color-grape: #7b5cff;
+  --color-mint: #17c98f;
+  --color-mint-deep: #0f8c68;
+  --color-sky: #2ea8ff;
+  --color-gold: #ffb703;
+
+  /* --- accent tints, for card backgrounds ------------------------------- */
+  --color-coral-tint: #ffeee6;
+  --color-tangerine-tint: #fff3cf;
+  --color-grape-tint: #f3efff;
+  --color-mint-tint: #eafaf3;
+  --color-sky-tint: #eef4ff;
+
+  /* --- medals ----------------------------------------------------------- */
+  --color-medal-gold: #ffb703;
+  --color-medal-silver: #c9d1dc;
+  --color-medal-bronze: #cd8034;
+
+  /* --- shape ------------------------------------------------------------ */
+  --radius-card: 20px;
+  --radius-button: 18px;
+  --radius-mark: 11px;
+
+  /* --- shadows: hard offsets, never blurred ----------------------------- */
+  --shadow-sticker: 3px 4px 0 var(--color-ink);
+  --shadow-lift: 3px 5px 0 var(--color-ink);
+  --shadow-coral: 3px 4px 0 var(--color-coral);
+  --shadow-tangerine: 3px 4px 0 var(--color-tangerine);
+  --shadow-grape: 3px 4px 0 var(--color-grape);
+  --shadow-mint: 3px 4px 0 var(--color-mint);
+  --shadow-sky: 3px 4px 0 var(--color-sky);
+
+  /* --- type ------------------------------------------------------------- */
+  /* Loaded and self-hosted by next/font in src/app/layout.tsx, so there is no
+     runtime request to a font host and no flash of fallback metrics. */
+  --font-display: var(--font-gabarito), system-ui, sans-serif;
+  --font-sans: var(--font-instrument), system-ui, sans-serif;
+}
+
+@layer base {
+  html {
+    color-scheme: light;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    background-color: var(--color-bg);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    overscroll-behavior-y: none;
+  }
+
+  /* Numbers and headings are always display weight: a score set in body type
+     reads as a form field, not as a result (spec 0010 §3). */
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+    font-weight: 900;
+    letter-spacing: -0.02em;
+    /* Explicit, because a fallback face resolving a taller default silently
+       pushes content out of a fixed-height phone viewport. */
+    line-height: 1.08;
+  }
+
+  /* 16px minimum on inputs, or iOS zooms on focus. */
+  input,
+  select,
+  textarea,
+  button {
+    font-size: max(16px, 1rem);
+    font-family: inherit;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-grape);
+    outline-offset: 2px;
+  }
+
+  /* One reveal per screen, and none at all for anyone who asked for calm. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.001ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * Shape utilities. The hard, unblurred shadow IS the identity — there is
+ * deliberately no blurred-shadow utility in this system.
+ * ------------------------------------------------------------------------- */
+
+@utility sticker {
+  border: 3px solid var(--color-ink);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  box-shadow: 3px 4px 0 var(--color-ink);
+}
+
+/* An accent card takes the accent for its border AND its shadow, never one
+ * without the other (spec 0010 §2). These utilities make the pair atomic. */
+@utility sticker-coral {
+  border-color: var(--color-coral);
+  background: var(--color-coral-tint);
+  box-shadow: 3px 4px 0 var(--color-coral);
+}
+@utility sticker-tangerine {
+  border-color: var(--color-tangerine);
+  background: var(--color-tangerine-tint);
+  box-shadow: 3px 4px 0 var(--color-tangerine);
+}
+@utility sticker-grape {
+  border-color: var(--color-grape);
+  background: var(--color-grape-tint);
+  box-shadow: 3px 4px 0 var(--color-grape);
+}
+@utility sticker-mint {
+  border-color: var(--color-mint);
+  background: var(--color-mint-tint);
+  box-shadow: 3px 4px 0 var(--color-mint);
+}
+@utility sticker-sky {
+  border-color: var(--color-sky);
+  background: var(--color-sky-tint);
+  box-shadow: 3px 4px 0 var(--color-sky);
+}
+
+@utility sticker-quiet {
+  background: var(--color-bg-elevated);
+}
+
+@utility sticker-button {
+  border: 3px solid var(--color-ink);
+  border-radius: var(--radius-button);
+  box-shadow: 3px 5px 0 var(--color-ink);
+  font-family: var(--font-display);
+  font-weight: 900;
+  letter-spacing: 0.01em;
+}
+
+@utility pill {
+  border: 2px solid var(--color-ink);
+  border-radius: 999px;
+}
+
+@utility display {
+  font-family: var(--font-display);
+}
+
+@utility tap-target {
+  /* Spec 0010 §6: nothing tappable is smaller than 44px. Chips included. */
+  min-height: 44px;
+  min-width: 44px;
+}
+
+@utility safe-bottom {
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 0.5rem);
+}
+
+@utility no-scrollbar {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* A row of chips that can overflow scrolls; it is never clipped. */
+@utility chip-row {
+  display: flex;
+  gap: 0.375rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * Motion. ONE orchestrated reveal per screen, staggered, then stillness.
+ * Each utility sets the `animation` shorthand exactly once: two classes both
+ * setting it silently cancel one another (spec 0010 §4).
+ * ------------------------------------------------------------------------- */
+
+@keyframes cf-rise {
+  from {
+    transform: translateY(16px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes cf-pop {
+  from {
+    transform: scale(0.72) translateY(16px);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1) translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes cf-drift {
+  from {
+    transform: translateY(0) rotate(0deg);
+  }
+  to {
+    transform: translateY(14px) rotate(24deg);
+  }
+}
+
+@utility rise {
+  animation: cf-rise 0.42s cubic-bezier(0.22, 0.9, 0.3, 1) both;
+}
+
+@utility pop {
+  animation: cf-pop 0.5s cubic-bezier(0.2, 1.5, 0.4, 1) both;
+}
+
+/* The single permitted ambient loop, and only for the background confetti. */
+@utility drift {
+  animation: cf-drift 9s ease-in-out infinite alternate;
+}

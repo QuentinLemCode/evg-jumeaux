@@ -1,0 +1,104 @@
+name: Deploy infra
+
+# Creates or updates the GCP VM that hosts the app and the agents.
+# The app itself is deployed by scripts/agent/deploy.sh on the VM — this
+# workflow only owns the machine it runs on.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: terraform
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Lowercase the repository path for GHCR
+        run: echo "REPO_LOWER=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_ENV"
+
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.8
+
+      - name: Terraform init
+        run: |
+          terraform init \
+            -backend-config="bucket=${{ secrets.TF_STATE_BUCKET }}" \
+            -backend-config="prefix=evg-jumeaux/infra"
+
+      - name: Terraform validate
+        run: terraform validate
+
+      - name: Terraform apply
+        run: terraform apply -auto-approve -input=false
+        env:
+          TF_VAR_project_id: ${{ secrets.GCP_PROJECT_ID }}
+          TF_VAR_tailscale_authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
+
+          # --- Cloudflare: DNS + ingress -----------------------------------
+          TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          TF_VAR_cloudflare_account_id: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+          TF_VAR_domain: ${{ secrets.DOMAIN }}
+          TF_VAR_site_subdomain: ${{ vars.SITE_SUBDOMAIN }}
+          TF_VAR_ingress_mode: ${{ vars.INGRESS_MODE }}
+
+          # --- Agent Platform key, shared by Hermes and the OpenCode agents -
+          TF_VAR_llm_api_key: ${{ secrets.LLM_API_KEY }}
+          TF_VAR_llm_api_key_env_name: ${{ vars.LLM_API_KEY_ENV_NAME }}
+          TF_VAR_llm_provider: ${{ vars.LLM_PROVIDER }}
+          TF_VAR_llm_base_url: ${{ vars.LLM_BASE_URL }}
+          TF_VAR_llm_model: ${{ vars.LLM_MODEL }}
+
+          # --- messaging and alerts ----------------------------------------
+          TF_VAR_discord_bot_token: ${{ secrets.DISCORD_BOT_TOKEN }}
+          TF_VAR_discord_allowed_users: ${{ vars.DISCORD_ALLOWED_USERS }}
+          TF_VAR_discord_webhook_url: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          TF_VAR_telegram_bot_token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TF_VAR_telegram_allowed_users: ${{ vars.TELEGRAM_ALLOWED_USERS }}
+          TF_VAR_telegram_chat_id: ${{ secrets.TELEGRAM_CHAT_ID }}
+
+          # --- the app -----------------------------------------------------
+          TF_VAR_site_repo_url: ${{ vars.SITE_REPO_URL }}
+          TF_VAR_auth_secret: ${{ secrets.AUTH_SECRET }}
+          TF_VAR_vapid_public_key: ${{ secrets.VAPID_PUBLIC_KEY }}
+          TF_VAR_vapid_private_key: ${{ secrets.VAPID_PRIVATE_KEY }}
+          TF_VAR_vapid_subject: ${{ vars.VAPID_SUBJECT }}
+          # GHCR rejects an uppercase path, and GitHub org names often have one.
+          TF_VAR_image_repository: ghcr.io/${{ env.REPO_LOWER }}
+          TF_VAR_image_tag: ${{ vars.IMAGE_TAG || 'main' }}
+          TF_VAR_ghcr_username: ${{ github.repository_owner }}
+          TF_VAR_ghcr_token: ${{ secrets.GHCR_PULL_TOKEN }}
+
+      - name: Outputs
+        run: terraform output
+
+      - name: What to do next
+        run: |
+          echo "### Infra déployée" >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo ''
+            echo '| | |'
+            echo '|---|---|'
+            echo "| Site | $(terraform output -raw site_url) |"
+            echo "| Ingress | $(terraform output -raw ingress_mode) |"
+            echo "| Santé | $(terraform output -raw health_url) |"
+            echo "| SSH | \`$(terraform output -raw tailscale_ssh_hint)\` |"
+            echo ''
+            echo 'Le DNS Cloudflare est déjà à jour. Le premier déploiement se'
+            echo 'fait tout seul au boot ; les suivants passent par le workflow'
+            echo '*Deploy* sur `main`.'
+          } >> "$GITHUB_STEP_SUMMARY"

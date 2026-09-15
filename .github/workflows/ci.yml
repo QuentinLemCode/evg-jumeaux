@@ -1,0 +1,156 @@
+name: CI
+
+# The gate. `main` deploys automatically, so a red build here is an incident.
+# Callable as a reusable workflow so the deploy pipeline runs EXACTLY these
+# checks rather than a copy of them that drifts.
+
+on:
+  pull_request:
+  workflow_dispatch:
+  workflow_call:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gate:
+    name: Gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      # Never a real secret: the build issues no session and the tests do not
+      # verify one. A literal keeps the gate runnable on a fork.
+      AUTH_SECRET: ci-secret-that-is-at-least-32-characters
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      # Catches what tsc and eslint cannot: a raw hex, a blurred shadow, 10px
+      # text, an emoji standing in for an icon (spec 0010).
+      - name: Design system
+        run: npm run lint:design
+
+      - name: Migrations survive a blue/green deploy
+        run: npm run lint:migrations
+
+      - name: Unit tests
+        run: npm test
+
+      # Runs here and never on a developer's machine: it boots a real SQLite
+      # database and applies the migrations (AGENTS.md §4).
+      - name: Integration tests
+        run: npm run test:integration
+
+      - name: Production build
+        run: npm run build
+
+  migrations:
+    name: Migrations are additive
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # The deploy is blue/green: for a few seconds the OLD code runs against
+      # the NEW schema. A drop or a rename breaks it in production, not here
+      # (AGENTS.md §8).
+      - name: Migrations survive a blue/green deploy
+        run: npm run lint:migrations
+
+      - name: Schema matches the generated migrations
+        run: |
+          before=$(ls -1 src/db/migrations/*.sql 2>/dev/null | wc -l)
+          npx drizzle-kit generate --name ci-drift-check
+          after=$(ls -1 src/db/migrations/*.sql 2>/dev/null | wc -l)
+          if [ "$before" != "$after" ]; then
+            echo "::error::src/db/schema.ts has changes with no generated migration."
+            echo "Run: npm run db:generate"
+            git diff --stat src/db/migrations || true
+            exit 1
+          fi
+          echo "schema and migrations are in sync"
+
+  infra:
+    name: Terraform
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: terraform
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.8
+
+      - name: Format
+        run: terraform fmt -check -recursive
+
+      # Validates without any backend or credentials, so it runs on a PR. This
+      # is where a provider resource renamed between majors surfaces — at
+      # review time instead of at apply time.
+      - name: Validate
+        run: |
+          terraform init -backend=false
+          terraform validate
+
+  spec-hygiene:
+    name: Spec hygiene
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Every spec is listed on the status board
+        run: |
+          missing=0
+          for spec in specs/[0-9][0-9][0-9][0-9]-*.md; do
+            name="$(basename "$spec")"
+            if ! grep -q "$name" specs/README.md; then
+              echo "::error file=specs/README.md::$name is not on the status board"
+              missing=1
+            fi
+          done
+          exit $missing
+
+      - name: Every spec has acceptance criteria
+        run: |
+          missing=0
+          for spec in specs/[0-9][0-9][0-9][0-9]-*.md; do
+            if ! grep -q '^## Acceptance criteria' "$spec"; then
+              echo "::error file=$spec::no '## Acceptance criteria' section"
+              missing=1
+            fi
+          done
+          exit $missing
+
+      - name: Markdown files are in English, not French
+        run: |
+          # A cheap heuristic for the one rule agents break most often
+          # (AGENTS.md §5): French prose creeping into the documentation.
+          if grep -rlniE '\b(nous devons|il faut que|c.est pourquoi|ainsi que)\b' \
+               --include='*.md' specs docs AGENTS.md 2>/dev/null; then
+            echo "::error::markdown must be written in English"
+            exit 1
+          fi

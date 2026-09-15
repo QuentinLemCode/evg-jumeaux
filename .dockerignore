@@ -1,0 +1,14 @@
+node_modules
+.next
+.git
+.agent-logs
+data
+terraform
+specs
+docs
+.claude
+.opencode
+hermes
+*.md
+.env*
+!.env.example

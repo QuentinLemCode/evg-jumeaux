@@ -1,0 +1,37 @@
+# Caddy is the INTERNAL reverse proxy. Behind a Cloudflare tunnel it does no
+# TLS — Cloudflare already terminated it — and exists for one reason: its
+# reload is graceful, which is what lets the blue/green switch happen without
+# dropping a single in-flight request.
+#
+# In public_ip mode CADDY_SITE_ADDRESS is the FQDN instead of ":8080", which
+# switches on automatic HTTPS.
+{
+	admin localhost:2019
+	# Behind the tunnel the client IP arrives in a header; without this, every
+	# request would look like it came from the connector.
+	servers {
+		trusted_proxies static private_ranges
+	}
+}
+
+{$CADDY_SITE_ADDRESS} {
+	encode zstd gzip
+
+	# The active colour. Rewritten by scripts/agent/deploy.sh, then reloaded.
+	import /etc/caddy/upstream.conf
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		X-Frame-Options "DENY"
+		-Server
+	}
+
+	log {
+		output file /data/access.log {
+			roll_size 10MiB
+			roll_keep 3
+		}
+	}
+}

@@ -1,0 +1,18 @@
+# Overlay for ingress_mode = "public_ip" (the fallback, not the default).
+#
+# Applied by setting COMPOSE_FILE=docker-compose.yml:docker-compose.public.yml
+# in .env. It publishes 80/443 so Caddy can answer Cloudflare directly and
+# obtain its own certificate.
+#
+# Note the footgun this file exists to make explicit: published Docker ports
+# bypass ufw entirely (Docker writes its own iptables chain). The real boundary
+# in this mode is the GCP firewall rule, which only admits Cloudflare's IP
+# ranges. In tunnel mode no port is published at all, which is why it is the
+# default.
+
+services:
+  caddy:
+    ports:
+      - '80:80'
+      - '443:443'
+      - '443:443/udp'

@@ -1,0 +1,189 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gabarito:wght@500;700;900&family=Instrument+Sans:wght@400;500;600&display=swap">
+  <style>
+    body { margin: 0; }
+    a { color: #ff5d5d; text-decoration: none; }
+    a:hover { color: #e13c3c; }
+
+    .cf-root {
+      width: 390px; height: 844px; overflow: hidden; position: relative;
+      font-family: 'Instrument Sans', system-ui, sans-serif;
+      display: flex; flex-direction: column;
+    }
+    .cf-display { font-family: 'Gabarito', system-ui, sans-serif; }
+
+    /* Confetti: one slow ambient drift, deliberately faint so the ranking
+       stays the loudest thing on the screen. */
+    .cf-bit { position: absolute; border-radius: 2px; opacity: .55;
+      animation: cf-drift 9s ease-in-out infinite alternate; }
+    @keyframes cf-drift {
+      from { transform: translateY(0) rotate(0deg); }
+      to   { transform: translateY(14px) rotate(24deg); }
+    }
+
+    /* The reveal: podium stickers pop, then the rows rise in sequence. */
+    .cf-pop { animation: cf-pop .52s cubic-bezier(.2,1.5,.4,1) both; }
+    @keyframes cf-pop {
+      from { transform: scale(.7) translateY(18px); opacity: 0; }
+      to   { transform: scale(1) translateY(0); opacity: 1; }
+    }
+    .cf-rise { animation: cf-rise .42s cubic-bezier(.22,.9,.3,1) both; }
+    @keyframes cf-rise {
+      from { transform: translateY(16px); opacity: 0; }
+      to   { transform: translateY(0); opacity: 1; }
+    }
+
+    .cf-sticker { border: 3px solid #1d1a17; border-radius: 22px; background: #fff;
+      box-shadow: 3px 4px 0 #1d1a17; }
+    .cf-row { display: flex; align-items: center; gap: 12px; padding: 10px 12px; }
+    .cf-avatar { display: flex; align-items: center; justify-content: center;
+      border-radius: 999px; border: 3px solid #1d1a17; background: #fff8ee; }
+    .cf-nav-item { display: flex; flex-direction: column; align-items: center; gap: 3px;
+      flex: 1; min-height: 56px; justify-content: center;
+      font-size: 10px; font-weight: 600; letter-spacing: .02em; }
+    .cf-nav-item svg { width: 22px; height: 22px; }
+  </style>
+</helmet>
+
+<div class="cf-root" style="background: #fff8ee; color: #1d1a17">
+
+  <!-- ambient confetti -->
+  <span class="cf-bit" style="left: 22px;  top: 96px;  width: 10px; height: 10px; background: #ff9f1c; animation-delay: .1s"></span>
+  <span class="cf-bit" style="left: 342px; top: 132px; width: 8px;  height: 14px; background: #7b5cff; animation-delay: .9s"></span>
+  <span class="cf-bit" style="left: 300px; top: 78px;  width: 12px; height: 6px;  background: #17c98f; animation-delay: 1.6s"></span>
+  <span class="cf-bit" style="left: 58px;  top: 56px;  width: 7px;  height: 12px; background: #2ea8ff; animation-delay: 2.3s"></span>
+  <span class="cf-bit" style="left: 190px; top: 62px;  width: 9px;  height: 9px;  background: #ff5d5d; animation-delay: 3.1s"></span>
+
+  <!-- header -->
+  <header style="display: flex; align-items: center; gap: 10px; padding: 20px 18px 6px">
+    <div style="flex: 1">
+      <p class="cf-display" style="margin: 0; font-size: 31px; line-height: 1.06; font-weight: 900; letter-spacing: -.02em; text-wrap: pretty">Classement</p>
+      <p style="margin: 2px 0 0; font-size: 12px; line-height: 1.3; font-weight: 500; color: #6f6357">Samedi · 14 parties jouées</p>
+    </div>
+    <div class="cf-sticker" style="display: flex; align-items: center; gap: 6px; padding: 5px 10px 5px 6px; border-radius: 999px; box-shadow: 2px 3px 0 #1d1a17">
+      <span class="cf-avatar" style="width: 26px; height: 26px; border-width: 2px; font-size: 14px">🧠</span>
+      <span style="font-size: 13px; font-weight: 600">Quentin</span>
+    </div>
+  </header>
+
+  <!-- podium -->
+  <section style="display: flex; align-items: flex-end; gap: 9px; padding: 14px 18px 0">
+    <div class="cf-sticker cf-pop" style="flex: 1; padding: 12px 8px 10px; text-align: center; background: #eef4ff; animation-delay: .12s">
+      <span class="cf-avatar" style="width: 46px; height: 46px; margin: 0 auto; font-size: 24px">🦉</span>
+      <p style="margin: 7px 0 0; font-size: 13px; font-weight: 600">Clément</p>
+      <p class="cf-display" style="margin: 1px 0 0; font-size: 22px; font-weight: 900; color: #2ea8ff">84</p>
+      <p style="margin: -2px 0 0; font-size: 10px; font-weight: 600; color: #6f6357">2ᵉ · 6 V · 3 D</p>
+    </div>
+
+    <div class="cf-sticker cf-pop" style="flex: 1.22; padding: 14px 8px 12px; text-align: center; background: #fff3cf; margin-bottom: 18px; animation-delay: 0s">
+      <p style="margin: 0 0 4px; font-size: 18px">👑</p>
+      <span class="cf-avatar" style="width: 58px; height: 58px; margin: 0 auto; font-size: 30px; background: #fff">🐺</span>
+      <p style="margin: 8px 0 0; font-size: 15px; font-weight: 700">Hugo</p>
+      <p class="cf-display" style="margin: 1px 0 0; font-size: 30px; font-weight: 900; color: #ff9f1c">96</p>
+      <p style="margin: -3px 0 0; font-size: 10px; font-weight: 700; color: #6f6357">1ᵉʳ · 7 V · 2 D</p>
+    </div>
+
+    <div class="cf-sticker cf-pop" style="flex: 1; padding: 12px 8px 10px; text-align: center; background: #ffeee6; animation-delay: .24s">
+      <span class="cf-avatar" style="width: 46px; height: 46px; margin: 0 auto; font-size: 24px">🐻</span>
+      <p style="margin: 7px 0 0; font-size: 13px; font-weight: 600">Antoine</p>
+      <p class="cf-display" style="margin: 1px 0 0; font-size: 22px; font-weight: 900; color: #ff5d5d">71</p>
+      <p style="margin: -2px 0 0; font-size: 10px; font-weight: 600; color: #6f6357">3ᵉ · 5 V · 4 D</p>
+    </div>
+  </section>
+
+  <!-- ranking list -->
+  <section style="display: flex; flex-direction: column; gap: 8px; padding: 16px 18px 0">
+    <div class="cf-sticker cf-row cf-rise" style="animation-delay: .34s">
+      <span class="cf-display" style="width: 24px; text-align: center; font-size: 17px; font-weight: 900; color: #6f6357">4</span>
+      <span class="cf-avatar" style="width: 36px; height: 36px; font-size: 19px">🦊</span>
+      <span style="flex: 1; min-width: 0">
+        <span style="display: block; font-size: 14px; font-weight: 600">Baptiste</span>
+        <span style="display: block; font-size: 11px; color: #6f6357">4 V · 3 D</span>
+      </span>
+      <span class="cf-display" style="font-size: 20px; font-weight: 900; color: #7b5cff">63</span>
+    </div>
+
+    <div class="cf-sticker cf-row cf-rise" style="animation-delay: .42s; background: #f3efff; border-color: #7b5cff; box-shadow: 3px 4px 0 #7b5cff">
+      <span class="cf-display" style="width: 24px; text-align: center; font-size: 17px; font-weight: 900; color: #7b5cff">5</span>
+      <span class="cf-avatar" style="width: 36px; height: 36px; font-size: 19px; border-color: #7b5cff">🧠</span>
+      <span style="flex: 1; min-width: 0">
+        <span style="display: block; font-size: 14px; font-weight: 700">Quentin <span style="font-weight: 500; color: #7b5cff">· toi</span></span>
+        <span style="display: block; font-size: 11px; color: #6f6357">4 V · 5 D</span>
+      </span>
+      <span class="cf-display" style="font-size: 20px; font-weight: 900; color: #7b5cff">58</span>
+    </div>
+
+    <div class="cf-sticker cf-row cf-rise" style="animation-delay: .5s">
+      <span class="cf-display" style="width: 24px; text-align: center; font-size: 17px; font-weight: 900; color: #6f6357">6</span>
+      <span class="cf-avatar" style="width: 36px; height: 36px; font-size: 19px">🐯</span>
+      <span style="flex: 1; min-width: 0">
+        <span style="display: block; font-size: 14px; font-weight: 600">Lucas</span>
+        <span style="display: block; font-size: 11px; color: #6f6357">3 V · 5 D</span>
+      </span>
+      <span class="cf-display" style="font-size: 20px; font-weight: 900; color: #17c98f">41</span>
+    </div>
+
+    <div class="cf-sticker cf-row cf-rise" style="animation-delay: .58s">
+      <span class="cf-display" style="width: 24px; text-align: center; font-size: 17px; font-weight: 900; color: #6f6357">7</span>
+      <span class="cf-avatar" style="width: 36px; height: 36px; font-size: 19px">🐸</span>
+      <span style="flex: 1; min-width: 0">
+        <span style="display: block; font-size: 14px; font-weight: 600">Romain</span>
+        <span style="display: block; font-size: 11px; color: #6f6357">2 V · 6 D</span>
+      </span>
+      <span class="cf-display" style="font-size: 20px; font-weight: 900; color: #2ea8ff">33</span>
+    </div>
+
+    <div class="cf-sticker cf-row cf-rise" style="animation-delay: .66s; background: #fffdf8">
+      <span class="cf-display" style="width: 24px; text-align: center; font-size: 17px; font-weight: 900; color: #6f6357">8</span>
+      <span class="cf-avatar" style="width: 36px; height: 36px; font-size: 19px">🦈</span>
+      <span style="flex: 1; min-width: 0">
+        <span style="display: block; font-size: 14px; font-weight: 600; color: #6f6357">Thomas</span>
+        <span style="display: block; font-size: 11px; color: #6f6357">Pas encore joué</span>
+      </span>
+      <span class="cf-display" style="font-size: 20px; font-weight: 900; color: #6f6357">0</span>
+    </div>
+  </section>
+
+  <!-- primary action, in thumb reach -->
+  <div style="margin-top: auto; padding: 0 18px 10px">
+    <button class="cf-display cf-rise" style="width: 100%; min-height: 52px; border: 3px solid #1d1a17; border-radius: 18px; background: #ff5d5d; color: #fff8ee; font-size: 17px; font-weight: 900; letter-spacing: .01em; box-shadow: 3px 5px 0 #1d1a17; animation-delay: .74s">
+      Lancer une partie
+    </button>
+  </div>
+
+  <!-- bottom nav -->
+  <nav style="display: flex; border-top: 3px solid #1d1a17; background: #fff">
+    <span class="cf-nav-item" style="color: #ff5d5d">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4h10v4a5 5 0 0 1-10 0V4Z"/><path d="M7 6H4.5A2.5 2.5 0 0 0 7 8.5"/><path d="M17 6h2.5A2.5 2.5 0 0 1 17 8.5"/><path d="M12 13v4"/><path d="M8.5 20h7l-.8-3H9.3l-.8 3Z"/></svg>
+      Classement
+    </span>
+    <span class="cf-nav-item" style="color: #6f6357">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="4.5"/><circle cx="9" cy="9" r="1.3" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.3" fill="currentColor" stroke="none"/><circle cx="15" cy="15" r="1.3" fill="currentColor" stroke="none"/></svg>
+      Jeux
+    </span>
+    <span class="cf-nav-item" style="color: #6f6357">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 12a8.5 8.5 0 1 0 2.7-6.2"/><path d="M3 4v4.2h4.2"/><path d="M12 8.2V12l2.8 1.8"/></svg>
+      Historique
+    </span>
+    <span class="cf-nav-item" style="color: #6f6357; position: relative">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 9.2a6 6 0 1 0-12 0c0 4.8-2 5.8-2 5.8h16s-2-1-2-5.8Z"/><path d="M10.4 18.6a2.1 2.1 0 0 0 3.2 0"/></svg>
+      Alertes
+      <span style="position: absolute; top: 9px; right: 17px; min-width: 16px; height: 16px; border: 2px solid #fff; border-radius: 999px; background: #ff5d5d; color: #fff; font-size: 9px; font-weight: 700; line-height: 16px; text-align: center">2</span>
+    </span>
+    <span class="cf-nav-item" style="color: #6f6357">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.2 5 6.2v5c0 4.5 3 8 7 9.1 4-1.1 7-4.6 7-9.1v-5l-7-3Z"/><path d="M9.4 12.2 11 13.8l3.6-3.6"/></svg>
+      Admin
+    </span>
+  </nav>
+</div>
+</x-dc>
+</body>
+</html>

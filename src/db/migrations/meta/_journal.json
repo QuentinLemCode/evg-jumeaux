@@ -1,0 +1,27 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1789400836086,
+      "tag": "0000_cynical_arclight",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1789412825064,
+      "tag": "0001_yielding_sebastian_shaw",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1789412884403,
+      "tag": "0002_tough_namor",
+      "breakpoints": true
+    }
+  ]
+}

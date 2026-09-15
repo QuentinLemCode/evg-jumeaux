@@ -1,0 +1,160 @@
+{
+  "_comment": [
+    "Tool registry for the Hermes gateway. The stable contract is the shell",
+    "commands, not this file's schema: if your Hermes build expects a",
+    "different manifest shape, keep the commands and re-shape the wrapper.",
+    "Every command is safe to run from the repo root on the VM, as the",
+    "'hermes' user, and prints a machine-readable report block at the end.",
+    "NOTE: ordinary deploys come from GitHub Actions on main. The deploy tools",
+    "here are for the two cases CI cannot handle: rolling back, and redeploying",
+    "an image that is already built."
+  ],
+  "cwd": "/home/hermes/site",
+  "tools": [
+    {
+      "name": "project_status",
+      "description": "Read-only snapshot: current commit, dirty files, spec status board, production health, running containers, recent agent runs. Use for any question about the state of the project or of production.",
+      "command": "scripts/agent/status.sh",
+      "args": [],
+      "timeout_seconds": 60,
+      "mutates": false
+    },
+    {
+      "name": "run_pipeline",
+      "description": "The full spec-driven loop for a change request: write or amend the spec, implement it, review it, then deploy to production. Stops by itself if the spec has open questions a human must answer. This is the default tool for 'change the app so that ...'.",
+      "command": "scripts/agent/pipeline.sh",
+      "args": [
+        {
+          "name": "request",
+          "type": "string",
+          "required": true,
+          "description": "The human's request, verbatim, in the language they used."
+        }
+      ],
+      "timeout_seconds": 3600,
+      "mutates": true
+    },
+    {
+      "name": "write_spec",
+      "description": "Write or amend a specification only, without implementing it. Use when the human wants to agree on the behaviour before any code is written.",
+      "command": "scripts/agent/spec.sh",
+      "args": [
+        {
+          "name": "request",
+          "type": "string",
+          "required": true,
+          "description": "The human's request, verbatim."
+        }
+      ],
+      "timeout_seconds": 1200,
+      "mutates": true
+    },
+    {
+      "name": "implement_spec",
+      "description": "Implement a specification that already exists and is ready for code. Takes a spec id such as 0004, or a path such as specs/0004-match-lifecycle.md.",
+      "command": "scripts/agent/code.sh",
+      "args": [
+        {
+          "name": "spec",
+          "type": "string",
+          "required": true,
+          "description": "Spec id (0004) or path (specs/0004-match-lifecycle.md)."
+        }
+      ],
+      "timeout_seconds": 3600,
+      "mutates": true
+    },
+    {
+      "name": "review_changes",
+      "description": "Read-only review of the most recent commit against its specification and the project conventions. Returns findings; changes nothing.",
+      "command": "scripts/agent/review.sh",
+      "args": [
+        {
+          "name": "spec",
+          "type": "string",
+          "required": false,
+          "description": "Optional spec id or path; inferred from the commit trailer if omitted."
+        }
+      ],
+      "timeout_seconds": 900,
+      "mutates": false
+    },
+    {
+      "name": "deploy",
+      "description": "Redeploy an image that already exists in GHCR, with no downtime (blue/green behind a graceful Caddy reload). Ordinary releases come from GitHub Actions on main — use this only to redeploy a known tag.",
+      "command": "scripts/agent/deploy.sh",
+      "args": [
+        {
+          "name": "tag",
+          "type": "string",
+          "required": true,
+          "description": "Image tag, e.g. sha-a1b2c3d. Get it from deploy_status or from the Actions run."
+        }
+      ],
+      "timeout_seconds": 900,
+      "mutates": true
+    },
+    {
+      "name": "deploy_status",
+      "description": "Which colour is live, which image and commit it runs, the previous deploy, and the current health response. Read-only.",
+      "command": "scripts/agent/deploy.sh",
+      "args": [
+        {
+          "name": "flag",
+          "type": "string",
+          "required": true,
+          "enum": [
+            "--status"
+          ],
+          "description": "Always --status."
+        }
+      ],
+      "timeout_seconds": 60,
+      "mutates": false
+    },
+    {
+      "name": "rollback",
+      "description": "Return production to the previous image, with no downtime. CODE ONLY: the database is never rolled back, because reverting it would destroy results players entered since the deploy. Use when the site is broken and the cause is the last release.",
+      "command": "scripts/agent/deploy.sh",
+      "args": [
+        {
+          "name": "flag",
+          "type": "string",
+          "required": true,
+          "enum": [
+            "--rollback"
+          ],
+          "description": "Always --rollback."
+        }
+      ],
+      "timeout_seconds": 900,
+      "mutates": true
+    },
+    {
+      "name": "check_errors",
+      "description": "Run the error watcher once, now: health, recent log errors, disk. Sends an alert if it finds something new. Use when somebody says the site is misbehaving.",
+      "command": "scripts/agent/watch-errors.sh",
+      "args": [],
+      "timeout_seconds": 180,
+      "mutates": false
+    },
+    {
+      "name": "test_alerts",
+      "description": "Send a test message to the alert channels, to prove they work before the party rather than during it.",
+      "command": "scripts/agent/watch-errors.sh",
+      "args": [
+        {
+          "name": "flag",
+          "type": "string",
+          "required": true,
+          "enum": [
+            "--test"
+          ],
+          "description": "Always --test."
+        }
+      ],
+      "timeout_seconds": 60,
+      "mutates": false
+    }
+  ]
+}

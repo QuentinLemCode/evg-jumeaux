@@ -1,0 +1,76 @@
+{
+  "pages": [
+    { "id": "page-1", "name": "Confetti — direction retenue" },
+    { "id": "page-2", "name": "Directions écartées" }
+  ],
+  "artboards": [
+    { "file": "Login.dc.html", "x": 0, "y": 0, "w": 390, "h": 844, "page": "page-1", "title": "1 · Connexion" },
+    { "file": "LoginPin.dc.html", "x": 510, "y": 0, "w": 390, "h": 844, "page": "page-1", "title": "2 · Code à 6 chiffres" },
+    { "file": "Main.dc.html", "x": 1020, "y": 0, "w": 390, "h": 844, "page": "page-1", "title": "3 · Classement" },
+    { "file": "MatchDetail.dc.html", "x": 0, "y": 1030, "w": 390, "h": 844, "page": "page-1", "title": "4 · Détail d'une partie" },
+    { "file": "Install.dc.html", "x": 510, "y": 1030, "w": 390, "h": 844, "page": "page-1", "title": "5 · Alertes & iPhone" },
+    { "file": "AdminHistory.dc.html", "x": 1020, "y": 1030, "w": 390, "h": 844, "page": "page-1", "title": "6 · Journal des admins" },
+
+    { "file": "Editorial.dc.html", "x": 0, "y": 0, "w": 390, "h": 844, "page": "page-2", "title": "Éditorial (écartée)" },
+    { "file": "Neon.dc.html", "x": 510, "y": 0, "w": 390, "h": 844, "page": "page-2", "title": "Néon (écartée)" }
+  ],
+  "annotations": [
+    {
+      "id": "note-confetti-system",
+      "page": "page-1",
+      "x": 1540,
+      "y": 0,
+      "w": 450,
+      "text": "CONFETTI — le système\n\nCouleurs : crème #fff8ee, encre #1d1a17, texte secondaire #6f6357. Accents corail #ff5d5d, mandarine #ff9f1c, raisin #7b5cff, menthe #17c98f, ciel #2ea8ff, or #ffb703.\n\nFormes : bordure encre 3px, rayon 20px, ombre dure 3px 4px 0 (jamais de flou). Une carte accentuée prend la couleur de l'accent pour sa bordure ET son ombre.\n\nTypo : Gabarito 900 pour les titres et tous les chiffres, Instrument Sans 400/600 pour le texte. Plancher à 11px, 44px de hauteur minimum sur tout ce qui se touche.\n\nMouvement : une seule cascade à l'ouverture (cf-rise / cf-pop décalés de 6 à 8 centièmes), puis plus rien. Le confetti de fond dérive lentement, c'est la seule boucle.\n\nIcônes : SVG dessiné, jamais d'emoji. Les avatars restent des emoji — c'est déjà le vocabulaire de l'app."
+    },
+    {
+      "id": "note-ios",
+      "page": "page-1",
+      "x": 1540,
+      "y": 560,
+      "w": 450,
+      "text": "iOS — pas d'appli native nécessaire\n\nLes notifications web marchent sur iPhone depuis iOS 16.4, mais UNIQUEMENT depuis l'app ajoutée à l'écran d'accueil. Avec ton domaine en HTTPS, le manifeste et le service worker déjà en place, il n'y a rien d'autre à construire.\n\nLes trois pièges, tous traités dans les maquettes 1 et 5 :\n\n• L'installation doit se faire depuis Safari — Chrome sur iPhone ne crée pas de vraie app.\n\n• L'app installée a sa propre session : si on se connecte dans Safari puis qu'on installe, il faut ressaisir son code. D'où la bannière AVANT la connexion sur l'écran 1, et pas seulement après.\n\n• Supprimer l'icône de l'écran d'accueil détruit l'abonnement aux notifications."
+    },
+    {
+      "id": "note-admin-history",
+      "page": "page-1",
+      "x": 1540,
+      "y": 1030,
+      "w": 450,
+      "text": "JOURNAL DES ADMINS — ta demande\n\nQui, quand, quoi, pourquoi, et le delta de points en gros à droite. Le motif est toujours affiché, jamais replié derrière un « voir plus ».\n\nCe qui existait déjà : chaque intervention admin est bien dans le registre de points, mais éparpillée sur les profils individuels. Cet écran les rassemble dans l'ordre chronologique.\n\nÀ DÉCIDER : visible par tous, comme sur la maquette ? Ou réservé aux admins ? La maquette assume « par tous » — c'est ce qui rend la transparence réelle, mais ça expose aussi les erreurs de saisie des admins à tout le groupe."
+    },
+    {
+      "id": "note-login-flow",
+      "page": "page-1",
+      "x": 0,
+      "y": -300,
+      "w": 900,
+      "text": "LE PARCOURS D'ENTRÉE\n\nÉcran 1 : la liste des prénoms, et la bannière iPhone placée AVANT la connexion — pas après. C'est le seul endroit où elle évite de saisir son code deux fois.\n\nÉcran 2 : le pavé numérique. Ça part tout seul au sixième chiffre, donc les six points sont le seul indicateur d'avancement nécessaire."
+    },
+    {
+      "id": "note-transparency",
+      "page": "page-1",
+      "x": 0,
+      "y": 1930,
+      "w": 900,
+      "text": "LA TRANSPARENCE DES POINTS\n\nÉcran 4 : chaque point est une ligne avec son arithmétique — 10 pts (victoire) + 11 pts (écart 13–2 × 1 pt) = 21. Jamais un total opaque.\n\nEn dessous, les règles FIGÉES à la création de la partie : c'est ce qui explique que deux parties de Palet puissent rapporter des totaux différents, et ça coupe court à la question « pourquoi j'ai 21 et pas 10 ? »."
+    },
+    {
+      "id": "note-editorial-out",
+      "page": "page-2",
+      "x": 0,
+      "y": -280,
+      "w": 390,
+      "text": "ÉDITORIAL — écartée\n\nArchivo Black, blocs plats, chiffres géants. Se lisait à un mètre, très photogénique.\n\nÉcartée : plus chic que joyeux, et les écrans denses souffraient de l'absence de cartes.\n\nGardée ici au cas où tu veuilles récupérer les chiffres géants dans Confetti."
+    },
+    {
+      "id": "note-neon-out",
+      "page": "page-2",
+      "x": 510,
+      "y": -280,
+      "w": 390,
+      "text": "NÉON — écartée\n\nEncre indigo, aurore animée, verre dépoli. C'était la migration la moins chère depuis le thème sombre actuel.\n\nÉcartée au profit de Confetti : plus joyeux, et lisible dehors en plein jour.\n\nLe bug de superposition d'animations qui l'empêchait de s'animer est corrigé — elle s'ouvre correctement maintenant."
+    }
+  ],
+  "launch": { "view": "canvas", "page": "page-1" }
+}

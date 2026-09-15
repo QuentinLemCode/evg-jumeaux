@@ -1,0 +1,206 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap">
+  <style>
+    body { margin: 0; }
+    a { color: #4de8ff; text-decoration: none; }
+    a:hover { color: #b8ff4d; }
+
+    .nn-root {
+      width: 390px; height: 844px; overflow: hidden; position: relative;
+      font-family: 'Space Grotesk', system-ui, sans-serif;
+      display: flex; flex-direction: column;
+    }
+
+    /* Ambient aurora: slow, low-contrast, behind everything. It gives the
+       screen depth without competing with the ranking for attention. */
+    .nn-aurora { position: absolute; inset: -20%; pointer-events: none;
+      background:
+        radial-gradient(38% 28% at 18% 12%, rgba(77,232,255,.30), transparent 70%),
+        radial-gradient(42% 30% at 88% 26%, rgba(255,77,210,.26), transparent 72%),
+        radial-gradient(46% 32% at 50% 96%, rgba(184,255,77,.14), transparent 70%);
+      filter: blur(28px);
+      animation: nn-drift 18s ease-in-out infinite alternate; }
+    @keyframes nn-drift {
+      from { transform: translate3d(-3%, -2%, 0) scale(1); }
+      to   { transform: translate3d(3%, 3%, 0) scale(1.08); }
+    }
+
+    /* The reveal: each card resolves out of a blur as it rises. */
+    .nn-in { animation: nn-in .56s cubic-bezier(.16,1,.3,1) both; }
+    @keyframes nn-in {
+      from { transform: translateY(20px); opacity: 0; filter: blur(8px); }
+      to   { transform: translateY(0); opacity: 1; filter: blur(0); }
+    }
+    /* One declaration, two animations: separate `.nn-in` and `.nn-glow`
+       classes both set the `animation` SHORTHAND, so the later one silently
+       replaced the entrance. The glow waits out the entrance, then breathes. */
+    .nn-in-glow {
+      animation: nn-in .56s cubic-bezier(.16,1,.3,1) both,
+                 nn-glow 3.4s ease-in-out .56s infinite;
+    }
+    @keyframes nn-glow {
+      0%, 100% { box-shadow: 0 0 0 1px rgba(77,232,255,.34), 0 0 24px -6px rgba(77,232,255,.42); }
+      50%      { box-shadow: 0 0 0 1px rgba(77,232,255,.60), 0 0 42px -4px rgba(77,232,255,.72); }
+    }
+
+    .nn-glass { border: 1px solid rgba(255,255,255,.12); border-radius: 18px;
+      background: rgba(255,255,255,.055); backdrop-filter: blur(14px); }
+    .nn-row { display: flex; align-items: center; gap: 12px; padding: 11px 13px; }
+    .nn-avatar { display: flex; align-items: center; justify-content: center;
+      border-radius: 999px; background: rgba(255,255,255,.07);
+      border: 1px solid rgba(255,255,255,.16); }
+    .nn-nav-item { display: flex; flex-direction: column; align-items: center; gap: 4px;
+      flex: 1; min-height: 56px; justify-content: center;
+      font-size: 10px; font-weight: 500; letter-spacing: .02em; }
+    .nn-nav-item svg { width: 22px; height: 22px; }
+  </style>
+</helmet>
+
+<div class="nn-root" style="background: #07071a; color: #eef0ff">
+  <div class="nn-aurora"></div>
+
+  <!-- header -->
+  <header style="position: relative; display: flex; align-items: center; gap: 10px; padding: 22px 18px 4px">
+    <div style="flex: 1">
+      <p style="margin: 0; font-size: 27px; font-weight: 700; letter-spacing: -.02em; text-wrap: pretty">Classement</p>
+      <p style="margin: 3px 0 0; font-size: 12px; color: #8b91c4">Samedi · 14 parties jouées</p>
+    </div>
+    <div class="nn-glass" style="display: flex; align-items: center; gap: 7px; padding: 5px 11px 5px 6px; border-radius: 999px">
+      <span class="nn-avatar" style="width: 26px; height: 26px; font-size: 14px">🧠</span>
+      <span style="font-size: 13px; font-weight: 500">Quentin</span>
+    </div>
+  </header>
+
+  <!-- the leader -->
+  <section class="nn-glass nn-in-glow" style="position: relative; margin: 16px 18px 0; padding: 16px 16px 14px; border-radius: 22px">
+    <div style="display: flex; align-items: center; gap: 14px">
+      <span class="nn-avatar" style="width: 60px; height: 60px; font-size: 31px; border-color: rgba(77,232,255,.55); box-shadow: 0 0 20px -6px rgba(77,232,255,.7)">🐺</span>
+      <div style="flex: 1; min-width: 0">
+        <span style="display: inline-block; padding: 2px 8px; border-radius: 999px; background: rgba(77,232,255,.14); color: #4de8ff; font-size: 9px; font-weight: 700; letter-spacing: .12em">EN TÊTE</span>
+        <p style="margin: 6px 0 0; font-size: 21px; font-weight: 700; letter-spacing: -.01em">Hugo</p>
+        <p style="margin: 2px 0 0; font-size: 11px; color: #8b91c4">7 victoires · 2 défaites</p>
+      </div>
+      <div style="text-align: right">
+        <p style="margin: 0; font-size: 40px; font-weight: 700; line-height: .9; letter-spacing: -.04em; color: #4de8ff; text-shadow: 0 0 22px rgba(77,232,255,.55)">96</p>
+        <p style="margin: 2px 0 0; font-size: 10px; letter-spacing: .12em; color: #8b91c4">PTS</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ranking -->
+  <section style="position: relative; display: flex; flex-direction: column; gap: 8px; padding: 12px 18px 0">
+    <div class="nn-glass nn-row nn-in" style="animation-delay: .08s">
+      <span style="width: 22px; text-align: center; font-size: 15px; font-weight: 700; color: #8b91c4">2</span>
+      <span class="nn-avatar" style="width: 36px; height: 36px; font-size: 19px">🦉</span>
+      <span style="flex: 1; min-width: 0">
+        <span style="display: block; font-size: 14px; font-weight: 500">Clément</span>
+        <span style="display: block; font-size: 11px; color: #8b91c4">6 V · 3 D</span>
+      </span>
+      <span style="font-size: 20px; font-weight: 700; letter-spacing: -.02em; color: #b8ff4d">84</span>
+    </div>
+
+    <div class="nn-glass nn-row nn-in" style="animation-delay: .16s">
+      <span style="width: 22px; text-align: center; font-size: 15px; font-weight: 700; color: #8b91c4">3</span>
+      <span class="nn-avatar" style="width: 36px; height: 36px; font-size: 19px">🐻</span>
+      <span style="flex: 1; min-width: 0">
+        <span style="display: block; font-size: 14px; font-weight: 500">Antoine</span>
+        <span style="display: block; font-size: 11px; color: #8b91c4">5 V · 4 D</span>
+      </span>
+      <span style="font-size: 20px; font-weight: 700; letter-spacing: -.02em; color: #b8ff4d">71</span>
+    </div>
+
+    <div class="nn-glass nn-row nn-in" style="animation-delay: .24s">
+      <span style="width: 22px; text-align: center; font-size: 15px; font-weight: 700; color: #8b91c4">4</span>
+      <span class="nn-avatar" style="width: 36px; height: 36px; font-size: 19px">🦊</span>
+      <span style="flex: 1; min-width: 0">
+        <span style="display: block; font-size: 14px; font-weight: 500">Baptiste</span>
+        <span style="display: block; font-size: 11px; color: #8b91c4">4 V · 3 D</span>
+      </span>
+      <span style="font-size: 20px; font-weight: 700; letter-spacing: -.02em; color: #eef0ff">63</span>
+    </div>
+
+    <div class="nn-row nn-in" style="border: 1px solid rgba(255,77,210,.45); border-radius: 18px; background: rgba(255,77,210,.10); backdrop-filter: blur(14px); box-shadow: 0 0 26px -10px rgba(255,77,210,.6); animation-delay: .32s">
+      <span style="width: 22px; text-align: center; font-size: 15px; font-weight: 700; color: #ff4dd2">5</span>
+      <span class="nn-avatar" style="width: 36px; height: 36px; font-size: 19px; border-color: rgba(255,77,210,.5)">🧠</span>
+      <span style="flex: 1; min-width: 0">
+        <span style="display: block; font-size: 14px; font-weight: 700">Quentin <span style="font-weight: 400; color: #ff4dd2">· toi</span></span>
+        <span style="display: block; font-size: 11px; color: #c69ad4">4 V · 5 D</span>
+      </span>
+      <span style="font-size: 20px; font-weight: 700; letter-spacing: -.02em; color: #ff4dd2">58</span>
+    </div>
+
+    <div class="nn-glass nn-row nn-in" style="animation-delay: .4s">
+      <span style="width: 22px; text-align: center; font-size: 15px; font-weight: 700; color: #8b91c4">6</span>
+      <span class="nn-avatar" style="width: 36px; height: 36px; font-size: 19px">🐯</span>
+      <span style="flex: 1; min-width: 0">
+        <span style="display: block; font-size: 14px; font-weight: 500">Lucas</span>
+        <span style="display: block; font-size: 11px; color: #8b91c4">3 V · 5 D</span>
+      </span>
+      <span style="font-size: 20px; font-weight: 700; letter-spacing: -.02em; color: #eef0ff">41</span>
+    </div>
+
+    <div class="nn-glass nn-row nn-in" style="animation-delay: .48s">
+      <span style="width: 22px; text-align: center; font-size: 15px; font-weight: 700; color: #8b91c4">7</span>
+      <span class="nn-avatar" style="width: 36px; height: 36px; font-size: 19px">🐸</span>
+      <span style="flex: 1; min-width: 0">
+        <span style="display: block; font-size: 14px; font-weight: 500">Romain</span>
+        <span style="display: block; font-size: 11px; color: #8b91c4">2 V · 6 D</span>
+      </span>
+      <span style="font-size: 20px; font-weight: 700; letter-spacing: -.02em; color: #eef0ff">33</span>
+    </div>
+
+    <div class="nn-glass nn-row nn-in" style="animation-delay: .56s">
+      <span style="width: 22px; text-align: center; font-size: 15px; font-weight: 700; color: #8b91c4">8</span>
+      <span class="nn-avatar" style="width: 36px; height: 36px; font-size: 19px">🦈</span>
+      <span style="flex: 1; min-width: 0">
+        <span style="display: block; font-size: 14px; font-weight: 500">Thomas</span>
+        <span style="display: block; font-size: 11px; color: #8b91c4">Pas encore joué</span>
+      </span>
+      <span style="font-size: 20px; font-weight: 700; letter-spacing: -.02em; color: #8b91c4">0</span>
+    </div>
+  </section>
+
+  <div style="position: relative; margin-top: auto; padding: 0 18px 12px">
+    <button class="nn-in" style="width: 100%; min-height: 52px; border: 0; border-radius: 16px;
+      background: linear-gradient(100deg, #4de8ff, #7c5cff 58%, #ff4dd2);
+      color: #07071a; font-family: inherit; font-size: 16px; font-weight: 700; letter-spacing: -.01em;
+      box-shadow: 0 8px 30px -10px rgba(124,92,255,.85); animation-delay: .64s">
+      Lancer une partie
+    </button>
+  </div>
+
+  <nav class="nn-glass" style="position: relative; display: flex; border-radius: 0; border-left: 0; border-right: 0; border-bottom: 0">
+    <span class="nn-nav-item" style="color: #4de8ff">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4h10v4a5 5 0 0 1-10 0V4Z"/><path d="M7 6H4.5A2.5 2.5 0 0 0 7 8.5"/><path d="M17 6h2.5A2.5 2.5 0 0 1 17 8.5"/><path d="M12 13v4"/><path d="M8.5 20h7l-.8-3H9.3l-.8 3Z"/></svg>
+      Classement
+    </span>
+    <span class="nn-nav-item" style="color: #8b91c4">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="4.5"/><circle cx="9" cy="9" r="1.3" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.3" fill="currentColor" stroke="none"/><circle cx="15" cy="15" r="1.3" fill="currentColor" stroke="none"/></svg>
+      Jeux
+    </span>
+    <span class="nn-nav-item" style="color: #8b91c4">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 12a8.5 8.5 0 1 0 2.7-6.2"/><path d="M3 4v4.2h4.2"/><path d="M12 8.2V12l2.8 1.8"/></svg>
+      Historique
+    </span>
+    <span class="nn-nav-item" style="color: #8b91c4; position: relative">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 9.2a6 6 0 1 0-12 0c0 4.8-2 5.8-2 5.8h16s-2-1-2-5.8Z"/><path d="M10.4 18.6a2.1 2.1 0 0 0 3.2 0"/></svg>
+      Alertes
+      <span style="position: absolute; top: 9px; right: 18px; min-width: 16px; height: 16px; border-radius: 999px; background: #ff4dd2; color: #07071a; font-size: 9px; font-weight: 700; line-height: 16px; text-align: center">2</span>
+    </span>
+    <span class="nn-nav-item" style="color: #8b91c4">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.2 5 6.2v5c0 4.5 3 8 7 9.1 4-1.1 7-4.6 7-9.1v-5l-7-3Z"/><path d="M9.4 12.2 11 13.8l3.6-3.6"/></svg>
+      Admin
+    </span>
+  </nav>
+</div>
+</x-dc>
+</body>
+</html>

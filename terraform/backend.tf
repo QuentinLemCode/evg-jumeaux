@@ -6,6 +6,18 @@ terraform {
       source  = "hashicorp/google"
       version = "~> 6.0"
     }
+    cloudflare = {
+      source = "cloudflare/cloudflare"
+      # Pinned to the v5 major on purpose: v5 renamed a lot of resources
+      # (cloudflare_record -> cloudflare_dns_record, cloudflare_tunnel ->
+      # cloudflare_zero_trust_tunnel_cloudflared). An unpinned provider would
+      # break this module on the next major.
+      version = "~> 5.0"
+    }
+    random = {
+      source  = "hashicorp/random"
+      version = "~> 3.6"
+    }
   }
 
   # Config volontairement vide (backend config "partielle") : le bucket, le
@@ -19,4 +31,8 @@ provider "google" {
   project = var.project_id
   region  = var.region
   zone    = var.zone
+}
+
+provider "cloudflare" {
+  api_token = var.cloudflare_api_token
 }

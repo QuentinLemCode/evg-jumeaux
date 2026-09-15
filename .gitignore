@@ -1,0 +1,38 @@
+# dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# next
+.next/
+out/
+next-env.d.ts
+
+# production data — never committed
+data/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# secrets
+.env
+.env.local
+.env.production
+
+# agent transcripts
+.agent-logs/
+
+# terraform
+terraform/.terraform/
+terraform/*.tfstate
+terraform/*.tfstate.*
+terraform/.terraform.lock.hcl
+*.tfvars
+
+# tooling
+.DS_Store
+*.tsbuildinfo
+coverage/
+.vscode/
+.idea/
