@@ -23,6 +23,12 @@ data/
 # agent transcripts
 .agent-logs/
 
+# end-to-end runs
+.e2e/
+playwright-report/
+test-results/
+/playwright/.cache/
+
 # terraform
 terraform/.terraform/
 terraform/*.tfstate

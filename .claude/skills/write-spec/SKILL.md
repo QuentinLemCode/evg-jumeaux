@@ -46,6 +46,10 @@ Fill every section. The sections that actually matter:
 - **Data model** — new tables/columns, and what happens to rows that already
   exist. History is never dropped.
 - **Authorisation** — who may call this, checked server-side.
+- **End-to-end coverage** — name the one or two journeys a guest actually
+  performs that prove the feature works. The code agent turns them into tests
+  tagged `@spec-NNNN`, and the build fails without one. If the feature is not
+  reachable from a browser, write `E2E coverage: not applicable — <why>`.
 - **Out of scope** — write this down. It is what stops the code agent
   from widening the diff.
 - **Open questions** — anything you had to guess. If a guess would change the

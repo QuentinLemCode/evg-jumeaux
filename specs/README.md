@@ -28,6 +28,9 @@ Status values: `draft` → `ready-for-code` → `implemented` → `superseded`.
 - English, present tense, behaviour not implementation.
 - Acceptance criteria are the deliverable: each is a checkbox a reviewer can
   mark true or false without judgement.
+- Every spec names its **end-to-end coverage** and is covered by a test tagged
+  `@spec-NNNN`. `npm run lint:e2e-coverage` fails the build otherwise
+  (`AGENTS.md` §9).
 - Keep a spec under ~250 lines. Past that, it is two specs.
 
 ## Glossary

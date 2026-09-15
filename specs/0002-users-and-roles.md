@@ -79,6 +79,12 @@ permanent identifier and must never be reused for a different person.
       and differs between two runs (salted).
 - [x] No plain-text PIN appears anywhere in the repository.
 
+## End-to-end coverage
+
+`e2e/auth.spec.ts` `@spec-0002`
+- Only seeded names are offered, and an unknown name matches nothing.
+- An admin sees the Admin destination; a player does not, and is redirected away from `/admin`.
+
 ## Out of scope
 
 - Self-service profile editing (name, avatar). Deliberate: it invites abuse on

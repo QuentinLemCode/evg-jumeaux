@@ -40,6 +40,12 @@ comment density — the diff should be unremarkable to someone reading the file.
    skill before writing any of it**: the design system is binding and
    `lint:design` enforces it. Mobile-first at 390px, 44px tap targets, a
    designed empty state for every list.
+5. `e2e/**` — at least one end-to-end test for the journey the spec describes,
+   tagged `{ tag: '@spec-NNNN' }` on the describe block. A spec with unit tests
+   only is **not done** (`AGENTS.md` §9): the unit tests would all still pass
+   if the button were wired to nothing. Drive the real interface — the only
+   fixtures allowed are a state reset and what the UI genuinely cannot
+   produce.
 
 Binding invariants from `AGENTS.md`:
 - `matches.status` is written only by `src/lib/domain/match-state.ts`.
@@ -52,8 +58,11 @@ Binding invariants from `AGENTS.md`:
 
 ```bash
 npm run typecheck && npm run lint:design && npm run lint:migrations \
-  && npm test && npm run build
+  && npm run lint:e2e-coverage && npm test && npm run build
 ```
+
+The end-to-end suite itself needs a browser and runs in CI. Where one is
+available, run the slice you just wrote: `npx playwright test --grep @spec-NNNN`.
 
 All three, every time, and read the real output. If it is red you are not
 done. Do not reach for `any`, `as unknown as`, `@ts-ignore`,

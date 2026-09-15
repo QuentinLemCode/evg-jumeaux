@@ -196,6 +196,17 @@ leaves the server.
 - [x] The service worker shows a notification when a push arrives while the app
       is closed, and focuses the existing tab when one is already open.
 
+## End-to-end coverage
+
+`e2e/notifications.spec.ts` `@spec-0006`, `e2e/pwa.spec.ts` `@spec-0006`
+- An invitation reaches the invited player's inbox and deep-links to the match; the inviter is not notified.
+- The unread badge counts, and clears when read.
+- The permission prompt lives on the explanation screen, never on page load.
+
+Push DELIVERY itself is not exercised: it needs a real push service. That is
+acceptable because the inbox is the source of truth and push is a channel on
+top (rule 1); the delivery policy is unit tested instead.
+
 ## Out of scope
 
 - Email or SMS delivery.

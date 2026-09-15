@@ -229,6 +229,15 @@ matches are queried by `user_id`.
       with the current state in the error, and nothing is written.
 - [x] Unit tests cover every legal transition and at least one illegal one per state.
 
+## End-to-end coverage
+
+`e2e/match-lifecycle.spec.ts` `@spec-0004`
+- Two real browsers: invite, accept, report 13–2, validate, points awarded.
+- One refusal cancels the match and nobody scores.
+- A busy player cannot be invited, and cannot start a second match.
+- A report whose winner does not have the highest score is refused.
+- An invitation past its deadline can no longer be accepted.
+
 ## Out of scope
 
 - Draws and ties (a game with no winner is cancelled).

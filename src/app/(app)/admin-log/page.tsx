@@ -111,7 +111,7 @@ export default async function AdminLogPage({
           {entries.map((entry, index) => {
             const mark = MARKS[entry.type];
             return (
-              <li key={entry.key}>
+              <li key={entry.key} data-testid="admin-log-entry" data-kind={entry.type}>
                 <Card className="p-3" reveal={index}>
                   <div className="flex items-center gap-2.5">
                     <span

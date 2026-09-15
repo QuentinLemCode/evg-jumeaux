@@ -20,7 +20,11 @@
     "sweep": "tsx scripts/sweep.ts",
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "lint:design": "node scripts/lint-design.mjs",
-    "lint:migrations": "node scripts/check-migrations.mjs"
+    "lint:migrations": "node scripts/check-migrations.mjs",
+    "e2e": "playwright test",
+    "e2e:ui": "playwright test --ui",
+    "e2e:report": "playwright show-report",
+    "lint:e2e-coverage": "node scripts/check-e2e-coverage.mjs"
   },
   "dependencies": {
     "bcryptjs": "^3.0.2",
@@ -35,6 +39,7 @@
     "zod": "^3.25.76"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "@tailwindcss/postcss": "^4.1.11",
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^22.15.0",

@@ -121,6 +121,14 @@ None.
 - [x] The invitation countdown ticks client-side every second.
 - [x] All user-facing copy is in French; no English string is visible in the UI.
 
+## End-to-end coverage
+
+`e2e/shell.spec.ts` `@spec-0009`, `e2e/pwa.spec.ts` `@spec-0009`
+- No screen scrolls sideways at 320, 390, 768 or 1280 px.
+- Exactly one navigation renders: a bottom bar on a phone, a sidebar on a desktop.
+- The manifest is `standalone` with maskable icons at 192 and 512, and the icons exist.
+- `/sw.js` is served `no-store` and handles `push` and `notificationclick`.
+
 ## Out of scope
 
 - Light theme and a theme switcher.

@@ -225,6 +225,16 @@ None.
       vocabulary matches; the compositions (the podium on the leaderboard, the
       three-column rules card on a match) have not all been built yet.
 
+## End-to-end coverage
+
+`e2e/shell.spec.ts` `@spec-0010`
+- Every navigation target measures at least 44 px tall.
+- No screen overflows horizontally at any supported width.
+
+The rest of the system — tokens, shadows, the type floor, one motion utility per
+element — is enforced statically by `npm run lint:design`, which catches it in
+the source rather than by measuring pixels in a browser.
+
 ## Out of scope
 
 - A light/dark theme switch. Confetti is one committed palette (spec 0009

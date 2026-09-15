@@ -49,6 +49,11 @@ domain-logic rules, and the definition of done there are binding.
    2. `src/lib/domain/**` — pure logic, with Vitest tests written alongside
    3. `src/lib/**` — queries and actions
    4. `src/app/**` + `src/components/**` — UI last
+   5. `e2e/**` — at least one end-to-end test for the journey the spec
+      describes, tagged `{ tag: '@spec-NNNN' }`. Not optional:
+      `lint:e2e-coverage` is in the gate, and a spec with unit tests only is
+      not done (`AGENTS.md` §9). Drive the real interface; the only fixtures
+      allowed are a state reset and what the UI cannot build.
 
 5. **Run the gate and do not skip it:**
    ```bash

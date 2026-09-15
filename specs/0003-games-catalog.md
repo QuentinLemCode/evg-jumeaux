@@ -107,6 +107,13 @@ Default games are seeded so the app is usable on first boot: *Palet*,
 - [x] The games list is ordered active-first, then by match count descending.
 - [x] The four default games exist after `npm run db:seed`.
 
+## End-to-end coverage
+
+`e2e/admin.spec.ts` `@spec-0003`
+- An admin creates a game and a player can start it immediately, with no redeploy.
+- A duplicate name, ignoring case, is refused.
+- An archived game leaves the catalog and stays in the admin list.
+
 ## Out of scope
 
 - Per-game custom rules text beyond the free-text description.

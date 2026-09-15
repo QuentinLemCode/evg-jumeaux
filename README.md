@@ -53,6 +53,7 @@ deploys it with no downtime. The repository is built so that loop is safe.
 | `scripts/agent/` | the shell contract Hermes calls, plus deploy and alerting |
 | `hermes/` | gateway system prompt and tool registry |
 | `src/` | the app: `app/` pages, `lib/` logic, `db/` schema |
+| `e2e/` | end-to-end tests, one tag per spec |
 | `terraform/` | the VM, Cloudflare DNS and tunnel, the startup script |
 | `.github/workflows/` | the gate, the image build, the deploy, the infra |
 
@@ -82,6 +83,9 @@ npm run lint:design         # the Confetti design system (spec 0010)
 npm run lint:migrations     # migrations survive a blue/green deploy
 npm test                    # unit tests (fast, no database)
 npm run test:integration    # integration suite — CI only
+npm run lint:e2e-coverage   # every spec has an end-to-end test
+npm run e2e                 # the end-to-end suite (needs a browser)
+npm run e2e:ui              # …the same, in Playwright's UI mode
 npm run build               # production build
 npm run db:generate         # new migration after editing src/db/schema.ts
 npm run db:migrate          # apply migrations
@@ -94,8 +98,28 @@ The gate, run by CI and by the code agent before it reports success:
 
 ```bash
 npm run typecheck && npm run lint:design && npm run lint:migrations \
-  && npm test && npm run build
+  && npm run lint:e2e-coverage && npm test && npm run build
 ```
+
+### End-to-end tests
+
+**Every numbered spec must have at least one end-to-end test** — a spec with
+unit tests only is not done (`AGENTS.md` §9). The unit tests would all still
+pass if the "Accepter le défi" button were wired to nothing; the flow that
+matters needs two people, two sessions and a server.
+
+The link is a Playwright tag, so it is both checkable and runnable:
+
+```bash
+npm run lint:e2e-coverage              # every spec is tagged somewhere
+npx playwright test --grep @spec-0004  # just the match lifecycle
+npm run e2e                            # the suite: 52 tests, 8 files
+```
+
+First run needs a browser: `npx playwright install --with-deps chromium`. The
+suite runs against a **production build** on a throwaway SQLite file, seeded
+from scratch — `playwright.config.ts` handles the server, the database and the
+reset. CI runs it on every push.
 
 ## Environment variables
 

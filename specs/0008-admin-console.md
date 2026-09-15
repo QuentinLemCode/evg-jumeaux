@@ -170,6 +170,13 @@ people must be able to trust is the one the points actually come from.
 - [x] The log is derived from `point_events` and `matches`; no audit table exists.
 - [x] The screen follows spec 0010 §8 (the standard screen anatomy).
 
+## End-to-end coverage
+
+`e2e/admin.spec.ts` `@spec-0008`, `e2e/admin-log.spec.ts` `@spec-0008`
+- An adjustment needs a reason of at least 5 characters, and that reason appears in the target's public profile.
+- A disputed result awards nothing until an admin decides, and the decision needs a stated reason.
+- A plain player reads the admin log, sees the author, the reason in full and the signed delta, and can filter by type.
+
 ## Out of scope
 
 - Editing the roster, names, avatars or PINs from the app (0002 is deliberate).

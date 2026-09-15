@@ -45,6 +45,7 @@ hermes/                Hermes gateway configuration + system prompt
 src/app/               Next.js App Router pages + route handlers
 src/lib/               domain logic — the part that must be tested
 src/components/        React components (presentational; no domain logic)
+e2e/                   end-to-end tests, one tag per spec (§9)
 src/db/                Drizzle schema, migrations, seed
 terraform/             GCP VM, static IP, firewall, startup script
 .github/workflows/     CI (typecheck + tests) and infra deploy/destroy
@@ -72,6 +73,8 @@ npm run typecheck      # tsc --noEmit — MUST pass before you claim done
 npm run lint           # eslint
 npm run lint:design    # the Confetti design system (spec 0010) — also MUST pass
 npm run lint:migrations # migrations survive a blue/green deploy (§8) — also MUST pass
+npm run lint:e2e-coverage # every spec has an end-to-end test (§9) — also MUST pass
+npm run e2e            # the end-to-end suite (needs a browser; CI runs it)
 npm test               # vitest run (unit tests only, fast)
 npm run db:generate    # generate a migration after editing src/db/schema.ts
 npm run db:migrate     # apply migrations
@@ -82,10 +85,11 @@ npm run build          # production build — the deploy gate
 
 ```bash
 npm run typecheck && npm run lint:design && npm run lint:migrations \
-  && npm test && npm run build
+  && npm run lint:e2e-coverage && npm test && npm run build
 ```
 
-That is the definition of "it works". Run all five before reporting success.
+That is the definition of "it works". Run all six before reporting success.
+The end-to-end suite itself runs in CI (§9).
 
 ## 5. Non-negotiable conventions
 
@@ -156,6 +160,7 @@ Binding, and checked by `npm run lint:design`:
 - Mobile-first: design at 390px wide, then let it breathe on desktop.
 - Every tappable target is at least 44×44px, filter chips included.
 - Every list that can be empty has a designed empty state.
+- A journey a guest performs is covered by an end-to-end test (§9).
 - French is the user-facing language. English is the language of code,
   comments, commits, and all markdown files. Do not mix them up.
 
@@ -304,7 +309,86 @@ pipeline and the deploy scripts are not product behaviour: they change under
 infrastructure change, and do not change infrastructure to satisfy a product
 spec without saying so.
 
-## 9. Definition of done
+## 9. Every specified feature is covered end to end
+
+> **Every numbered spec must have at least one end-to-end test.** A spec with
+> unit tests only is not done.
+
+This is not a coverage ritual. Unit tests prove the *pieces*: 52 of them cover
+the match state machine and the scoring arithmetic, and they would all still
+pass if the "Accepter le défi" button were wired to nothing. The flow that
+matters — invite, accept, report, validate — needs two people, two sessions
+and a server, and nothing but an end-to-end test can prove it works.
+
+### The convention
+
+Tag the `describe` block with the spec it covers:
+
+```ts
+test.describe('A match from invitation to points',
+  { tag: ['@spec-0004', '@spec-0005'] }, () => { … });
+```
+
+That makes the link machine-checkable **and** runnable:
+
+```bash
+npm run lint:e2e-coverage          # every spec is tagged somewhere
+npx playwright test --grep @spec-0004   # just this feature
+npm run e2e                        # the suite (CI runs it on every push)
+```
+
+`lint:e2e-coverage` is part of the gate. `npm run e2e` is not: it needs a
+browser and a production build, so **CI runs the suite** and the code agent
+runs the coverage check plus, where a browser is available,
+`--grep @spec-NNNN` for the spec it just touched.
+
+### What goes where
+
+| | End-to-end | Unit |
+|---|---|---|
+| a journey a guest actually performs | yes | no |
+| a rule, a transition, arithmetic | no | yes |
+| an authorisation boundary a user can reach | yes | also yes |
+| a failure message a player sees | yes | no |
+| every branch of a pure function | no | yes |
+
+Do not re-test in a browser what a pure function already proves. End-to-end
+tests are slow and their failures are harder to read, so each one must earn
+its place by covering something no unit test can reach.
+
+### Fixtures: as little as possible
+
+Tests drive the real interface. The database helper (`e2e/helpers/db.ts`) may
+only do two things: **reset** the volatile state between tests, and build the
+fixtures the UI genuinely cannot build — which today is exactly one, an
+invitation whose five-minute window has already closed.
+
+Seeding a completed match to assert the leaderboard would pass while the real
+flow was broken. That is the failure mode this rule exists to prevent.
+
+### When a spec cannot be exercised from a browser
+
+Say so **in the spec**, on its own line, with the reason:
+
+```
+E2E coverage: not applicable — <why>
+```
+
+`lint:e2e-coverage` honours it. Use it for a spec that is genuinely not
+user-reachable, never to avoid writing a test.
+
+### Writing them
+
+`workers: 1` and no parallelism, deliberately: every test shares one server
+process, one SQLite file and one in-memory login rate-limiter. A test that
+fails a PIN on purpose must therefore use a player **no other test touches** —
+the lockout ladder is not reset between tests, and sharing a player there
+makes the suite order-dependent in a way that only surfaces weeks later.
+
+The reference viewport is the phone (spec 0009). The desktop project re-runs
+`shell.spec.ts` alone, to prove the layout adapts — not every journey again.
+
+## 10. Definition of done
 
 A change is done when all of these are true:
 
@@ -312,6 +396,8 @@ A change is done when all of these are true:
 - [ ] `npm run typecheck` passes.
 - [ ] `npm run lint:design` passes (or a scoped exception is annotated with a reason).
 - [ ] `npm run lint:migrations` passes.
+- [ ] `npm run lint:e2e-coverage` passes — the spec has an end-to-end test
+      tagged `@spec-NNNN`, or says in the spec why it cannot have one (§9).
 - [ ] `npm test` passes, and new domain logic has tests.
 - [ ] `npm run build` passes.
 - [ ] `specs/README.md` reflects the new state.

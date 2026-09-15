@@ -34,6 +34,11 @@ directly, and that a player cannot report or validate a match they are not in.
 
 **Layering** (`AGENTS.md` §5): `src/components` must not touch `src/db`.
 
+**End-to-end coverage** (`AGENTS.md` §9). A spec touched by this diff must
+have a test tagged `@spec-NNNN`. Then check the test actually drives the
+interface: one that seeds a completed match to assert the leaderboard passes
+while the real flow is broken, which is the whole failure this rule prevents.
+
 **Design system** (spec 0010), for any UI diff: colours from tokens only, no
 blurred shadows, 11px text floor, drawn SVG icons rather than emoji, one
 motion utility per element, 44px tap targets. Every `design-lint-allow`

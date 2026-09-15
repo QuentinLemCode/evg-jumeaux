@@ -46,6 +46,17 @@ from the code, with no judgement call.
 
 - [ ] …
 
+## End-to-end coverage
+
+The one or two journeys a guest actually performs that prove this feature
+works, and the test that covers them. Mandatory: the build fails without a
+test tagged `@spec-NNNN` (`AGENTS.md` §9).
+
+- `e2e/<file>.spec.ts` `@spec-NNNN` — <the journey, in one line>
+
+If the feature is genuinely not reachable from a browser, replace the list with
+`E2E coverage: not applicable — <why>`, and expect to justify it in review.
+
 ## Out of scope
 
 What this spec deliberately does not cover. This is what stops the code agent

@@ -121,6 +121,14 @@ an attacker can trigger.
 - [x] No PIN and no PIN hash appears in any HTTP response or log line.
 - [x] Logging out clears the cookie and a subsequent protected request redirects.
 
+## End-to-end coverage
+
+`e2e/auth.spec.ts` `@spec-0001`
+- Land on the login screen, pick a name, type six digits, arrive on the leaderboard.
+- Ask for a protected page while anonymous, get redirected, and land there after logging in.
+- Fail three PINs for free, then find the keypad disabled with a live countdown that re-enables itself.
+- Log out and find the session gone.
+
 ## Out of scope
 
 - Sign-up, email, password recovery, magic links, OAuth.

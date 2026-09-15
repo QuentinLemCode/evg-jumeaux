@@ -170,7 +170,9 @@ export function LoginForm({
         </p>
       ) : null}
 
-      <div className="grid grid-cols-3 gap-2.5">
+      {/* data-testid: a keypad "1" is otherwise indistinguishable from the
+          player "Jumeau 1" for a test looking up buttons by name. */}
+      <div className="grid grid-cols-3 gap-2.5" data-testid="pin-keypad">
         {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((digit) => (
           <Button
             key={digit}

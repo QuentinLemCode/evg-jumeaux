@@ -73,7 +73,7 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
           {sides.map((side, index) => {
             const won = match.winningSide === side.sideIndex;
             return (
-              <li key={side.sideIndex}>
+              <li key={side.sideIndex} data-testid="match-side" data-side={side.sideIndex}>
                 <Card accent={won ? 'mint' : undefined} reveal={index} revealKind="pop">
                   <div className="flex items-start gap-3">
                     <div className="min-w-0 flex-1">

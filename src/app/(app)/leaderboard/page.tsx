@@ -39,6 +39,10 @@ function StandingRow({
     <li>
       <Link
         href={`/players/${standing.userId}`}
+        data-testid="standing"
+        data-user={standing.userId}
+        data-points={standing.points}
+        data-rank={standing.rank}
         className={[
           'sticker flex items-center gap-3 px-3 py-3 transition-colors',
           // The reader's own row is the one accent in the list (spec 0010 §8).

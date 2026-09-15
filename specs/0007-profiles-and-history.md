@@ -105,6 +105,14 @@ information.
 - [x] The history screen offers the Parties / Journal des admins switch, and
       both views are reachable by a `user` role.
 
+## End-to-end coverage
+
+`e2e/history.spec.ts` `@spec-0007`, `e2e/admin-log.spec.ts` `@spec-0007`
+- A finished match appears in the history with its score and winner.
+- A cancelled match is shown, greyed, with its reason.
+- The history filters by game and by player.
+- The Parties / Journal switch works, for a plain player.
+
 ## Out of scope
 
 - Charts, graphs, or progression over time.

@@ -71,6 +71,8 @@ run_gate() {
   ( cd "$REPO_ROOT" && npm run --silent lint:design ) || return 1
   log "gate: migrations are additive"
   ( cd "$REPO_ROOT" && npm run --silent lint:migrations ) || return 1
+  log "gate: every spec has an end-to-end test"
+  ( cd "$REPO_ROOT" && npm run --silent lint:e2e-coverage ) || return 1
   log "gate: tests"
   ( cd "$REPO_ROOT" && npm test --silent ) || return 1
   log "gate: build"

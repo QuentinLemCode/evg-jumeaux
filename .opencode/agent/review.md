@@ -36,8 +36,12 @@ Check, in descending order of importance:
    floor, drawn SVG icons rather than emoji, one motion utility per element,
    44px tap targets. Any `design-lint-allow` annotation must be scoped to a
    rule and carry a reason.
-6. **Scope creep.** Anything in the diff the spec did not ask for.
-7. **Type honesty.** `any`, `as unknown as`, `@ts-ignore`, disabled lint rules,
+6. **End-to-end coverage.** A spec touched by this diff must have a test
+   tagged `@spec-NNNN`. Check that the test drives the real interface rather
+   than seeding the end state — a test that inserts a completed match to
+   assert the leaderboard passes while the real flow is broken.
+7. **Scope creep.** Anything in the diff the spec did not ask for.
+8. **Type honesty.** `any`, `as unknown as`, `@ts-ignore`, disabled lint rules,
    deleted tests.
 
 Report findings most severe first, each as: file:line, what is wrong, and the

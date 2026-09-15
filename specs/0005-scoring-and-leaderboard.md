@@ -151,6 +151,13 @@ do not justify either, and every cache is an opportunity to show a wrong score.
 - [x] Unit tests cover: base award, team award, bonus, capped bonus, disabled
       bonus, idempotency, and reversal.
 
+## End-to-end coverage
+
+`e2e/match-lifecycle.spec.ts` `@spec-0005`, `e2e/history.spec.ts` `@spec-0005`
+- After a 13–2 win at Palet, the match screen shows `+10 Victoire` and `+11 Écart 13–2 × 1 pt` as two lines, and the leaderboard shows 21.
+- A profile's ledger column sums to the headline total.
+- A player who has not played is on the board with zero.
+
 ## Out of scope
 
 - Elo or any rating that depends on the opponent's strength.

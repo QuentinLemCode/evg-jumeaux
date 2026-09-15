@@ -47,6 +47,12 @@ touches.
    reviewer can mark true or false without judgement. Include the failure cases,
    the authorisation rules, and what happens to existing data.
 
+   Fill in the **End-to-end coverage** section: name the one or two journeys a
+   guest actually performs that prove this feature works. The code agent will
+   turn them into tests tagged `@spec-NNNN`, and the build fails without one
+   (`AGENTS.md` §9). If the feature is genuinely not reachable from a browser,
+   write `E2E coverage: not applicable — <why>` and say why.
+
 4. **Update `specs/README.md`** — status, owner, one-line summary.
 
 5. **Append to the spec's Changelog**: date, what changed, why.
