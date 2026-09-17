@@ -79,7 +79,7 @@ test.describe('Notifications', { tag: '@spec-0006' }, () => {
 
     await baptiste.goto(`/matches/${matchId}`);
     await baptiste.getByRole('button', { name: 'Accepter le défi' }).click();
-    await expect(baptiste.getByText('En cours')).toBeVisible();
+    await expect(baptiste.getByText('En cours', { exact: true })).toBeVisible();
 
     await antoine.goto('/notifications');
     await expect(antoine.getByRole('button', { name: /La partie commence/ })).toBeVisible();

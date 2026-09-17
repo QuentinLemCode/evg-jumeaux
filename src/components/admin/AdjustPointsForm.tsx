@@ -24,7 +24,11 @@ export function AdjustPointsForm({ roster }: { roster: RosterEntry[] }) {
       {done ? <p className="text-sm text-mint">Ajustement enregistré.</p> : null}
 
       <Field label="Joueur">
+        {/* An explicit name: `Field` wraps its child in the <label>, so the
+            label's text also contains every <option>, and the control has no
+            unambiguous name without this. */}
         <select
+          aria-label="Joueur"
           value={userId}
           onChange={(event) => setUserId(event.target.value)}
           className={inputClass}

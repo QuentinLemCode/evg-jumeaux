@@ -132,7 +132,7 @@ test.describe('Arbitrating a dispute', { tag: '@spec-0008' }, () => {
 
     await baptiste.goto(`/matches/${matchId}`);
     await baptiste.getByRole('button', { name: 'Accepter le défi' }).click();
-    await expect(baptiste.getByText('En cours')).toBeVisible();
+    await expect(baptiste.getByText('En cours', { exact: true })).toBeVisible();
 
     await antoine.goto(`/matches/${matchId}`);
     await antoine.getByRole('button', { name: 'Saisir le résultat' }).click();
@@ -140,7 +140,7 @@ test.describe('Arbitrating a dispute', { tag: '@spec-0008' }, () => {
     await antoine.getByLabel(`Score de ${PLAYERS.antoine.name}`).fill('13');
     await antoine.getByLabel(`Score de ${PLAYERS.baptiste.name}`).fill('11');
     await antoine.getByRole('button', { name: 'Envoyer pour validation' }).click();
-    await expect(antoine.getByText('À valider')).toBeVisible();
+    await expect(antoine.getByText('À valider', { exact: true })).toBeVisible();
 
     await baptiste.goto(`/matches/${matchId}`);
     await baptiste.getByRole('button', { name: 'Ce n’est pas ce qui s’est passé' }).click();
@@ -149,7 +149,7 @@ test.describe('Arbitrating a dispute', { tag: '@spec-0008' }, () => {
     );
     await baptiste.getByRole('button', { name: 'Contester' }).click();
 
-    await expect(baptiste.getByText('Contestée')).toBeVisible();
+    await expect(baptiste.getByText('Contestée', { exact: true })).toBeVisible();
     expect(matchStatus(matchId)).toBe('disputed');
     // Nothing is awarded while it is contested (spec 0004, rule 20).
     expect(pointTotal(PLAYERS.antoine.id)).toBe(0);

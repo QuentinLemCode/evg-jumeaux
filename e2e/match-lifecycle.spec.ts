@@ -65,7 +65,7 @@ test.describe('A match from invitation to points', { tag: ['@spec-0004', '@spec-
 
     await baptiste.goto(`/matches/${matchId}`);
     await baptiste.getByRole('button', { name: 'Accepter le défi' }).click();
-    await expect(baptiste.getByText('En cours')).toBeVisible();
+    await expect(baptiste.getByText('En cours', { exact: true })).toBeVisible();
     expect(matchStatus(matchId)).toBe('active');
 
     // --- while it runs, neither of them can start another ---------------
@@ -80,7 +80,7 @@ test.describe('A match from invitation to points', { tag: ['@spec-0004', '@spec-
     await antoine.getByLabel(`Score de ${PLAYERS.baptiste.name}`).fill('2');
     await antoine.getByRole('button', { name: 'Envoyer pour validation' }).click();
 
-    await expect(antoine.getByText('À valider')).toBeVisible();
+    await expect(antoine.getByText('À valider', { exact: true })).toBeVisible();
     expect(matchStatus(matchId)).toBe('awaiting_validation');
     // Still nothing awarded: the other side has not confirmed (spec 0004, rule 17).
     expect(pointTotal(PLAYERS.antoine.id)).toBe(0);
@@ -94,7 +94,7 @@ test.describe('A match from invitation to points', { tag: ['@spec-0004', '@spec-
     // --- Baptiste confirms, and only then are points awarded ------------
     await baptiste.goto(`/matches/${matchId}`);
     await baptiste.getByRole('button', { name: 'Je confirme ce résultat' }).click();
-    await expect(baptiste.getByText('Terminée')).toBeVisible();
+    await expect(baptiste.getByText('Terminée', { exact: true })).toBeVisible();
     expect(matchStatus(matchId)).toBe('completed');
 
     // 10 for the win + 11 for the 13–2 margin, as TWO lines with their
@@ -106,7 +106,9 @@ test.describe('A match from invitation to points', { tag: ['@spec-0004', '@spec-
     await expect(baptiste.getByText('+11', { exact: true })).toBeVisible();
 
     expect(pointTotal(PLAYERS.antoine.id)).toBe(21);
-    expect(pointEventTypes(PLAYERS.antoine.id)).toEqual(['match_win', 'margin_bonus']);
+    // Both rows share a timestamp, so the helper breaks the tie on `type` to
+    // stay deterministic. Alphabetical, not chronological.
+    expect(pointEventTypes(PLAYERS.antoine.id)).toEqual(['margin_bonus', 'match_win']);
     // The loser gets no rows at all — zero is the absence of a row.
     expect(pointTotal(PLAYERS.baptiste.id)).toBe(0);
     expect(pointEventTypes(PLAYERS.baptiste.id)).toEqual([]);
@@ -131,7 +133,7 @@ test.describe('A match from invitation to points', { tag: ['@spec-0004', '@spec-
     await lucas.goto(`/matches/${matchId}`);
     await lucas.getByRole('button', { name: 'Refuser' }).click();
 
-    await expect(lucas.getByText('Annulée')).toBeVisible();
+    await expect(lucas.getByText('Annulée', { exact: true })).toBeVisible();
     expect(matchStatus(matchId)).toBe('cancelled');
     expect(pointTotal(PLAYERS.hugo.id)).toBe(0);
     expect(pointTotal(PLAYERS.lucas.id)).toBe(0);
@@ -149,7 +151,7 @@ test.describe('A match from invitation to points', { tag: ['@spec-0004', '@spec-
     const matchId = await startDuel(antoine, 'Palet', PLAYERS.baptiste.name);
     await baptiste.goto(`/matches/${matchId}`);
     await baptiste.getByRole('button', { name: 'Accepter le défi' }).click();
-    await expect(baptiste.getByText('En cours')).toBeVisible();
+    await expect(baptiste.getByText('En cours', { exact: true })).toBeVisible();
 
     // Clément tries to challenge someone already playing.
     await clement.goto('/games');
@@ -168,7 +170,7 @@ test.describe('A match from invitation to points', { tag: ['@spec-0004', '@spec-
     const matchId = await startDuel(antoine, 'Palet', PLAYERS.baptiste.name);
     await baptiste.goto(`/matches/${matchId}`);
     await baptiste.getByRole('button', { name: 'Accepter le défi' }).click();
-    await expect(baptiste.getByText('En cours')).toBeVisible();
+    await expect(baptiste.getByText('En cours', { exact: true })).toBeVisible();
 
     await antoine.goto(`/matches/${matchId}`);
     await antoine.getByRole('button', { name: 'Saisir le résultat' }).click();
@@ -192,7 +194,7 @@ test.describe('A match from invitation to points', { tag: ['@spec-0004', '@spec-
     const matchId = await startDuel(hugo, 'Pierre-feuille-ciseaux', PLAYERS.romain.name);
     await romain.goto(`/matches/${matchId}`);
     await romain.getByRole('button', { name: 'Accepter le défi' }).click();
-    await expect(romain.getByText('En cours')).toBeVisible();
+    await expect(romain.getByText('En cours', { exact: true })).toBeVisible();
 
     await hugo.goto(`/matches/${matchId}`);
     await hugo.getByRole('button', { name: 'Saisir le résultat' }).click();
@@ -202,7 +204,7 @@ test.describe('A match from invitation to points', { tag: ['@spec-0004', '@spec-
 
     await romain.goto(`/matches/${matchId}`);
     await romain.getByRole('button', { name: 'Je confirme ce résultat' }).click();
-    await expect(romain.getByText('Terminée')).toBeVisible();
+    await expect(romain.getByText('Terminée', { exact: true })).toBeVisible();
 
     // 3 points and no margin bonus, because there is no score to compare.
     expect(pointTotal(PLAYERS.hugo.id)).toBe(3);

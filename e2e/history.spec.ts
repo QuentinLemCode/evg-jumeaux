@@ -35,7 +35,7 @@ async function playAndWin(
 
   await b.goto(`/matches/${matchId}`);
   await b.getByRole('button', { name: 'Accepter le défi' }).click();
-  await expect(b.getByText('En cours')).toBeVisible();
+  await expect(b.getByText('En cours', { exact: true })).toBeVisible();
 
   await a.goto(`/matches/${matchId}`);
   await a.getByRole('button', { name: 'Saisir le résultat' }).click();
@@ -46,7 +46,7 @@ async function playAndWin(
 
   await b.goto(`/matches/${matchId}`);
   await b.getByRole('button', { name: 'Je confirme ce résultat' }).click();
-  await expect(b.getByText('Terminée')).toBeVisible();
+  await expect(b.getByText('Terminée', { exact: true })).toBeVisible();
 
   await a.close();
   await b.close();
@@ -90,7 +90,7 @@ test.describe('History', { tag: '@spec-0007' }, () => {
 
     await romain.goto(`/matches/${matchId}`);
     await romain.getByRole('button', { name: 'Refuser' }).click();
-    await expect(romain.getByText('Annulée')).toBeVisible();
+    await expect(romain.getByText('Annulée', { exact: true })).toBeVisible();
 
     await romain.goto('/history');
     const row = romain.locator('a[href^="/matches/"]').filter({ hasText: 'Palet' }).first();
