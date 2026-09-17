@@ -70,6 +70,10 @@ export default defineConfig({
       ALLOW_DEV_PINS: '1',
       SITE_DOMAIN: `127.0.0.1:${PORT}`,
       GIT_COMMIT: 'e2e',
+      // Arms src/app/(app)/e2e-crash — a route that throws during render, so
+      // the error boundary can be exercised. Unset everywhere else, where it
+      // is a 404 (spec 0011).
+      E2E_CRASH_ROUTE: '1',
     },
   },
 });

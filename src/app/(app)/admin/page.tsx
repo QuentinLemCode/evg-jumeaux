@@ -7,6 +7,7 @@ import { Card, SectionTitle } from '@/components/ui/Card';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { requireAdmin } from '@/lib/auth/guards';
+import { countOpenClientErrors } from '@/lib/queries/client-errors';
 import { listDisputedMatches, listNonTerminalMatches } from '@/lib/queries/matches';
 import { getRoster } from '@/lib/queries/roster';
 
@@ -14,10 +15,11 @@ export const dynamic = 'force-dynamic';
 
 export default async function AdminPage() {
   await requireAdmin('/admin');
-  const [disputes, running, roster] = await Promise.all([
+  const [disputes, running, roster, openErrors] = await Promise.all([
     listDisputedMatches(),
     listNonTerminalMatches(),
     getRoster(),
+    countOpenClientErrors(),
   ]);
 
   return (
@@ -31,6 +33,24 @@ export default async function AdminPage() {
           </ButtonLink>
         }
       />
+
+      {/* Browser failures are invisible unless somebody looks, so the count
+          sits on the screen an admin already opens (spec 0011). */}
+      <Card accent={openErrors > 0 ? 'coral' : undefined} quiet={openErrors === 0}>
+        <div className="flex items-center gap-3">
+          <span className="min-w-0 flex-1 text-sm">
+            <span className="display block font-bold">Erreurs navigateur</span>
+            <span className="block text-xs text-muted">
+              {openErrors === 0
+                ? 'Rien de signalé chez les joueurs.'
+                : `${openErrors} cause${openErrors > 1 ? 's' : ''} ouverte${openErrors > 1 ? 's' : ''}.`}
+            </span>
+          </span>
+          <ButtonLink href="/admin/errors" size="sm" variant="secondary">
+            Voir
+          </ButtonLink>
+        </div>
+      </Card>
 
       <section>
         <SectionTitle>Résultats contestés</SectionTitle>
