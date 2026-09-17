@@ -28,6 +28,12 @@ jobs:
     name: Gate
     if: inputs.image_tag == ''
     uses: ./.github/workflows/ci.yml
+    with:
+      # The tree being merged is the tree that just passed E2E on its pull
+      # request (branch protection requires the branch to be up to date), and
+      # the image is smoke-tested below. Re-running 52 browser tests on the
+      # same code doubles the bill and proves nothing new.
+      skip_e2e: 'true'
 
   build:
     name: Build and push image
@@ -132,7 +138,9 @@ jobs:
 
       - name: Deploy
         env:
-          HOST: ${{ vars.VM_HOSTNAME }}
+          # The APPLICATION VM. The agents live on a separate one and are
+          # deliberately not involved in a deploy.
+          HOST: ${{ vars.APP_VM_HOSTNAME }}
           TAG: ${{ needs.build.outputs.tag }}
           COMMIT: ${{ needs.build.outputs.commit }}
         run: |

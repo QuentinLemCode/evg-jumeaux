@@ -1,27 +1,96 @@
 name: CI
 
-# The gate. `main` deploys automatically, so a red build here is an incident.
-# Callable as a reusable workflow so the deploy pipeline runs EXACTLY these
-# checks rather than a copy of them that drifts.
+# The gate, sized to what actually changed.
+#
+# A spec-driven repository gets a lot of specs-only and docs-only changes, and
+# paying for a browser download plus a production build on each of them is how
+# an Actions bill gets out of hand. So:
+#
+#   every change      → quick  (one npm ci: types, lint, design, migrations,
+#                               spec hygiene, schema drift)
+#   code changed      → tests  (unit + integration + build)
+#                     → e2e    (Playwright, browser cached)
+#   terraform changed → infra  (fmt + validate)
+#
+# `Verdict` is the ONE job branch protection should require. It passes when
+# nothing failed, skipped included — which is what lets auto-merge work on a
+# PR where the heavy jobs were legitimately skipped. Requiring the heavy jobs
+# directly would wedge auto-merge forever on a docs-only PR.
 
 on:
   pull_request:
   workflow_dispatch:
   workflow_call:
+    inputs:
+      skip_e2e:
+        description: 'Set to "true" when the same tree already passed E2E on its PR.'
+        required: false
+        type: string
+        default: 'false'
 
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  # Never a real secret: the build issues no session and the tests do not
+  # verify one. A literal keeps the gate runnable on a fork.
+  AUTH_SECRET: ci-secret-that-is-at-least-32-characters
 
 jobs:
-  gate:
-    name: Gate
+  scope:
+    name: What changed
     runs-on: ubuntu-latest
-    timeout-minutes: 15
-    env:
-      # Never a real secret: the build issues no session and the tests do not
-      # verify one. A literal keeps the gate runnable on a fork.
-      AUTH_SECRET: ci-secret-that-is-at-least-32-characters
+    timeout-minutes: 3
+    outputs:
+      code: ${{ steps.classify.outputs.code }}
+      terraform: ${{ steps.classify.outputs.terraform }}
+      summary: ${{ steps.classify.outputs.summary }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - id: classify
+        run: |
+          case "${{ github.event_name }}" in
+            pull_request) BASE="${{ github.event.pull_request.base.sha }}" ;;
+            push)         BASE="${{ github.event.before }}" ;;
+            *)            BASE="" ;;
+          esac
+
+          # No usable base (a dispatch, a first push, a force push): assume
+          # everything changed. Erring towards running the suite is the right
+          # way to be wrong here.
+          if [ -z "$BASE" ] || [ "$BASE" = "0000000000000000000000000000000000000000" ] \
+             || ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then
+            echo "no usable base — treating everything as changed"
+            echo "code=true" >> "$GITHUB_OUTPUT"
+            echo "terraform=true" >> "$GITHUB_OUTPUT"
+            echo "summary=full (no diff base)" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          FILES="$(git diff --name-only "$BASE" "${{ github.sha }}")"
+          echo "changed files:"; echo "$FILES" | sed 's/^/  /'
+
+          # `scripts/` and the config files count as code: they are what the
+          # gate itself runs.
+          if echo "$FILES" | grep -qE '^(src/|e2e/|scripts/|public/|package(-lock)?\.json|tsconfig\.json|next\.config\.mjs|playwright\.config\.ts|vitest.*\.ts|postcss\.config\.mjs|drizzle\.config\.ts|Dockerfile|docker-compose.*\.yml|Caddyfile|caddy/|\.nvmrc)'; then
+            CODE=true
+          else
+            CODE=false
+          fi
+          if echo "$FILES" | grep -qE '^terraform/'; then TF=true; else TF=false; fi
+
+          echo "code=$CODE" >> "$GITHUB_OUTPUT"
+          echo "terraform=$TF" >> "$GITHUB_OUTPUT"
+          echo "summary=code=$CODE terraform=$TF" >> "$GITHUB_OUTPUT"
+
+  quick:
+    name: Quick checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
 
@@ -34,25 +103,68 @@ jobs:
 
       - run: npm ci
 
+      # All of these are seconds each, and they used to sit in three separate
+      # jobs paying three separate `npm ci`. One job, one install.
       - name: Typecheck
         run: npm run typecheck
 
       - name: Lint
         run: npm run lint
 
-      # Catches what tsc and eslint cannot: a raw hex, a blurred shadow, 10px
-      # text, an emoji standing in for an icon (spec 0010).
       - name: Design system
         run: npm run lint:design
 
-      # Every specified feature must be reachable from an end-to-end test
-      # (AGENTS.md §10). Cheap to check, and the only thing that keeps the
-      # rule from being a comment in a markdown file.
+      - name: Migrations survive a blue/green deploy
+        run: npm run lint:migrations
+
       - name: Every spec has an end-to-end test
         run: npm run lint:e2e-coverage
 
-      - name: Migrations survive a blue/green deploy
-        run: npm run lint:migrations
+      - name: Schema matches the generated migrations
+        run: |
+          before=$(ls -1 src/db/migrations/*.sql 2>/dev/null | wc -l)
+          npx drizzle-kit generate --name ci-drift-check
+          after=$(ls -1 src/db/migrations/*.sql 2>/dev/null | wc -l)
+          if [ "$before" != "$after" ]; then
+            echo "::error::src/db/schema.ts has changes with no generated migration."
+            echo "Run: npm run db:generate"
+            exit 1
+          fi
+          echo "schema and migrations are in sync"
+
+      - name: Spec hygiene
+        run: |
+          missing=0
+          for spec in specs/[0-9][0-9][0-9][0-9]-*.md; do
+            name="$(basename "$spec")"
+            grep -q "$name" specs/README.md || {
+              echo "::error file=specs/README.md::$name is not on the status board"; missing=1; }
+            grep -q '^## Acceptance criteria' "$spec" || {
+              echo "::error file=$spec::no '## Acceptance criteria' section"; missing=1; }
+          done
+          # The one rule agents break most often (AGENTS.md §5): French prose
+          # creeping into documentation that is meant to be English.
+          if grep -rlniE '\b(nous devons|il faut que|c.est pourquoi|ainsi que)\b' \
+               --include='*.md' specs docs AGENTS.md 2>/dev/null; then
+            echo "::error::markdown must be written in English"; missing=1
+          fi
+          exit $missing
+
+  tests:
+    name: Tests and build
+    needs: [scope]
+    if: needs.scope.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: npm
+
+      - run: npm ci
 
       - name: Unit tests
         run: npm test
@@ -67,6 +179,8 @@ jobs:
 
   e2e:
     name: End-to-end
+    needs: [scope]
+    if: needs.scope.outputs.code == 'true' && inputs.skip_e2e != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -74,27 +188,37 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          # .nvmrc is the single source of truth for the runtime, so CI and a
-          # developer's shell cannot drift apart.
           node-version-file: '.nvmrc'
           cache: npm
 
       - run: npm ci
 
-      # Chromium only: the app's one browser-specific path (iOS install) is
-      # feature-detected and covered by unit tests, so a second engine here
-      # would double the minutes and prove nothing.
+      - name: Read the Playwright version
+        id: pw
+        run: |
+          echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      # A browser download is ~120 MB and takes a minute; caching it keyed on
+      # the Playwright version turns that into a few seconds.
+      - name: Cache the browser
+        id: browser-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}
+
       - name: Install the browser
-        run: npx playwright install --with-deps chromium
+        run: |
+          if [ "${{ steps.browser-cache.outputs.cache-hit }}" = "true" ]; then
+            # The binary is cached; only the shared libraries need apt.
+            npx playwright install-deps chromium
+          else
+            npx playwright install --with-deps chromium
+          fi
 
       - name: Build
         run: npm run build
-        env:
-          AUTH_SECRET: e2e-secret-that-is-at-least-32-characters
 
-      # Runs against the production build on a throwaway SQLite file. The
-      # server, the database and the fixtures are all set up by
-      # playwright.config.ts.
       - name: Run the end-to-end suite
         run: npm run e2e
 
@@ -102,49 +226,16 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-report
+          name: playwright-report-${{ github.run_id }}
           path: |
             playwright-report/
             .e2e/results/
           retention-days: 7
 
-  migrations:
-    name: Migrations are additive
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          # .nvmrc is the single source of truth for the runtime, so CI and a
-          # developer's shell cannot drift apart.
-          node-version-file: '.nvmrc'
-          cache: npm
-
-      - run: npm ci
-
-      # The deploy is blue/green: for a few seconds the OLD code runs against
-      # the NEW schema. A drop or a rename breaks it in production, not here
-      # (AGENTS.md §8).
-      - name: Migrations survive a blue/green deploy
-        run: npm run lint:migrations
-
-      - name: Schema matches the generated migrations
-        run: |
-          before=$(ls -1 src/db/migrations/*.sql 2>/dev/null | wc -l)
-          npx drizzle-kit generate --name ci-drift-check
-          after=$(ls -1 src/db/migrations/*.sql 2>/dev/null | wc -l)
-          if [ "$before" != "$after" ]; then
-            echo "::error::src/db/schema.ts has changes with no generated migration."
-            echo "Run: npm run db:generate"
-            git diff --stat src/db/migrations || true
-            exit 1
-          fi
-          echo "schema and migrations are in sync"
-
   infra:
     name: Terraform
+    needs: [scope]
+    if: needs.scope.outputs.terraform == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     defaults:
@@ -155,55 +246,50 @@ jobs:
 
       - uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: 1.9.8
+          terraform_version: 1.16.3
 
       - name: Format
         run: terraform fmt -check -recursive
 
-      # Validates without any backend or credentials, so it runs on a PR. This
-      # is where a provider resource renamed between majors surfaces — at
-      # review time instead of at apply time.
+      # Validates without a backend or credentials, so it runs on a PR. This is
+      # where a provider resource renamed between majors surfaces — at review
+      # time instead of at apply time.
       - name: Validate
         run: |
           terraform init -backend=false
           terraform validate
 
-  spec-hygiene:
-    name: Spec hygiene
+  verdict:
+    name: Verdict
+    # The single check branch protection requires. `always()` so it reports
+    # even when a needed job was skipped — a skipped job is a pass here, which
+    # is exactly what makes auto-merge work on a docs-only PR.
+    if: always()
+    needs: [scope, quick, tests, e2e, infra]
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 3
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Every spec is listed on the status board
+      - name: Assert nothing failed
         run: |
-          missing=0
-          for spec in specs/[0-9][0-9][0-9][0-9]-*.md; do
-            name="$(basename "$spec")"
-            if ! grep -q "$name" specs/README.md; then
-              echo "::error file=specs/README.md::$name is not on the status board"
-              missing=1
-            fi
+          declare -A results=(
+            [scope]="${{ needs.scope.result }}"
+            [quick]="${{ needs.quick.result }}"
+            [tests]="${{ needs.tests.result }}"
+            [e2e]="${{ needs.e2e.result }}"
+            [infra]="${{ needs.infra.result }}"
+          )
+          failed=0
+          for job in "${!results[@]}"; do
+            printf '  %-10s %s\n' "$job" "${results[$job]}"
+            case "${results[$job]}" in
+              success|skipped) ;;
+              *) failed=1 ;;
+            esac
           done
-          exit $missing
-
-      - name: Every spec has acceptance criteria
-        run: |
-          missing=0
-          for spec in specs/[0-9][0-9][0-9][0-9]-*.md; do
-            if ! grep -q '^## Acceptance criteria' "$spec"; then
-              echo "::error file=$spec::no '## Acceptance criteria' section"
-              missing=1
-            fi
-          done
-          exit $missing
-
-      - name: Markdown files are in English, not French
-        run: |
-          # A cheap heuristic for the one rule agents break most often
-          # (AGENTS.md §5): French prose creeping into the documentation.
-          if grep -rlniE '\b(nous devons|il faut que|c.est pourquoi|ainsi que)\b' \
-               --include='*.md' specs docs AGENTS.md 2>/dev/null; then
-            echo "::error::markdown must be written in English"
+          echo
+          echo "scope: ${{ needs.scope.outputs.summary }}"
+          if [ "$failed" -ne 0 ]; then
+            echo "::error::a required job did not pass"
             exit 1
           fi
+          echo "all green"
