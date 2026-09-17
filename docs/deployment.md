@@ -25,7 +25,7 @@ verbs over Tailscale SSH (`status`, `deploy`, `rollback`, `logs`, `ps`,
   │  watch-errors.timer ──▶ health + logs + disk ──▶ alert           │
   └────────────────────────────────┬──────────────┬──────────────────┘
                                    │ PR           │ tailscale ssh
-            ┌─── GitHub Actions ───▼──────────┐   │ (six verbs)
+            ┌─── GitHub Actions ───▼──────────┐   │ (7 verbs)
   merge     │  gate ▸ image ▸ GHCR ▸ deploy   │   │
             └────────┬────────────────────────┘   │
                      │ tailscale ssh              │

@@ -237,8 +237,10 @@ response time, during the party, exactly when it is being used.
 So: the agents VM holds no application secret (no `AUTH_SECRET`, no VAPID key,
 no tunnel token), and the application VM holds no LLM key and no GitHub token.
 Anything an agent needs from the running app goes through
-`scripts/agent/app-exec.sh` — an allowlist of six verbs over Tailscale SSH, not
-a shell. Do not add a seventh without asking why the sixth is not enough.
+`scripts/agent/app-exec.sh` — an allowlist of seven verbs over Tailscale SSH,
+not a shell (`status`, `health`, `ps`, `logs`, `deploy`, `rollback`,
+`client-errors`). Do not add an eighth without asking why the existing seven
+are not enough.
 
 ### Rules for the spec agent
 - One spec per coherent feature, numbered `NNNN-kebab-case-title.md`.
