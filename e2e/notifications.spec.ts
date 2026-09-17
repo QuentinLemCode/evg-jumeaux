@@ -96,6 +96,8 @@ test.describe('Notifications', { tag: '@spec-0006' }, () => {
       player.getByRole('heading', { name: 'Reçois les défis à temps' }),
     ).toBeVisible();
     await expect(player.getByText('Pourquoi activer les alertes ?')).toBeVisible();
-    await expect(player.getByText('expire au bout de 5 minutes')).toBeVisible();
+    await expect(
+      player.getByText('Une invitation à jouer expire au bout de 5 minutes'),
+    ).toBeVisible();
   });
 });

@@ -257,7 +257,7 @@ test.describe('The admin screen', { tag: '@spec-0011' }, () => {
 
     await admin.getByRole('link', { name: 'Tout, traitées incluses' }).click();
     await expect(admin.getByTestId('client-error')).toHaveCount(1);
-    await expect(admin.getByText('Traitée')).toBeVisible();
+    await expect(admin.getByTestId('client-error').getByText('Traitée')).toBeVisible();
 
     await admin.getByRole('button', { name: 'Rouvrir' }).click();
     await admin.goto('/admin/errors');

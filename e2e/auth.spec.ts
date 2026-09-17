@@ -31,7 +31,7 @@ test.describe('Authentication', { tag: ['@spec-0001', '@spec-0002'] }, () => {
   test('a correct PIN lands on the leaderboard', async ({ page }) => {
     await login(page, 'antoine');
     await expect(page.getByRole('heading', { name: 'Classement' })).toBeVisible();
-    await expect(page.getByRole('link', { name: /Antoine/ })).toBeVisible();
+    await expect(page.locator('[data-testid="standing"][data-user="antoine"]')).toBeVisible();
   });
 
   test('a protected page redirects to login and comes back afterwards', async ({ page }) => {
@@ -86,7 +86,7 @@ test.describe('The escalating lockout', { tag: '@spec-0001' }, () => {
     await page.goto('/');
     await pickPlayer(page, PLAYERS.romain.name);
     await typePin(page, '000000');
-    await expect(page.getByRole('alert')).toContainText('Code incorrect');
+    await expect(page.getByTestId('form-error')).toContainText('Code incorrect');
     // Still on the login screen, PIN cleared, name kept.
     await expect(page.getByTestId('pin-keypad')).toBeVisible();
   });
@@ -98,12 +98,12 @@ test.describe('The escalating lockout', { tag: '@spec-0001' }, () => {
 
     for (let attempt = 1; attempt <= 3; attempt += 1) {
       await typePin(page, '111111');
-      await expect(page.getByRole('alert')).toBeVisible();
+      await expect(page.getByTestId('form-error')).toBeVisible();
     }
 
     // The third failure arms the ladder, and the message says how long
     // (spec 0001, rule 11). 10 s is the first rung.
-    await expect(page.getByRole('alert')).toContainText(/Réessaie dans \d+ seconde/);
+    await expect(page.getByTestId('form-error')).toContainText(/Réessaie dans \d+ seconde/);
 
     // The keypad is disabled with a live countdown rather than silently
     // rejecting: a dead keypad with no explanation is worse than the lockout.

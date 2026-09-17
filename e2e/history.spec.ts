@@ -68,7 +68,7 @@ test.describe('History', { tag: '@spec-0007' }, () => {
 
     const player = await asPlayer(browser, 'hugo');
     await player.goto('/history');
-    const row = player.getByRole('link', { name: /Palet/ }).first();
+    const row = player.locator('a[href^="/matches/"]').filter({ hasText: 'Palet' }).first();
     await expect(row).toContainText('Terminée');
     await expect(row).toContainText(PLAYERS.antoine.name);
     await expect(row).toContainText('13');
@@ -93,7 +93,7 @@ test.describe('History', { tag: '@spec-0007' }, () => {
     await expect(romain.getByText('Annulée')).toBeVisible();
 
     await romain.goto('/history');
-    const row = romain.getByRole('link', { name: /Palet/ }).first();
+    const row = romain.locator('a[href^="/matches/"]').filter({ hasText: 'Palet' }).first();
     await expect(row).toContainText('Annulée');
     await expect(row).toContainText('Invitation refusée');
   });
@@ -125,7 +125,7 @@ test.describe('A player profile and the ledger', { tag: '@spec-0005' }, () => {
     await expect(player.getByText('Écart 13–2 × 1 pt')).toBeVisible();
     // The column sums to the total, verifiable by eye (spec 0007, rule 12).
     await expect(player.getByText('Total')).toBeVisible();
-    await expect(player.getByText('21 pts')).toBeVisible();
+    await expect(player.getByText('21pts')).toBeVisible();
   });
 
   test('a player who has not played is on the board with zero', async ({ browser }) => {

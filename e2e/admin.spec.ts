@@ -45,7 +45,7 @@ test.describe('Managing games', { tag: '@spec-0003' }, () => {
     await admin.getByPlaceholder('ex. Molkky').fill('palet');
     await admin.getByRole('button', { name: 'Enregistrer' }).click();
 
-    await expect(admin.getByRole('alert')).toContainText('Un jeu porte déjà ce nom');
+    await expect(admin.getByTestId('form-error')).toContainText('Un jeu porte déjà ce nom');
   });
 
   test('an archived game disappears from the catalog but stays in the admin list', async ({
@@ -76,7 +76,7 @@ test.describe('Adjusting points by hand', { tag: '@spec-0008' }, () => {
     const admin = await asPlayer(browser, 'quentin');
     await admin.goto('/admin');
 
-    await admin.getByLabel('Joueur').selectOption(PLAYERS.clement.id);
+    await admin.getByLabel('Joueur', { exact: true }).selectOption(PLAYERS.clement.id);
     await admin.getByPlaceholder('ex. 25 ou -10').fill('25');
 
     // Four characters: refused, because a blank reason is how a well-meaning
@@ -103,7 +103,7 @@ test.describe('Adjusting points by hand', { tag: '@spec-0008' }, () => {
   test('points can be taken away as well as given', async ({ browser }) => {
     const admin = await asPlayer(browser, 'quentin');
     await admin.goto('/admin');
-    await admin.getByLabel('Joueur').selectOption(PLAYERS.romain.id);
+    await admin.getByLabel('Joueur', { exact: true }).selectOption(PLAYERS.romain.id);
     await admin.getByPlaceholder('ex. 25 ou -10').fill('-10');
     await admin
       .getByPlaceholder('ex. Vainqueur du concours de grimaces')

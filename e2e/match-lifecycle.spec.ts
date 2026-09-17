@@ -52,7 +52,7 @@ test.describe('A match from invitation to points', { tag: ['@spec-0004', '@spec-
 
     // --- Antoine challenges Baptiste at Palet ---------------------------
     const matchId = await startDuel(antoine, 'Palet', PLAYERS.baptiste.name);
-    await expect(antoine.getByText('En attente')).toBeVisible();
+    await expect(antoine.getByText('En attente', { exact: true })).toBeVisible();
     await expect(antoine.getByText(/Invitation expire dans/)).toBeVisible();
     expect(matchStatus(matchId)).toBe('pending');
 
@@ -178,7 +178,7 @@ test.describe('A match from invitation to points', { tag: ['@spec-0004', '@spec-
     await antoine.getByLabel(`Score de ${PLAYERS.baptiste.name}`).fill('13');
     await antoine.getByRole('button', { name: 'Envoyer pour validation' }).click();
 
-    await expect(antoine.getByRole('alert')).toContainText(
+    await expect(antoine.getByTestId('form-error')).toContainText(
       'Le score du gagnant doit être le plus élevé',
     );
     expect(matchStatus(matchId)).toBe('active');

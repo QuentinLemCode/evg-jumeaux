@@ -45,7 +45,7 @@ test.describe('The admin log', { tag: ['@spec-0008', '@spec-0007'] }, () => {
   }) => {
     const admin = await asPlayer(browser, 'quentin');
     await admin.goto('/admin');
-    await admin.getByLabel('Joueur').selectOption(PLAYERS.lucas.id);
+    await admin.getByLabel('Joueur', { exact: true }).selectOption(PLAYERS.lucas.id);
     await admin.getByPlaceholder('ex. 25 ou -10').fill('30');
     await admin
       .getByPlaceholder('ex. Vainqueur du concours de grimaces')
@@ -73,7 +73,7 @@ test.describe('The admin log', { tag: ['@spec-0008', '@spec-0007'] }, () => {
   }) => {
     const admin = await asPlayer(browser, 'quentin');
     await admin.goto('/admin');
-    await admin.getByLabel('Joueur').selectOption(PLAYERS.clement.id);
+    await admin.getByLabel('Joueur', { exact: true }).selectOption(PLAYERS.clement.id);
     await admin.getByPlaceholder('ex. 25 ou -10').fill('15');
     await admin
       .getByPlaceholder('ex. Vainqueur du concours de grimaces')
