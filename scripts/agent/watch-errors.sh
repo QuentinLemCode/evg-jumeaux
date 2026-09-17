@@ -1,10 +1,18 @@
 #!/usr/bin/env bash
 # Watches the running app and alerts with a short diagnosis when it breaks.
 #
-# Run every 2 minutes by the `evg-watch-errors` systemd timer.
+# Run every 2 minutes by the `evg-watch-errors` systemd timer, ON THE AGENTS
+# VM — not on the machine it watches. That is deliberate: a watcher installed
+# on the app VM cannot report that the app VM is dead, which is the one failure
+# you most want to hear about. Watching from outside also keeps the agent
+# toolchain (and the LLM key) off the application host.
 #
 #   scripts/agent/watch-errors.sh          # normal run
 #   scripts/agent/watch-errors.sh --test   # send a test alert and exit
+#
+# APP_HOST (a tailnet name) switches it to remote mode: health over HTTPS,
+# logs and disk over Tailscale SSH. Unset, it inspects the local stack, which
+# is what makes it runnable on the app VM itself while debugging.
 #
 # Three properties it was built for:
 #
@@ -23,10 +31,29 @@ set -uo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$REPO_ROOT"
 
-[[ -f .env ]] && { set -a; source .env; set +a; }
-[[ -f deploy.env ]] && { set -a; source deploy.env; set +a; }
+for f in /home/hermes/.hermes/.env "$REPO_ROOT/.env" "$REPO_ROOT/deploy.env"; do
+  # shellcheck disable=SC1090
+  [[ -f "$f" ]] && { set -a; source "$f"; set +a; }
+done
 
 HEALTH_URL="${HEALTH_URL:-https://${SITE_DOMAIN:-localhost}/api/health}"
+APP_HOST="${APP_HOST:-}"
+
+# The allowlisted bridge, for the verbs that are not raw commands.
+app_exec() {
+  "$REPO_ROOT/scripts/agent/app-exec.sh" "$@" 2>&1
+}
+
+# One shim, so the rest of the script does not care whether the app is here or
+# one tailnet hop away.
+app() {
+  if [[ -n "$APP_HOST" ]]; then
+    ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=10 -o BatchMode=yes \
+      "hermes@$APP_HOST" "cd ~/site && $*" 2>&1
+  else
+    ( cd "$REPO_ROOT" && eval "$*" ) 2>&1
+  fi
+}
 STATE_DIR="${DATA_DIR:-$REPO_ROOT/data}/watch"
 mkdir -p "$STATE_DIR"
 SEEN_FILE="$STATE_DIR/seen"
@@ -132,10 +159,10 @@ if [[ $HEALTH_RC -ne 0 ]] || ! grep -q '"status":"ok"' <<< "$HEALTH_BODY"; then
 Réponse : ${HEALTH_BODY:-(aucune)}
 
 Conteneurs :
-$(docker compose ps 2>&1 | head -12)
+$(app "docker compose ps" | head -12)
 
 Derniers logs :
-$(docker compose logs --since "$WINDOW" --tail 40 2>&1 | tail -40)"
+$(app "docker compose logs --since $WINDOW --tail 40" | tail -40)"
   alert "🔴 EVG est indisponible" "$EVIDENCE"
   date +%s > "$DOWN_FILE"
   exit 1
@@ -152,9 +179,9 @@ $HEALTH_BODY" || true
 fi
 
 # --- 2. errors in the logs, even while it answers ----------------------------
-APP_ERRORS="$(docker compose logs --since "$WINDOW" --no-color 2>/dev/null \
+APP_ERRORS="$(app "docker compose logs --since $WINDOW --no-color" \
   | grep -aiE 'error|fatal|unhandled|SQLITE_|ECONNREFUSED|migration failed|delivery failed' \
-  | grep -avE 'favicon|GET /_next|npm notice' \
+  | grep -avE 'favicon|GET /_next|npm notice|Permission denied' \
   | tail -25)"
 
 if [[ -n "${APP_ERRORS// /}" ]]; then
@@ -165,15 +192,31 @@ ${APP_ERRORS}
 Santé : ${HEALTH_BODY}"
 fi
 
-# --- 3. disk, because SQLite fails in confusing ways when it is full --------
-DISK_USE="$(df --output=pcent "$REPO_ROOT" 2>/dev/null | tail -1 | tr -dc '0-9')"
+# --- 3. failures in guests' BROWSERS ----------------------------------------
+# Everything above reads the server. A render crash, a rejected promise on
+# patchy 4G, a broken service worker — none of those appear in a container log,
+# and a guest who sees a broken screen just puts their phone away (spec 0011).
+CLIENT_ERRORS="$(app_exec client-errors)"
+if [[ -n "${CLIENT_ERRORS// /}" ]] && ! grep -qiE 'no such table|unable to open|Permission denied' <<< "$CLIENT_ERRORS"; then
+  # One alert per group: the bridge stamped these rows as it read them, so a
+  # recurrence stays quiet.
+  while IFS= read -r -d '---' GROUP; do
+    [[ -n "${GROUP// /}" ]] || continue
+    alert "🐞 Erreur dans le navigateur d'un joueur" "$GROUP
+
+Détail complet : https://${SITE_DOMAIN:-localhost}/admin/errors"
+  done <<< "$CLIENT_ERRORS"
+fi
+
+# --- 4. disk, because SQLite fails in confusing ways when it is full --------
+DISK_USE="$(app "df --output=pcent ." | tail -1 | tr -dc '0-9')"
 if [[ -n "$DISK_USE" ]] && (( DISK_USE > 85 )); then
-  alert "🟠 Disque presque plein sur la VM EVG" \
+  alert "🟠 Disque presque plein sur la VM applicative" \
     "Utilisation : ${DISK_USE} %.
 Une base SQLite sur un disque plein échoue de façon déroutante — purge les
 sauvegardes (data/backups) et les images Docker inutilisées.
 
-$(df -h "$REPO_ROOT" 2>&1 | tail -2)"
+$(app "df -h ." | tail -2)"
 fi
 
 exit 0

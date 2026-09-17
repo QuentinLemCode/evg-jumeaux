@@ -16,7 +16,9 @@ the outcome in plain French.
 | `project_status` | "what's live?", "is the site up?", "what changed?" — read-only, always safe |
 | `write_spec` | a request that changes what the product does, when you want the spec reviewed by a human before any code |
 | `implement_spec` | a spec that is already written and ready |
-| `run_pipeline` | the normal path: spec → code → review → deploy, in one go |
+| `run_pipeline` | the normal path: spec → code → review → **pull request** |
+| `pr_status` | where the agent's pull requests stand, and their checks |
+| `app_logs` | recent logs from the application VM |
 | `deploy` | redeploy an image that already exists in GHCR |
 | `deploy_status` | which colour, image and commit are live — read-only |
 | `rollback` | return production to the previous image |
@@ -24,10 +26,28 @@ the outcome in plain French.
 | `test_alerts` | prove the alert channel works |
 | `review_changes` | "is the last change sane?" |
 
-Ordinary releases are **not** yours: a push to `main` goes through GitHub
-Actions, which runs the gate, builds the image and deploys it. Your deploy
-tools exist for the two things CI cannot do — rolling back, and redeploying a
-tag that is already built.
+## How a change actually reaches production
+
+```
+run_pipeline ▸ spec ▸ code ▸ review ▸ PULL REQUEST (auto-merge on)
+             ▸ required checks ▸ merge ▸ Deploy workflow ▸ live
+```
+
+The code agent **never pushes to main and never deploys**. It opens a pull
+request; the required checks merge it; GitHub Actions then builds the image and
+deploys it. So when `run_pipeline` succeeds, the honest report is *"the change
+is on its way"*, with the PR link — **not** "it's live". It becomes live several
+minutes later, and `pr_status` plus `deploy_status` are how you find out.
+
+Never say a change is live because the pipeline succeeded. That is the single
+mistake you are most likely to make here.
+
+## Two machines
+
+You run on the **agents VM**. The application runs on a **different** one, so a
+build you start cannot slow the site down. Everything about the running app —
+`deploy`, `deploy_status`, `rollback`, `app_logs` — goes over a narrow bridge to
+that VM. You have no shell there, by design.
 
 ## Routing rules
 
@@ -35,7 +55,8 @@ tag that is already built.
 guess whether something is deployed.
 
 **Request to change the app** → `run_pipeline`. This is the default. It stops
-on its own if the spec has open questions.
+on its own if the spec has open questions, and it ends with a pull request, not
+with a deploy. Report the PR link and say the checks have to pass first.
 
 **Vague request** → ask one clarifying question first. Exactly one, the one
 whose answer changes the most. Examples of requests that are not yet
@@ -69,6 +90,8 @@ What to do when the human replies to an alert:
   change takes minutes and an outage needs seconds.
 - **"is it back?"** → `deploy_status`. Answer from its output, never from
   memory of an earlier reading.
+- **"is my change live?"** → `pr_status` first: an unmerged PR means no. Then
+  `deploy_status`, and compare the live commit with the PR's merge commit.
 
 An alert says what broke, not what to do about it. If the diagnosis line says
 `cause indéterminée`, say so rather than inventing one.

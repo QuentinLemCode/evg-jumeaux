@@ -1,13 +1,17 @@
 {
   "_comment": [
-    "Tool registry for the Hermes gateway. The stable contract is the shell",
-    "commands, not this file's schema: if your Hermes build expects a",
-    "different manifest shape, keep the commands and re-shape the wrapper.",
-    "Every command is safe to run from the repo root on the VM, as the",
-    "'hermes' user, and prints a machine-readable report block at the end.",
-    "NOTE: ordinary deploys come from GitHub Actions on main. The deploy tools",
-    "here are for the two cases CI cannot handle: rolling back, and redeploying",
-    "an image that is already built."
+    "Tool registry for the Hermes gateway, which runs on the AGENTS VM.",
+    "The stable contract is the shell commands, not this file's schema: if your",
+    "Hermes build expects a different manifest shape, keep the commands and",
+    "re-shape the wrapper. Every command is safe to run from the repo root as",
+    "the 'hermes' user and prints a machine-readable report block at the end.",
+    "",
+    "Two things to know about the topology:",
+    "  - the APPLICATION runs on a different VM. Anything touching it goes",
+    "    through scripts/agent/app-exec.sh, which is an allowlist of six verbs",
+    "    over Tailscale SSH, not a shell.",
+    "  - the code agent NEVER pushes to main. It opens a pull request with",
+    "    auto-merge on, and the required checks decide whether it lands."
   ],
   "cwd": "/home/hermes/site",
   "tools": [
@@ -21,7 +25,7 @@
     },
     {
       "name": "run_pipeline",
-      "description": "The full spec-driven loop for a change request: write or amend the spec, implement it, review it, then deploy to production. Stops by itself if the spec has open questions a human must answer. This is the default tool for 'change the app so that ...'.",
+      "description": "The full spec-driven loop for a change request: write or amend the spec, implement it, review it, then open a PULL REQUEST with auto-merge enabled. The required checks merge it and the Deploy workflow ships it — this tool does not deploy anything itself. Stops by itself if the spec has open questions a human must answer. The default tool for 'change the app so ...'.",
       "command": "scripts/agent/pipeline.sh",
       "args": [
         {
@@ -81,14 +85,23 @@
     },
     {
       "name": "deploy",
-      "description": "Redeploy an image that already exists in GHCR, with no downtime (blue/green behind a graceful Caddy reload). Ordinary releases come from GitHub Actions on main — use this only to redeploy a known tag.",
-      "command": "scripts/agent/deploy.sh",
+      "description": "Redeploy an image that already exists in GHCR, on the application VM, with no downtime. Ordinary releases come from GitHub Actions on main — use this only to redeploy a known tag.",
+      "command": "scripts/agent/app-exec.sh",
       "args": [
+        {
+          "name": "verb",
+          "type": "string",
+          "required": true,
+          "enum": [
+            "deploy"
+          ],
+          "description": "Always \"deploy\"."
+        },
         {
           "name": "tag",
           "type": "string",
           "required": true,
-          "description": "Image tag, e.g. sha-a1b2c3d. Get it from deploy_status or from the Actions run."
+          "description": "Image tag, e.g. sha-a1b2c3d, from deploy_status or the Actions run."
         }
       ],
       "timeout_seconds": 900,
@@ -96,17 +109,17 @@
     },
     {
       "name": "deploy_status",
-      "description": "Which colour is live, which image and commit it runs, the previous deploy, and the current health response. Read-only.",
-      "command": "scripts/agent/deploy.sh",
+      "description": "Which colour is live on the application VM, which image and commit it runs, the previous deploy, and the current health response. Read-only.",
+      "command": "scripts/agent/app-exec.sh",
       "args": [
         {
-          "name": "flag",
+          "name": "verb",
           "type": "string",
           "required": true,
           "enum": [
-            "--status"
+            "status"
           ],
-          "description": "Always --status."
+          "description": "Always \"status\"."
         }
       ],
       "timeout_seconds": 60,
@@ -114,17 +127,17 @@
     },
     {
       "name": "rollback",
-      "description": "Return production to the previous image, with no downtime. CODE ONLY: the database is never rolled back, because reverting it would destroy results players entered since the deploy. Use when the site is broken and the cause is the last release.",
-      "command": "scripts/agent/deploy.sh",
+      "description": "Return the application to the previous image, with no downtime. CODE ONLY: the database is never rolled back, because reverting it would destroy results players entered since the deploy. Use when the site is broken and the cause is the last release.",
+      "command": "scripts/agent/app-exec.sh",
       "args": [
         {
-          "name": "flag",
+          "name": "verb",
           "type": "string",
           "required": true,
           "enum": [
-            "--rollback"
+            "rollback"
           ],
-          "description": "Always --rollback."
+          "description": "Always \"rollback\"."
         }
       ],
       "timeout_seconds": 900,
@@ -154,6 +167,52 @@
         }
       ],
       "timeout_seconds": 60,
+      "mutates": false
+    },
+    {
+      "name": "pr_status",
+      "description": "Where the code agent's pull requests stand: open ones, whether auto-merge is on, and the state of their checks. Use to answer 'is it live yet?' — a change is live only once its PR merged AND the Deploy workflow finished.",
+      "command": "scripts/agent/pr-status.sh",
+      "args": [
+        {
+          "name": "number",
+          "type": "string",
+          "required": false,
+          "description": "A PR number for detail; omit for all open ones."
+        }
+      ],
+      "timeout_seconds": 120,
+      "mutates": false
+    },
+    {
+      "name": "app_logs",
+      "description": "Recent logs from the application VM. Optionally one service: app-blue, app-green, caddy, cloudflared, sweeper. Read-only.",
+      "command": "scripts/agent/app-exec.sh",
+      "args": [
+        {
+          "name": "verb",
+          "type": "string",
+          "required": true,
+          "enum": [
+            "logs"
+          ],
+          "description": "Always \"logs\"."
+        },
+        {
+          "name": "service",
+          "type": "string",
+          "required": false,
+          "enum": [
+            "app-blue",
+            "app-green",
+            "caddy",
+            "cloudflared",
+            "sweeper"
+          ],
+          "description": "Optional single service."
+        }
+      ],
+      "timeout_seconds": 120,
       "mutates": false
     }
   ]
