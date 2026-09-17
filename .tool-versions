@@ -1,0 +1,4 @@
+# For asdf / mise. The Node version is duplicated in .nvmrc (nvm cannot read
+# this file) and in package.json's engines field; keep the three in step.
+nodejs 26.8.2
+terraform 1.16.3

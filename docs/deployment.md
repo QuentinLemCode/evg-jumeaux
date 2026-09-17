@@ -1,22 +1,39 @@
 # Deployment
 
-One GCP VM, reached only through Cloudflare. `main` is what runs in
-production; there is no staging, because a bachelor party lasts a weekend and a
-second environment would double the surface for half the benefit.
+Two GCP VMs, one of them reached only through Cloudflare. `main` is what runs
+in production; there is no staging, because a bachelor party lasts a weekend and
+a second environment would double the surface for half the benefit.
+
+| VM | Size | Runs | Holds |
+|---|---|---|---|
+| `evg-app` | e2-small | cloudflared, caddy, the app (blue/green), the sweeper | `AUTH_SECRET`, VAPID keys, the tunnel token, a read-only GHCR token |
+| `evg-site-agent` | e2-medium | Hermes, the spec/code/review agents, the watcher | the LLM key, the agent's GitHub token |
+
+**Why two.** An agent running `npm ci` and a production build occupies CPU and
+memory for minutes. On a shared machine that lands in the site's response time,
+during the party, exactly when it is being used. Splitting also means neither
+machine holds the other's secrets, and the app VM can be small: fewer than 50
+players, and nothing is built there.
+
+The only path between them is `scripts/agent/app-exec.sh` — six allowlisted
+verbs over Tailscale SSH (`status`, `deploy`, `rollback`, `logs`, `ps`,
+`health`), not a shell.
 
 ```
-            ┌───────────── GitHub Actions ─────────────┐
-  push main │  gate ▸ build image ▸ push to GHCR       │
-            │                        │                │
-            │   join tailnet ◀───────┘                │
-            └────────┬─────────────────────────────────┘
-                     │ tailscale ssh
-  ┌──────────────────▼──── GCP VM (no inbound port) ───────────────────┐
-  │  cloudflared ──▶ caddy ──▶ app-blue  |  app-green                  │
-  │       │                     one colour live, SQLite on ./data      │
-  │       │          sweeper ──▶ same file                             │
-  │       │          watch-errors.timer ──▶ alert + short diagnosis    │
-  └───────┼────────────────────────────────────────────────────────────┘
+  ┌──── evg-site-agent (no inbound port) ────────────────────────────┐
+  │  Hermes ▸ spec agent ▸ code agent ──▶ pull request               │
+  │  watch-errors.timer ──▶ health + logs + disk ──▶ alert           │
+  └────────────────────────────────┬──────────────┬──────────────────┘
+                                   │ PR           │ tailscale ssh
+            ┌─── GitHub Actions ───▼──────────┐   │ (six verbs)
+  merge     │  gate ▸ image ▸ GHCR ▸ deploy   │   │
+            └────────┬────────────────────────┘   │
+                     │ tailscale ssh              │
+  ┌──────────────────▼──── evg-app (no inbound port) ──────────────▼──┐
+  │  cloudflared ──▶ caddy ──▶ app-blue  |  app-green                 │
+  │       │                     one colour live, SQLite on ./data     │
+  │       │          sweeper ──▶ same file                            │
+  └───────┼───────────────────────────────────────────────────────────┘
           │ OUTBOUND connection only
     Cloudflare  (DNS, proxy, WAF, TLS termination) ──▶ evg.$DOMAIN
 ```
@@ -57,9 +74,51 @@ gcloud storage buckets update gs://YOUR-STATE-BUCKET --versioning
 
 ### 2. Keyless GCP auth
 
-Follow [Workload Identity Federation](https://github.com/google-github-actions/auth#preferred-direct-workload-identity-federation).
-The service account needs `roles/compute.admin` and
-`roles/iam.serviceAccountUser`.
+No JSON key ever leaves Google: the CI job exchanges its GitHub OIDC token for
+a short-lived GCP credential. Substitute your project and repository, then run
+it once:
+
+```bash
+PROJECT=YOUR_GCP_PROJECT
+REPO=YOUR_GITHUB_USER/evg-jumeaux
+NUMBER=$(gcloud projects describe "$PROJECT" --format='value(projectNumber)')
+
+gcloud services enable iamcredentials.googleapis.com compute.googleapis.com \
+  --project="$PROJECT"
+
+gcloud iam workload-identity-pools create github \
+  --project="$PROJECT" --location=global --display-name=GitHub
+
+# The attribute condition is the security boundary: without it, ANY GitHub
+# repository on the internet can mint a token for this pool.
+gcloud iam workload-identity-pools providers create-oidc github \
+  --project="$PROJECT" --location=global --workload-identity-pool=github \
+  --issuer-uri=https://token.actions.githubusercontent.com \
+  --attribute-mapping='google.subject=assertion.sub,attribute.repository=assertion.repository' \
+  --attribute-condition="assertion.repository=='$REPO'"
+
+gcloud iam service-accounts create evg-terraform --project="$PROJECT"
+SA=evg-terraform@"$PROJECT".iam.gserviceaccount.com
+
+for ROLE in roles/compute.admin roles/iam.serviceAccountUser; do
+  gcloud projects add-iam-policy-binding "$PROJECT" \
+    --member="serviceAccount:$SA" --role="$ROLE"
+done
+
+# Let the repository impersonate the service account.
+gcloud iam service-accounts add-iam-policy-binding "$SA" --project="$PROJECT" \
+  --role=roles/iam.workloadIdentityUser \
+  --member="principalSet://iam.googleapis.com/projects/$NUMBER/locations/global/workloadIdentityPools/github/attribute.repository/$REPO"
+
+# The service account also needs the state bucket.
+gcloud storage buckets add-iam-policy-binding gs://YOUR-STATE-BUCKET \
+  --member="serviceAccount:$SA" --role=roles/storage.objectAdmin
+
+echo "GCP_WORKLOAD_IDENTITY_PROVIDER=projects/$NUMBER/locations/global/workloadIdentityPools/github/providers/github"
+echo "GCP_SERVICE_ACCOUNT=$SA"
+```
+
+The last two lines print the values of the two GitHub secrets of the same name.
 
 ### 3. Cloudflare
 
@@ -72,18 +131,28 @@ Terraform then creates the tunnel, its ingress rule and the proxied DNS record
 itself. You never touch the Cloudflare DNS panel: the record for
 `evg.$DOMAIN` appears as soon as `apply` finishes, pointing at the tunnel.
 
-### 4. The tailnet ACL for CI
+### 4. The tailnet ACL
 
-Terraform can create the VM and the Tailscale key, but not the ACL that lets
-the CI runner open a shell on it. In the Tailscale admin console:
+Terraform creates the VMs and the Tailscale key, but not the ACL that lets CI
+deploy and the agents VM read the app's logs. Two grants, both narrow:
 
 ```jsonc
 "tagOwners": { "tag:ci": ["autogroup:admin"] },
 "ssh": [
   {
+    // CI deploys to the application VM.
     "action": "accept",
     "src":    ["tag:ci"],
-    "dst":    ["evg-site-agent"],
+    "dst":    ["evg-app"],
+    "users":  ["hermes"]
+  },
+  {
+    // The agents VM reads the app's logs when it diagnoses an error. It has no
+    // shell there in practice — app-exec.sh is an allowlist — but the grant is
+    // what the allowlist runs over.
+    "action": "accept",
+    "src":    ["evg-site-agent"],
+    "dst":    ["evg-app"],
     "users":  ["hermes"]
   }
 ]
@@ -139,12 +208,86 @@ tailscale ssh hermes@evg-site-agent
 cd ~/site && scripts/agent/watch-errors.sh --test
 ```
 
+## Running Terraform on your laptop
+
+`apply` normally runs from the *Deploy infra* workflow, so one identity writes
+the state and every change is in a log. Running it locally is for reading — a
+`plan` before you approve a change, `state show` when you are diagnosing.
+
+**Checks that need no credentials at all.** This is what CI's `infra` job runs
+on a pull request, and what to run before pushing:
+
+```bash
+cd terraform
+terraform init -backend=false   # providers only, no state
+terraform fmt -check -recursive
+terraform validate
+```
+
+`fmt -check` is a required check, and its alignment rules changed in 1.16 —
+`.tool-versions`, `backend.tf` and all three workflows agree on the version, so
+keep the local binary at 1.16 or later.
+
+**A real plan, against the real state.** Two credentials, neither of them a
+downloaded key file:
+
+```bash
+gcloud auth application-default login   # the google provider reads ADC
+cd terraform
+terraform init -reconfigure \
+  -backend-config="bucket=YOUR-STATE-BUCKET" \
+  -backend-config="prefix=evg-jumeaux/infra"
+```
+
+The bucket is deliberately absent from `backend.tf` (a partial backend
+configuration) so the repository names no environment. Your Google account
+needs `roles/storage.objectAdmin` on that bucket and `roles/compute.viewer` on
+the project to plan.
+
+Every variable without a default has to be supplied. Do it through the
+environment rather than a file, so a token never lands on disk:
+
+```bash
+export TF_VAR_project_id=…            TF_VAR_domain=…
+export TF_VAR_cloudflare_api_token=…  TF_VAR_cloudflare_account_id=…
+export TF_VAR_cloudflare_zone_id=…
+export TF_VAR_tailscale_authkey=…     TF_VAR_llm_api_key=…
+export TF_VAR_auth_secret=…
+export TF_VAR_image_repository=ghcr.io/YOUR_USER/evg-jumeaux
+export TF_VAR_ghcr_username=…         TF_VAR_ghcr_token=…
+export TF_VAR_github_token=…
+
+terraform plan
+```
+
+If you prefer a file, call it `terraform.tfvars` — `.gitignore` covers
+`*.tfvars` and `*.tfvars.json`.
+
+**Two things that will waste an afternoon.** The Cloudflare provider validates
+the shape of `cloudflare_api_token` before it contacts anything, and a token
+with a hyphen in it is rejected with an error that looks like a plan failure.
+And `.terraform.lock.hcl` **is** committed on purpose: CI and your laptop must
+resolve the same provider versions. Change them with `terraform init -upgrade`
+and commit the result; never delete the lock file to fix an error.
+
 ## Every release after that
 
-A push to `main` is the whole procedure:
+An agent (or a human) opens a pull request; the required check merges it; the
+merge deploys it.
 
-1. **Gate** — typecheck, eslint, `lint:design`, `lint:migrations`, unit tests,
-   integration tests, production build, Terraform validate, spec hygiene.
+**On the pull request**, the gate is sized to what changed — a specs-only PR
+costs about a minute, a code PR runs the browser suite. The one required check
+is `Verdict`, an aggregator that passes when nothing failed, skipped included.
+That is what lets auto-merge work on a PR where the heavy jobs were legitimately
+skipped; requiring `End-to-end` directly would wedge such a PR forever.
+
+**On `main`**, five steps:
+
+1. **Gate** — typecheck, eslint, `lint:design`, `lint:migrations`,
+   `lint:e2e-coverage`, spec hygiene, unit tests, integration tests, production
+   build. The 52 browser tests are **not** re-run: the merged tree is the tree
+   that just passed them on its PR (the ruleset requires the branch to be up to
+   date), and the image is smoke-tested at step 2.
 2. **Build** — one image, pushed to GHCR as `sha-<short>` and `main`, with a
    registry build cache. Then **smoke-tested**: migrations are applied in that
    image and `/api/health` must report the commit it was built for. An image
@@ -229,9 +372,16 @@ sqlite3 data/evg.db ".backup '/tmp/evg-$(date +%s).db'"
 
 - **`docker compose down -v` removes the Caddy volumes**; the database is a
   bind mount and survives, but use `stop`.
-- **The VM is a deploy target, not a workspace.** The deploy job runs
+- **The app VM is a deploy target, not a workspace.** The deploy job runs
   `git reset --hard origin/main`, so anything edited there vanishes on the next
-  release. Fixes go through spec → code → CI.
+  release. Fixes go through spec → code → PR → CI.
+- **Changing a startup script does not re-provision a running VM.** GCP only
+  runs it at boot. After editing `templates/startup-*.sh.tpl`, reboot the VM
+  (or recreate it) — `terraform apply` alone updates the metadata and nothing
+  else, which looks like the change silently did nothing.
+- **The agents VM needs its checkout kept current.** `pipeline.sh` resets it to
+  `origin/main` at the start of every run, so a half-finished manual edit there
+  is lost. Work in a clone on your laptop instead.
 - **Destroying the infra destroys the database.** It lives on the boot disk.
   Back it up and copy it off the machine first.
 - **A rollback does not undo a migration.** That is why migrations are

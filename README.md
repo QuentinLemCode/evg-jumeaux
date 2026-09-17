@@ -9,18 +9,29 @@ Hermes turns it into a specification, a code agent implements it, and CI
 deploys it with no downtime. The repository is built so that loop is safe.
 
 ```
-  Discord / Telegram ──▶ Hermes ──▶ spec agent ──▶ code agent ──▶ push
-                                                                    │
-  GitHub Actions:  gate ──▶ build image ──▶ GHCR ──────────────────┘
-                                              │
-                                              ▼
-  ┌──────────── GCP VM ────────────────────────────────────────┐
-  │  cloudflared ──▶ caddy ──▶ app-blue | app-green  (SQLite)  │
-  │       ▲                        one colour live             │
-  └───────┼────────────────────────────────────────────────────┘
+  ┌──── agents VM (e2-medium) ───────────────────────────────────┐
+  │  Discord/Telegram ─▶ Hermes ─▶ spec agent ─▶ code agent      │
+  │                                                  │           │
+  │  watcher ──────── watches the app from outside ───┼──▶ alert  │
+  └──────────────────────────────────────────────────┼───────────┘
+                                                     │ pull request
+  ┌──── GitHub Actions ─────────────────────────────  ▼ ─────────┐
+  │  PR:   quick + tests + e2e  ─▶ required check ─▶ auto-merge  │
+  │  main: quick + tests ─▶ build image ─▶ GHCR ─▶ deploy        │
+  └──────────────────────────────────────────┬───────────────────┘
+                                             │ tailscale ssh
+  ┌──── app VM (e2-small) ──────────────────  ▼ ─────────────────┐
+  │  cloudflared ──▶ caddy ──▶ app-blue | app-green   (SQLite)   │
+  │       ▲                    one colour live, zero-downtime    │
+  └───────┼──────────────────────────────────────────────────────┘
           │ outbound only — no inbound port
     Cloudflare (DNS, proxy, TLS) ──▶ evg.$DOMAIN
 ```
+
+**Two VMs, on purpose.** An agent's `npm ci` and build occupy CPU and memory
+for minutes; on a shared machine that shows up in the site's response time,
+during the party. The app VM is small (fewer than 50 players, and nothing is
+built on it) and holds no LLM key; the agents VM holds no application secret.
 
 ## What it does
 
@@ -40,6 +51,11 @@ deploys it with no downtime. The repository is built so that loop is safe.
   points by hand — every one of those with a stated reason.
 - **Public admin log** at `/admin-log`: every admin intervention on points or
   results, readable by every player, with the reason and the signed delta.
+- **Browser errors reported** at `/admin/errors`: a render crash, an uncaught
+  exception or a rejected promise in a guest's browser is grouped by cause and
+  arrives with its stack trace, the logged-in player and the browser — plus an
+  alert on the first occurrence. Production source maps ship, so the traces are
+  readable rather than `a.b is not a function at r (page-4f2c.js:1:28104)`.
 - **History**: every match kept, including cancelled and expired ones, plus a
   per-player profile showing each point earned.
 
@@ -156,8 +172,8 @@ so they stay readable in the logs when something goes wrong.
 | Name | Used by | How to get it |
 |---|---|---|
 | `GCP_PROJECT_ID` | infra | your GCP project id |
-| `GCP_WORKLOAD_IDENTITY_PROVIDER` | infra | [keyless auth setup](https://github.com/google-github-actions/auth#preferred-direct-workload-identity-federation) |
-| `GCP_SERVICE_ACCOUNT` | infra | same; needs `roles/compute.admin` + `roles/iam.serviceAccountUser` |
+| `GCP_WORKLOAD_IDENTITY_PROVIDER` | infra | [keyless auth setup](docs/deployment.md#2-keyless-gcp-auth) — the commands there print this value |
+| `GCP_SERVICE_ACCOUNT` | infra | same; needs `roles/compute.admin`, `roles/iam.serviceAccountUser` and `roles/storage.objectAdmin` on the state bucket |
 | `TF_STATE_BUCKET` | infra | the GCS bucket you create by hand (below) |
 | `TAILSCALE_AUTHKEY` | infra | a **reusable** key, Tailscale admin → Settings → Keys |
 | `CLOUDFLARE_API_TOKEN` | infra | a scoped token: *Zone → DNS → Edit* on the zone, **and** *Account → Cloudflare Tunnel → Edit*. Not the global key. |
@@ -168,6 +184,7 @@ so they stay readable in the logs when something goes wrong.
 | `VAPID_PUBLIC_KEY` | infra | `npm run vapid:generate` |
 | `VAPID_PRIVATE_KEY` | infra | same run — never commit it |
 | `LLM_API_KEY` | infra | your Agent Platform API key. Hermes **and** both OpenCode agents share it. |
+| `AGENT_GITHUB_TOKEN` | infra | a **fine-grained** PAT on this repo for the code agent: *Contents: read/write*, *Pull requests: read/write*, *Workflows: read*. Deliberately **no** admin scope — the agent must not be able to lift the branch protection that constrains it. |
 | `GHCR_PULL_TOKEN` | infra | a GitHub PAT with **`read:packages` only** — it lives on the VM, so it must not be able to write |
 | `TS_OAUTH_CLIENT_ID` | deploy | Tailscale admin → Settings → OAuth clients, scope `auth_keys` |
 | `TS_OAUTH_SECRET` | deploy | same client |
@@ -183,7 +200,8 @@ so they stay readable in the logs when something goes wrong.
 | `SITE_REPO_URL` | `https://github.com/you/evg-jumeaux.git` | cloned onto the VM for the deploy scripts |
 | `SITE_SUBDOMAIN` | `evg` | gives `evg.$DOMAIN` |
 | `INGRESS_MODE` | `tunnel` | `tunnel` (no inbound port) or `public_ip` (80/443 open to Cloudflare only) |
-| `VM_HOSTNAME` | `evg-site-agent` | the tailnet name CI connects to |
+| `APP_VM_HOSTNAME` | `evg-app` | the tailnet name CI deploys to |
+| `AGENTS_VM_HOSTNAME` | `evg-site-agent` | where the agents and the watcher run |
 | `LLM_MODEL` | `google/gemini-3.8-flash` | Hermes and both agents. Check the exact id with `opencode models`. |
 | `LLM_PROVIDER` | `google` | the provider id on the OpenCode side |
 | `LLM_API_KEY_ENV_NAME` | `GEMINI_API_KEY` | the env var the SDK reads; the wrong name fails silently as "no key" |
@@ -192,6 +210,24 @@ so they stay readable in the logs when something goes wrong.
 | `IMAGE_TAG` | `main` | the bootstrap tag; deploys pin a sha afterwards |
 | `DISCORD_ALLOWED_USERS` | `284102345871466496` | *optional*, who may trigger the pipeline |
 | `TELEGRAM_ALLOWED_USERS` | `123456789` | *optional*, same |
+
+### Repository settings (three clicks, and the pipeline depends on them)
+
+1. **Settings → General → Pull Requests → Allow auto-merge.** Without it,
+   `gh pr merge --auto` is refused and the agent's PRs wait for a human.
+2. **Settings → Rules → Rulesets**, on `main`:
+   - *Require a pull request before merging* — this is what stops the agent
+     pushing to main;
+   - *Require status checks to pass* → add **`Verdict`**, and only that one;
+   - *Require branches to be up to date before merging*.
+3. **Allow squash merging**, and nothing else, so `main` stays linear and one
+   PR is one commit.
+
+**Require `Verdict` and nothing else.** It is an aggregator that passes when
+no job failed, *skipped included* — which is what lets auto-merge work on a
+docs-only PR where the browser suite was legitimately skipped. Requiring
+`End-to-end` directly would wedge every such PR forever, waiting for a check
+that will never report.
 
 ### Two things Terraform cannot do for you
 
@@ -205,8 +241,9 @@ so they stay readable in the logs when something goes wrong.
    gcloud storage buckets update gs://YOUR-STATE-BUCKET --versioning
    ```
 
-2. **The tailnet ACL** that lets CI deploy. In the Tailscale admin console, add
-   an SSH rule allowing the CI tag to reach the VM as `hermes`:
+2. **The tailnet ACL** that lets CI deploy and lets the agents VM read the
+   app's logs. In the Tailscale admin console, add two narrow SSH rules — both
+   target the *application* VM, `evg-app`:
 
    ```jsonc
    "tagOwners": { "tag:ci": ["autogroup:admin"] },
@@ -214,14 +251,26 @@ so they stay readable in the logs when something goes wrong.
      {
        "action": "accept",
        "src":    ["tag:ci"],
-       "dst":    ["autogroup:self", "evg-site-agent"],
+       "dst":    ["evg-app"],
+       "users":  ["hermes"]
+     },
+     {
+       "action": "accept",
+       "src":    ["evg-site-agent"],
+       "dst":    ["evg-app"],
        "users":  ["hermes"]
      }
    ]
    ```
 
-   Without it, the deploy job authenticates to the tailnet and then cannot open
-   a shell.
+   Without the first, the deploy job authenticates to the tailnet and then
+   cannot open a shell. Without the second, the error watcher cannot reach the
+   logs it diagnoses.
+
+Add the Workload Identity Federation pool and service account to that list if
+you have not set them up yet — the commands are in
+[docs/deployment.md](docs/deployment.md#2-keyless-gcp-auth), along with
+[how to run Terraform on your laptop](docs/deployment.md#running-terraform-on-your-laptop).
 
 ## Deploying
 
@@ -251,17 +300,41 @@ Full setup, rollback and operational notes: [docs/deployment.md](docs/deployment
 
 ## How changes get made
 
-Spec-driven: the specification changes first, always.
+Spec-driven: the specification changes first, always. And the code agent works
+in the repository, commits, and **opens a pull request** — it never pushes to
+`main` and never deploys.
 
 ```bash
-scripts/agent/status.sh                        # what is live?
-scripts/agent/pipeline.sh "<what you want>"    # spec → code → review → deploy
-scripts/agent/pipeline.sh --no-deploy "..."    # everything except production
+scripts/agent/status.sh                       # git, PRs, specs, production
+scripts/agent/pipeline.sh "<what you want>"   # spec → code → review → PR
+scripts/agent/pipeline.sh --watch "..."       # …and block until it merges
+scripts/agent/pipeline.sh --no-pr "..."       # stop before opening the PR
+scripts/agent/pr-status.sh                    # where the PRs stand
 ```
+
+The required checks merge the PR; the Deploy workflow then ships it. So a green
+pipeline means *on its way*, not *live* — a distinction the Hermes prompt is
+explicit about, because it is the easiest thing to get wrong.
 
 The pipeline stops on its own when a request is ambiguous, and tells you which
 question to answer. Read [docs/agent-pipeline.md](docs/agent-pipeline.md)
 before relying on it, and `AGENTS.md` before editing anything by hand.
+
+### What a PR costs in Actions minutes
+
+The gate is sized to what changed, because a spec-driven repo produces a lot of
+specs-only changes and paying for a browser download on each is how a bill gets
+away from you:
+
+| Change | Jobs that run |
+|---|---|
+| specs or docs only | `quick` (~1 min) |
+| terraform only | `quick` + `infra` |
+| code | `quick` + `tests` + `e2e` |
+| merged to `main` | `quick` + `tests`, then build + deploy — the E2E suite is **not** re-run on the same tree it just passed on |
+
+The browser binary is cached by Playwright version, the small checks share one
+`npm ci` instead of three, and PR runs cancel themselves when you push again.
 
 ## Before the party
 
