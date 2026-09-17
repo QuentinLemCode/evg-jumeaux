@@ -28,7 +28,14 @@ import { createWindowLimiter } from '@/lib/throttle';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-const limiter = createWindowLimiter({ limit: 20, windowMs: 10 * 60_000 });
+// 20 reports per IP per 10 minutes in production. The end-to-end suite runs
+// every test from one address against one server process, so it would exhaust
+// a production-sized bucket partway through the file and then silently record
+// nothing — the limiter is in memory and survives the database reset between
+// tests. Overridden there, never in production.
+const RATE_LIMIT = Number(process.env.CLIENT_ERROR_RATE_LIMIT ?? '20') || 20;
+
+const limiter = createWindowLimiter({ limit: RATE_LIMIT, windowMs: 10 * 60_000 });
 
 function clientIp(headerList: Headers): string {
   // Behind the Cloudflare tunnel and Caddy, the real address arrives in a

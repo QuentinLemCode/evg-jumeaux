@@ -74,6 +74,9 @@ export default defineConfig({
       // the error boundary can be exercised. Unset everywhere else, where it
       // is a 404 (spec 0011).
       E2E_CRASH_ROUTE: '1',
+      // The whole suite reports from one address; the production-sized bucket
+      // would run out mid-file. The limiter itself is unit-tested.
+      CLIENT_ERROR_RATE_LIMIT: '10000',
     },
   },
 });
