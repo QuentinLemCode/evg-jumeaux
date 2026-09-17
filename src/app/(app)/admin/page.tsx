@@ -63,6 +63,16 @@ export default async function AdminPage() {
             {disputes.map((match, index) => (
               <li key={match.id} className="space-y-2">
                 <MatchSummaryCard match={match} reveal={index} />
+                {/* The complaint itself. An admin asked to arbitrate without
+                    seeing it is guessing (spec 0008, rule 2). */}
+                {match.disputeReason ? (
+                  <p className="sticker sticker-tangerine px-3 py-2 text-sm text-ink">
+                    <span className="display mb-0.5 block text-[11px] font-bold tracking-wide text-muted uppercase">
+                      Contestation
+                    </span>
+                    {match.disputeReason}
+                  </p>
+                ) : null}
                 <DisputeResolver
                   matchId={match.id}
                   sides={match.sides.map((side) => ({

@@ -162,6 +162,8 @@ export type MatchSummary = {
   invitationExpiresAt: number;
   winningSide: number | null;
   cancelReason: string | null;
+  /** The player's complaint, shown to the admin who arbitrates (spec 0008, rule 2). */
+  disputeReason: string | null;
   sides: { sideIndex: number; label: string; score: number | null }[];
   players: { userId: string; name: string; avatar: string; sideIndex: number }[];
 };
@@ -204,6 +206,7 @@ async function hydrateSummaries(rows: { match: MatchRow; game: GameRow }[], now:
     invitationExpiresAt: match.invitationExpiresAt,
     winningSide: match.winningSide,
     cancelReason: match.cancelReason,
+    disputeReason: match.disputeReason,
     sides: sideRows
       .filter((s) => s.matchId === match.id)
       .map((s) => ({ sideIndex: s.sideIndex, label: s.label, score: s.score })),
