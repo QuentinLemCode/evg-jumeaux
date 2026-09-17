@@ -9,7 +9,7 @@ import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
 import { EmptyState } from '../ui/EmptyState';
-import { ErrorMessage, Field, inputClass } from '../ui/Field';
+import { ErrorMessage, Field, FieldGroup, inputClass } from '../ui/Field';
 
 export type ManagedGame = {
   id: string;
@@ -159,7 +159,7 @@ export function GameManager({ games }: { games: ManagedGame[] }) {
         />
       </Field>
 
-      <Field label="Format">
+      <FieldGroup label="Format">
         <div className="flex gap-2">
           {(['duel', 'team'] as const).map((mode) => (
             <button
@@ -177,7 +177,7 @@ export function GameManager({ games }: { games: ManagedGame[] }) {
             </button>
           ))}
         </div>
-      </Field>
+      </FieldGroup>
 
       <div className="grid grid-cols-2 gap-3">
         <Field label={draft.mode === 'duel' ? 'Nombre de joueurs' : 'Nombre d’équipes'}>
