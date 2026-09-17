@@ -16,25 +16,55 @@ variable "zone" {
 }
 
 variable "instance_name" {
-  description = "Nom de la VM"
+  description = <<-EOT
+    Nom de la VM des AGENTS. Inchangé volontairement : c'est la VM qui existe
+    déjà, et la renommer la détruirait pour la recréer.
+  EOT
   type        = string
   default     = "evg-site-agent"
 }
 
+variable "app_instance_name" {
+  description = "Nom de la VM qui héberge l'application, séparée des agents"
+  type        = string
+  default     = "evg-app"
+}
+
 variable "machine_type" {
   description = <<-EOT
-    Type de machine GCP. e2-medium (2 vCPU / 4 Go) et pas e2-small : la VM
-    construit l'image Docker de l'app (npm ci + next build), ce qui dépasse
-    2 Go de RAM et se termine par un OOM kill silencieux au milieu du build.
+    Type de machine de la VM des AGENTS. e2-medium (4 Go) parce qu'elle fait
+    tourner OpenCode, Claude Code et le gate complet (`npm ci` + `next build`
+    + les tests) — ce qui dépasse 2 Go.
   EOT
   type        = string
   default     = "e2-medium"
 }
 
+variable "app_machine_type" {
+  description = <<-EOT
+    Type de machine de la VM APPLICATIVE. e2-small (2 Go) suffit : moins de
+    50 joueurs, et plus rien n'est construit sur cette machine — la CI publie
+    l'image, la VM la tire. C'est la séparation des deux VM qui rend cette
+    taille possible.
+  EOT
+  type        = string
+  default     = "e2-small"
+}
+
 variable "disk_size_gb" {
-  description = "Taille du disque de boot (Go)"
+  description = "Disque de boot de la VM des agents (Go) : dépôt, node_modules, builds"
   type        = number
   default     = 30
+}
+
+variable "app_disk_size_gb" {
+  description = <<-EOT
+    Disque de boot de la VM applicative (Go). 20 Go : l'image, quelques
+    couches Docker, la base SQLite et 20 sauvegardes. Le watcher alerte au-delà
+    de 85 % d'utilisation.
+  EOT
+  type        = number
+  default     = 20
 }
 
 # --- Tailscale ---------------------------------------------------------------
@@ -276,4 +306,34 @@ variable "ghcr_token" {
   description = "Jeton GitHub en lecture seule (read:packages) pour tirer l'image sur la VM"
   type        = string
   sensitive   = true
+}
+
+
+# --- GitHub (l'agent de code ouvre des pull requests) -------------------------
+
+variable "github_token" {
+  description = <<-EOT
+    Jeton GitHub utilisé par l'agent de code via `gh` : pousser une branche,
+    ouvrir une pull request, activer l'auto-merge. Portée minimale pour un
+    jeton à granularité fine sur CE dépôt :
+      Contents: Read and write
+      Pull requests: Read and write
+      Workflows: Read      (pour lire l'état des contrôles)
+    Volontairement PAS le droit d'administrer le dépôt : l'agent ne doit pas
+    pouvoir désactiver la protection de branche qui l'empêche de casser main.
+  EOT
+  type        = string
+  sensitive   = true
+}
+
+variable "git_author_name" {
+  description = "Nom d'auteur des commits de l'agent"
+  type        = string
+  default     = "EVG code agent"
+}
+
+variable "git_author_email" {
+  description = "Adresse d'auteur des commits de l'agent"
+  type        = string
+  default     = "agent@users.noreply.github.com"
 }

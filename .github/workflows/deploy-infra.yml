@@ -31,7 +31,7 @@ jobs:
 
       - uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: 1.9.8
+          terraform_version: 1.16.3
 
       - name: Terraform init
         run: |
@@ -71,6 +71,9 @@ jobs:
           TF_VAR_telegram_allowed_users: ${{ vars.TELEGRAM_ALLOWED_USERS }}
           TF_VAR_telegram_chat_id: ${{ secrets.TELEGRAM_CHAT_ID }}
 
+          # --- GitHub: the code agent opens pull requests -------------------
+          TF_VAR_github_token: ${{ secrets.AGENT_GITHUB_TOKEN }}
+
           # --- the app -----------------------------------------------------
           TF_VAR_site_repo_url: ${{ vars.SITE_REPO_URL }}
           TF_VAR_auth_secret: ${{ secrets.AUTH_SECRET }}
@@ -88,15 +91,29 @@ jobs:
 
       - name: What to do next
         run: |
-          echo "### Infra déployée" >> "$GITHUB_STEP_SUMMARY"
           {
+            echo '### Infra déployée'
             echo ''
-            echo '| | |'
-            echo '|---|---|'
+            echo "| | |"
+            echo "|---|---|"
             echo "| Site | $(terraform output -raw site_url) |"
-            echo "| Ingress | $(terraform output -raw ingress_mode) |"
             echo "| Santé | $(terraform output -raw health_url) |"
-            echo "| SSH | \`$(terraform output -raw tailscale_ssh_hint)\` |"
+            echo "| Ingress | $(terraform output -raw ingress_mode) |"
+            echo ''
+            echo '**Deux VM.** Les agents ne partagent plus le CPU de'
+            echo "l'application, donc un build d'agent ne se voit plus sur le"
+            echo 'temps de réponse du site.'
+            echo ''
+            echo '```'
+            terraform output -json app_vm    | jq -r '"app    : \(.name) (\(.machine_type))  →  \(.ssh)"'
+            terraform output -json agents_vm | jq -r '"agents : \(.name) (\(.machine_type))  →  \(.ssh)"'
+            echo '```'
+            echo ''
+            echo 'Reporte ces **Variables** dans le dépôt :'
+            echo ''
+            echo '```'
+            terraform output -json github_variables_to_set | jq -r 'to_entries[] | "\(.key)=\(.value)"'
+            echo '```'
             echo ''
             echo 'Le DNS Cloudflare est déjà à jour. Le premier déploiement se'
             echo 'fait tout seul au boot ; les suivants passent par le workflow'
