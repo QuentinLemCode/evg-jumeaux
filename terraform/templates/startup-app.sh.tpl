@@ -44,7 +44,12 @@ echo "=== [4/7] Tailscale (SSH activé) ==="
 # L'accès SSH sert à deux choses et rien d'autre : la CI déploie, et la VM des
 # agents lit les logs quand elle diagnostique une erreur.
 curl -fsSL https://tailscale.com/install.sh | sh
-tailscale up --authkey="${tailscale_authkey}" --ssh --hostname="${instance_name}"
+# --advertise-tags is what makes this machine addressable in the ACL policy:
+# a Tailscale SSH rule cannot name a host in src or dst, only tags, users and
+# entries from the `hosts` section. The auth key must therefore be created
+# WITHOUT tags of its own — a tagged key wins and this flag is then refused.
+tailscale up --authkey="${tailscale_authkey}" --ssh \
+  --hostname="${instance_name}" --advertise-tags=tag:evg-app
 
 echo "=== [5/7] Pare-feu ==="
 ufw default deny incoming
