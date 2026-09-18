@@ -1,6 +1,11 @@
 variable "project_id" {
   description = "ID du projet GCP"
   type        = string
+
+  validation {
+    condition     = length(var.project_id) > 0
+    error_message = "project_id est obligatoire (secret GCP_PROJECT_ID)."
+  }
 }
 
 variable "region" {
@@ -73,6 +78,11 @@ variable "tailscale_authkey" {
   description = "Clé d'authentification Tailscale (réutilisable), générée sur https://login.tailscale.com/admin/settings/keys"
   type        = string
   sensitive   = true
+
+  validation {
+    condition     = startswith(var.tailscale_authkey, "tskey-")
+    error_message = "tailscale_authkey doit commencer par « tskey- » (secret TAILSCALE_AUTHKEY)."
+  }
 }
 
 # --- LLM (utilisé par Hermes Agent ET OpenCode) -------------------------------
@@ -81,6 +91,11 @@ variable "llm_api_key" {
   description = "Clé API Agent Platform, partagée par Hermes et par les agents OpenCode"
   type        = string
   sensitive   = true
+
+  validation {
+    condition     = length(var.llm_api_key) > 0
+    error_message = "llm_api_key est obligatoire (secret LLM_API_KEY)."
+  }
 }
 
 variable "llm_api_key_env_name" {
@@ -179,6 +194,11 @@ variable "auth_secret" {
   description = "Signe le cookie de session (min. 32 caractères). Le changer déconnecte tout le monde."
   type        = string
   sensitive   = true
+
+  validation {
+    condition     = length(var.auth_secret) >= 32
+    error_message = "auth_secret doit faire au moins 32 caractères (secret AUTH_SECRET)."
+  }
 }
 
 variable "vapid_public_key" {
@@ -212,21 +232,41 @@ variable "cloudflare_api_token" {
   EOT
   type        = string
   sensitive   = true
+
+  validation {
+    condition     = length(var.cloudflare_api_token) > 0
+    error_message = "cloudflare_api_token est obligatoire (secret CLOUDFLARE_API_TOKEN)."
+  }
 }
 
 variable "cloudflare_account_id" {
   description = "ID du compte Cloudflare (tableau de bord, colonne de droite)"
   type        = string
+
+  validation {
+    condition     = can(regex("^[0-9a-f]{32}$", var.cloudflare_account_id))
+    error_message = "cloudflare_account_id doit être 32 caractères hexadécimaux (secret CLOUDFLARE_ACCOUNT_ID)."
+  }
 }
 
 variable "cloudflare_zone_id" {
   description = "ID de la zone Cloudflare du domaine"
   type        = string
+
+  validation {
+    condition     = can(regex("^[0-9a-f]{32}$", var.cloudflare_zone_id))
+    error_message = "cloudflare_zone_id doit être 32 caractères hexadécimaux (secret CLOUDFLARE_ZONE_ID)."
+  }
 }
 
 variable "domain" {
   description = "Domaine racine géré par Cloudflare, ex: exemple.com"
   type        = string
+
+  validation {
+    condition     = can(regex("^[a-z0-9.-]+\\.[a-z]{2,}$", var.domain))
+    error_message = "domain doit être un domaine racine, ex. exemple.com (secret DOMAIN)."
+  }
 }
 
 variable "site_subdomain" {
@@ -286,6 +326,11 @@ variable "cloudflare_ingress_cidrs" {
 variable "image_repository" {
   description = "Image publiée par la CI, ex: ghcr.io/moi/evg-jumeaux"
   type        = string
+
+  validation {
+    condition     = length(var.image_repository) > 0
+    error_message = "image_repository est obligatoire."
+  }
 }
 
 variable "image_tag" {
@@ -300,12 +345,22 @@ variable "image_tag" {
 variable "ghcr_username" {
   description = "Utilisateur GitHub pour l'authentification GHCR sur la VM"
   type        = string
+
+  validation {
+    condition     = length(var.ghcr_username) > 0
+    error_message = "ghcr_username est obligatoire."
+  }
 }
 
 variable "ghcr_token" {
   description = "Jeton GitHub en lecture seule (read:packages) pour tirer l'image sur la VM"
   type        = string
   sensitive   = true
+
+  validation {
+    condition     = length(var.ghcr_token) > 0
+    error_message = "ghcr_token est obligatoire (secret GHCR_PULL_TOKEN, read:packages seulement)."
+  }
 }
 
 
@@ -324,6 +379,11 @@ variable "github_token" {
   EOT
   type        = string
   sensitive   = true
+
+  validation {
+    condition     = length(var.github_token) > 0
+    error_message = "github_token est obligatoire (secret AGENT_GITHUB_TOKEN). Sans lui, le code agent ne peut pas pousser."
+  }
 }
 
 variable "git_author_name" {

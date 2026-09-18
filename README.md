@@ -173,7 +173,7 @@ so they stay readable in the logs when something goes wrong.
 |---|---|---|
 | `GCP_PROJECT_ID` | infra | your GCP project id |
 | `GCP_WORKLOAD_IDENTITY_PROVIDER` | infra | [keyless auth setup](docs/deployment.md#2-keyless-gcp-auth) — the commands there print this value |
-| `GCP_SERVICE_ACCOUNT` | infra | same; needs `roles/compute.admin`, `roles/iam.serviceAccountUser` and `roles/storage.objectAdmin` on the state bucket |
+| `GCP_SERVICE_ACCOUNT` | infra | same; needs `roles/compute.admin` on the project, `roles/storage.objectAdmin` on the state bucket, and `roles/iam.workloadIdentityUser` **on itself** for the repository's principal |
 | `TF_STATE_BUCKET` | infra | the GCS bucket you create by hand (below) |
 | `TAILSCALE_AUTHKEY` | infra | a **reusable** key, Tailscale admin → Settings → Keys |
 | `CLOUDFLARE_API_TOKEN` | infra | a scoped token: *Zone → DNS → Edit* on the zone, **and** *Account → Cloudflare Tunnel → Edit*. Not the global key. |

@@ -100,10 +100,11 @@ gcloud iam workload-identity-pools providers create-oidc github \
 gcloud iam service-accounts create evg-terraform --project="$PROJECT"
 SA=evg-terraform@"$PROJECT".iam.gserviceaccount.com
 
-for ROLE in roles/compute.admin roles/iam.serviceAccountUser; do
-  gcloud projects add-iam-policy-binding "$PROJECT" \
-    --member="serviceAccount:$SA" --role="$ROLE"
-done
+# compute.admin is enough: Terraform creates an address, two firewall rules
+# and two instances, and attaches NO service account to them — so it never
+# needs iam.serviceAccountUser.
+gcloud projects add-iam-policy-binding "$PROJECT" \
+  --member="serviceAccount:$SA" --role=roles/compute.admin
 
 # Let the repository impersonate the service account.
 gcloud iam service-accounts add-iam-policy-binding "$SA" --project="$PROJECT" \
@@ -119,6 +120,38 @@ echo "GCP_SERVICE_ACCOUNT=$SA"
 ```
 
 The last two lines print the values of the two GitHub secrets of the same name.
+
+**The failure this step causes when it is half-done.** `Terraform init` fails
+with a 403 that names the bucket, which sends you looking at the bucket:
+
+```
+Failed to get existing workspaces: querying Cloud Storage failed: …
+status code 403: Permission 'iam.serviceAccounts.getAccessToken' denied
+```
+
+The bucket is not the problem. `iam.serviceAccounts.getAccessToken` is the
+*impersonation* step: the federated token was issued, and exchanging it for the
+service account's token was refused. Three separate grants have to be in place,
+and a missing one always surfaces as this single error:
+
+| Missing | Symptom |
+|---|---|
+| `roles/iam.workloadIdentityUser` on the SA, for the repository's principalSet | this 403 |
+| `roles/storage.objectAdmin` on the state bucket | a 403 naming the bucket, *after* impersonation succeeds |
+| `roles/compute.admin` on the project | `apply` fails, `init` succeeds |
+
+Check the first with:
+
+```bash
+gcloud iam service-accounts get-iam-policy "$SA" --project="$PROJECT"
+```
+
+An empty policy means nothing can impersonate it, whatever else is configured.
+
+Scope that binding to the **repository**, not the owner. An
+`--attribute-condition` of `assertion.repository_owner == 'you'` lets every
+repository you own — including one you create tomorrow, and a fork — mint a
+token for this service account.
 
 ### 3. Cloudflare
 
