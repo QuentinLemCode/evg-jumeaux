@@ -109,6 +109,10 @@ src/app        → may import src/lib, src/components
 src/components → may import src/lib/domain/types, NEVER src/db
 src/lib        → may import src/db
 src/db         → imports nothing from the above
+src/hermes     → a SEPARATE program (spec 0012): the Telegram gateway. It
+                 imports nothing from the app and nothing imports it. It
+                 reaches the app the way an outsider does — over HTTP, or
+                 through scripts/agent/.
 ```
 A React component that queries the database directly is a bug, even if it works.
 
