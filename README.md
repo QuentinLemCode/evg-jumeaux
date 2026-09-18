@@ -214,7 +214,7 @@ so they stay readable in the logs when something goes wrong.
 | `LLM_MODEL` | `google/gemini-3.8-flash` | Hermes and both agents. Check the exact id with `opencode models`. |
 | `LLM_PROVIDER` | `google` | the provider id on the OpenCode side |
 | `LLM_API_KEY_ENV_NAME` | `GEMINI_API_KEY` | the env var the SDK reads; the wrong name fails silently as "no key" |
-| `LLM_BASE_URL` | *(empty)* | only if the Agent Platform key uses a dedicated endpoint |
+| `LLM_BASE_URL` | `https://aiplatform.googleapis.com/v1/publishers/google` | **Required for an Agent Platform / Vertex express key.** Such a key is restricted by org policy to `aiplatform.googleapis.com`, and OpenCode's `google` provider calls `generativelanguage.googleapis.com` unless told otherwise — so every agent fails with `Requests to this API are blocked`. See [docs/deployment.md](docs/deployment.md). |
 | `VAPID_SUBJECT` | `mailto:you@example.com` | |
 | `IMAGE_TAG` | `main` | the bootstrap tag; deploys pin a sha afterwards |
 

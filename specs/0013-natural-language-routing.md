@@ -100,15 +100,15 @@ message must not cost an agent call.
 
 ## Acceptance criteria
 
-- [ ] «comment le score est calculé ?» is answered, and no branch is created.
-- [ ] «corrige les marges du classement sur iPhone SE» runs the pipeline.
-- [ ] «corrige l'UI» comes back as a question, not a pipeline run.
-- [ ] The answer to a factual question names a spec or a file.
-- [ ] A router failure runs nothing at all.
-- [ ] An unparseable decision runs nothing at all.
+- [x] «comment le score est calculé ?» is answered, and no branch is created.
+- [x] «corrige les marges du classement sur iPhone SE» runs the pipeline.
+- [x] «corrige l'UI» comes back as a question, not a pipeline run.
+- [x] The answer to a factual question names a spec or a file.
+- [x] A router failure runs nothing at all.
+- [x] An unparseable decision runs nothing at all.
 - [ ] A question is answered while a pipeline is running.
-- [ ] Slash commands still bypass the router entirely.
-- [ ] The acknowledgement for a `change` shows the request that will be used.
+- [x] Slash commands still bypass the router entirely.
+- [x] The acknowledgement for a `change` shows the request that will be used.
 
 E2E coverage: not applicable — no browser surface. The parsing of the router's
 report, the three decisions and the failure handling are unit-tested; the
