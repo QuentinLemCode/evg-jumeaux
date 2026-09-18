@@ -42,7 +42,8 @@ hermes/                gateway prompt + tool manifest (for the future LLM layer)
 src/hermes/            the Telegram gateway itself (spec 0012)
 .opencode/agent/       OpenCode agent definitions (spec, code, review)
 .claude/agents/        Claude Code subagent definitions (same roles)
-.claude/skills/        Claude Code skills (write-spec, implement-spec, deploy…)
+skills/                the operating manuals, shared by BOTH runtimes
+.claude/skills         symlink → skills/ (Claude Code only looks there)
 src/app/               Next.js App Router pages + route handlers
 src/lib/               domain logic — the part that must be tested
 src/components/        React components (presentational; no domain logic)
@@ -136,7 +137,7 @@ A React component that queries the database directly is a bug, even if it works.
 
 ### UI — the "Confetti" design system
 **Before any change under `src/app/` or `src/components/`, load the
-`confetti-ui` skill** (`.claude/skills/confetti-ui/SKILL.md`). On a runtime
+`confetti-ui` skill** (`skills/confetti-ui/SKILL.md`). On a runtime
 without skills, read that file directly — it is the operating manual for the
 look, and spec 0010 is its contract.
 

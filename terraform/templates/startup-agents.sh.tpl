@@ -79,9 +79,12 @@ apt-get update -y
 apt-get install -y gh
 
 echo "=== [6/8] Agents ==="
-su - hermes -c "curl -fsSL https://opencode.ai/install | bash"
-su - hermes -c "curl -fsSL https://claude.ai/install.sh | bash" || \
-  echo "WARN: installation de Claude Code échouée — OpenCode reste disponible"
+# OpenCode seul. C'est le runtime que les agents utilisent (AGENT_RUNTIME
+# plus bas). lib.sh sait aussi piloter Claude Code, pour un humain en local,
+# mais la VM n'en a pas besoin : un outil installé de plus est une surface de
+# plus a maintenir et a mettre a jour.
+su - hermes -c "curl -fsSL https://opencode.ai/install | bash" \
+  || echo "WARN: installation d OpenCode echouee — les agents ne pourront pas tourner"
 
 # La clé Agent Platform, exposée sous LES DEUX noms attendus par les SDK
 # Google : le nom exact dépend de la version du SDK, et se tromper ne produit
