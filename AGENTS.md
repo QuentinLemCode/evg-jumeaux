@@ -38,7 +38,8 @@ docs/
   deployment.md        how production is updated and rolled back
   decisions/           ADRs — one file per irreversible decision
 scripts/agent/         the stable CLI contract Hermes calls (spec.sh, code.sh, …)
-hermes/                Hermes gateway configuration + system prompt
+hermes/                gateway prompt + tool manifest (for the future LLM layer)
+src/hermes/            the Telegram gateway itself (spec 0012)
 .opencode/agent/       OpenCode agent definitions (spec, code, review)
 .claude/agents/        Claude Code subagent definitions (same roles)
 .claude/skills/        Claude Code skills (write-spec, implement-spec, deploy…)

@@ -4,35 +4,33 @@ Hermes is the conversational front door to the pipeline. It runs on the
 **agents VM** as the `hermes-gateway` systemd unit, bridges Discord/Telegram,
 and calls the scripts in `scripts/agent/`.
 
-> ## The binary is not in this repository
+> ## What runs, and what does not yet
 >
-> `hermes-gateway.service` runs `/home/hermes/.local/bin/hermes gateway`, and
-> **nothing installs that binary** — not this repository, not the Terraform
-> startup script. Hermes is a separate conversational gateway you supply; this
-> repository provides its prompt, its tool manifest, and the scripts those
-> tools call.
+> **The Telegram gateway is in this repository** — `src/hermes/`, spec 0012 —
+> and `hermes-gateway.service` runs it with `npm run hermes:gateway`. It
+> carries commands and change requests to `scripts/agent/` and reports back.
+> It reacts **only when the bot is mentioned**, and only to the ids in
+> `TELEGRAM_ALLOWED_USERS`.
 >
-> Until it is installed, the unit is enabled but cannot start, and **no bot
-> answers on Discord or Telegram however well the tokens are configured**.
-> Tagging it in a chat produces nothing at all — there is no process listening.
+> What it does **not** do is hold a conversation. It routes:
 >
-> `scripts/agent/status.sh` reports this explicitly, at the top.
+> | You send | It runs |
+> |---|---|
+> | `@bot /status` | `status.sh` |
+> | `@bot /errors`, `/logs`, `/deploy` | `app-exec.sh <verb>` |
+> | `@bot ajoute un mur de photos` | `pipeline.sh "ajoute un mur de photos"` |
 >
-> **Everything else works without it.** The pipeline is shell scripts:
+> The model-driven layer this directory's prompt and manifest describe —
+> Gemini choosing tools, answering in prose — sits on top of that transport and
+> is not built yet. `system-prompt.md` and `tools.json` are its contract, kept
+> here and unused until it is.
+>
+> Everything also works from a shell, which is how it is tested:
 >
 > ```bash
 > tailscale ssh hermes@evg-site-agent
-> cd ~/site
-> scripts/agent/status.sh                      # where everything stands
-> scripts/agent/pipeline.sh "add a photo wall" # spec → code → review → PR
+> cd ~/site && scripts/agent/status.sh
 > ```
->
-> That is the contract Hermes automates, not a fallback for it.
-
-The application runs on a **different** VM. Hermes has no shell there: anything
-about the running app goes through `scripts/agent/app-exec.sh`, an allowlist of
-seven verbs over Tailscale SSH. An agent with an open shell on the production host
-would eventually use it.
 
 ## What Hermes is and is not
 
