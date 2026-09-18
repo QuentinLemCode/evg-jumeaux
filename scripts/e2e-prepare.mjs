@@ -13,7 +13,9 @@ const DB = process.env.DATABASE_PATH ?? './.e2e/evg.db';
 const run = (script) =>
   execFileSync('npm', ['run', '--silent', script], {
     stdio: 'inherit',
-    env: { ...process.env, DATABASE_PATH: DB },
+    // SEED_ROSTER=e2e: the suite gets its own nine players sharing one known
+    // PIN, never the real guest list and never the guests' real PINs.
+    env: { ...process.env, DATABASE_PATH: DB, SEED_ROSTER: 'e2e' },
   });
 
 if (!existsSync('.next/BUILD_ID')) {

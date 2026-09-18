@@ -33,7 +33,9 @@ test-results/
 terraform/.terraform/
 terraform/*.tfstate
 terraform/*.tfstate.*
-terraform/.terraform.lock.hcl
+# .terraform.lock.hcl is deliberately NOT ignored: it pins the exact provider
+# versions, so CI and a laptop resolve the same ones. Without it a provider
+# release breaks an apply with no change on our side.
 *.tfvars
 
 # tooling
@@ -42,3 +44,9 @@ terraform/.terraform.lock.hcl
 coverage/
 .vscode/
 .idea/
+*.tfvars.json
+
+# user seed data
+user-seed.txt
+# generated PIN hashes — set as the SEED_PIN_HASHES secret, never commit
+.secrets/

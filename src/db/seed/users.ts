@@ -5,48 +5,51 @@
  * the weekend means adding a line here and re-running `npm run db:seed`.
  *
  * ┌─────────────────────────────────────────────────────────────────────────┐
- * │ BEFORE THE PARTY, DO THIS:                                              │
+ * │ NO PIN OR PIN HASH BELONGS IN THIS FILE.                                │
  * │                                                                         │
- * │   1. Replace the names, ids and avatars below with the real guests.     │
- * │   2. For each of them, pick a 6-digit PIN and run:                      │
- * │        npm run hash-pin 482915                                          │
- * │   3. Paste the printed hash as their `pinHash`.                          │
- * │   4. Send each person their own PIN privately. Never commit the PINs.    │
+ * │ A 6-digit PIN has a million possibilities, and bcrypt at cost 12 runs   │
+ * │ at thousands of guesses a second on one GPU — so a published hash is    │
+ * │ a PIN anyone can recover in minutes. The escalating lockout defends     │
+ * │ the login form; it does nothing for a hash someone already has.         │
  * │                                                                         │
- * │ Every hash below is currently the shared development PIN. Seeding      │
- * │ refuses to run with those hashes when NODE_ENV=production, so the app  │
- * │ cannot accidentally go live with a PIN everybody knows.                 │
+ * │ Hashes therefore live in the SEED_PIN_HASHES secret, keyed by id.       │
+ * │ `npm run generate-users -- <roster-file>` writes this file and that     │
+ * │ secret from the same input.                                             │
  * └─────────────────────────────────────────────────────────────────────────┘
+ *
+ * The end-to-end suite does NOT use this list — it has its own roster in
+ * `users.e2e.ts`, so changing the guests cannot break the tests and the tests
+ * never need a real guest's PIN.
  *
  * `id` is a permanent identifier: matches and points reference it forever.
  * Never reuse an id for a different person.
  */
 
-export const DEV_PIN = '123456';
-
-export type SeedUser = {
+/** A player as the repository knows them: everything except their secret. */
+export type RosterEntry = {
   id: string;
   name: string;
   role: 'admin' | 'user';
   avatar: string;
-  pinHash: string;
 };
 
-const DEV_PIN_HASH = '$2b$12$qM/eqAqm1MwcNsCaIrr2r.GKJrCf8pb1EQ1crncDgRiqmFdkq4Ope';
+/** What the seeder actually writes, once a hash has been resolved for each. */
+export type SeedUser = RosterEntry & { pinHash: string };
 
-export const seedUsers: SeedUser[] = [
-  { id: 'quentin', name: 'Quentin', role: 'admin', avatar: '🧠', pinHash: DEV_PIN_HASH },
-  { id: 'jumeau-1', name: 'Jumeau 1', role: 'admin', avatar: '👑', pinHash: DEV_PIN_HASH },
-  { id: 'jumeau-2', name: 'Jumeau 2', role: 'admin', avatar: '👑', pinHash: DEV_PIN_HASH },
-  { id: 'antoine', name: 'Antoine', role: 'user', avatar: '🐻', pinHash: DEV_PIN_HASH },
-  { id: 'baptiste', name: 'Baptiste', role: 'user', avatar: '🦊', pinHash: DEV_PIN_HASH },
-  { id: 'clement', name: 'Clément', role: 'user', avatar: '🦉', pinHash: DEV_PIN_HASH },
-  { id: 'hugo', name: 'Hugo', role: 'user', avatar: '🐺', pinHash: DEV_PIN_HASH },
-  { id: 'julien', name: 'Julien', role: 'user', avatar: '🦁', pinHash: DEV_PIN_HASH },
-  { id: 'lucas', name: 'Lucas', role: 'user', avatar: '🐯', pinHash: DEV_PIN_HASH },
-  { id: 'mathieu', name: 'Mathieu', role: 'user', avatar: '🦅', pinHash: DEV_PIN_HASH },
-  { id: 'nicolas', name: 'Nicolas', role: 'user', avatar: '🐗', pinHash: DEV_PIN_HASH },
-  { id: 'pierre', name: 'Pierre', role: 'user', avatar: '🦌', pinHash: DEV_PIN_HASH },
-  { id: 'romain', name: 'Romain', role: 'user', avatar: '🐸', pinHash: DEV_PIN_HASH },
-  { id: 'thomas', name: 'Thomas', role: 'user', avatar: '🦈', pinHash: DEV_PIN_HASH },
+// generate-users:begin — replaced wholesale by `npm run generate-users`.
+export const seedRoster: RosterEntry[] = [
+  { id: 'quentin', name: 'Quentin', role: 'admin', avatar: '🧠' },
+  { id: 'pablo', name: 'Pablo', role: 'admin', avatar: '👑' },
+  { id: 'ravno', name: 'Ravno', role: 'user', avatar: '🐻' },
+  { id: 'gabriel', name: 'Gabriel', role: 'user', avatar: '🦊' },
+  { id: 'benjamin', name: 'Benjamin', role: 'user', avatar: '🦉' },
+  { id: 'alex', name: 'Alex', role: 'user', avatar: '🐺' },
+  { id: 'arthur', name: 'Arthur', role: 'user', avatar: '🦁' },
+  { id: 'felix', name: 'Félix', role: 'user', avatar: '🐯' },
+  { id: 'nemo', name: 'Némo', role: 'user', avatar: '🦅' },
+  { id: 'garreau', name: 'Garreau', role: 'user', avatar: '🐗' },
+  { id: 'robin', name: 'Robin', role: 'user', avatar: '🦌' },
+  { id: 'tim', name: 'Tim', role: 'user', avatar: '🐸' },
+  { id: 'tom', name: 'Tom', role: 'user', avatar: '🦈' },
 ];
+// generate-users:end

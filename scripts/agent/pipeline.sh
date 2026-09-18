@@ -3,19 +3,41 @@
 # for "change the app so that ...".
 #
 #   scripts/agent/pipeline.sh "add a photo wall where everyone can post pictures"
-#   scripts/agent/pipeline.sh --no-deploy "..."   # stop after the code agent
+#   scripts/agent/pipeline.sh --no-pr "..."    # stop after the code agent
+#   scripts/agent/pipeline.sh --watch "..."    # block until the PR merges
+#
+#   spec ▸ code ▸ review ▸ PULL REQUEST ▸ (required checks) ▸ auto-merge ▸ deploy
+#
+# The agent does NOT push to main and does NOT deploy. It opens a pull request
+# with auto-merge on, and the required checks decide whether it lands. Deploying
+# is then the Deploy workflow's job, from main.
 #
 # It stops at the first step that needs a human, and says which one.
 
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
-DEPLOY=true
-if [[ "${1:-}" == "--no-deploy" ]]; then DEPLOY=false; shift; fi
-[[ $# -ge 1 ]] || die "usage: $0 [--no-deploy] \"<human request>\""
+OPEN_PR=true
+WATCH=false
+while [[ "${1:-}" == --* ]]; do
+  case "$1" in
+    --no-pr|--no-deploy) OPEN_PR=false; shift ;;
+    --watch)             WATCH=true; shift ;;
+    *)                   die "unknown flag: $1" ;;
+  esac
+done
+[[ $# -ge 1 ]] || die "usage: $0 [--no-pr] [--watch] \"<human request>\""
 REQUEST="$*"
 
 cd "$REPO_ROOT"
 require_clean_tree
+
+# Every run starts from a current main, so two requests in a row cannot build
+# on each other's unmerged work by accident.
+BASE="${PR_BASE_BRANCH:-main}"
+log "STEP 0/4 — starting from origin/$BASE"
+git fetch --quiet origin "$BASE" || die "cannot reach origin"
+git checkout --quiet "$BASE" || die "cannot check out $BASE"
+git reset --hard --quiet "origin/$BASE"
 
 # --- step 1: spec -----------------------------------------------------------
 log "STEP 1/4 — specification"
@@ -61,44 +83,46 @@ log "STEP 3/4 — review (advisory)"
 REVIEW_OUT="$("$REPO_ROOT/scripts/agent/review.sh" "$SPEC_FILE" || true)"
 printf '%s\n' "$REVIEW_OUT"
 
-# --- step 4: deploy ---------------------------------------------------------
-if ! $DEPLOY; then
+# --- step 4: pull request ---------------------------------------------------
+if ! $OPEN_PR; then
   cat <<REPORT
 
-PIPELINE: ok-not-deployed
+PIPELINE: ok-no-pr
 STAGE: code
 SPEC_FILE: $SPEC_FILE
 COMMIT: $(git rev-parse --short HEAD)
-NEXT: scripts/agent/deploy.sh
+NEXT: scripts/agent/open-pr.sh $SPEC_FILE
 REPORT
   exit 0
 fi
 
-log "STEP 4/4 — deploy"
-log "pushing to origin/main"
-git push origin main || die "push failed — the change is committed locally but not deployed"
-
+log "STEP 4/4 — pull request"
 set +e
-DEPLOY_OUT="$("$REPO_ROOT/scripts/agent/deploy.sh")"; DEPLOY_RC=$?
+if $WATCH; then
+  PR_OUT="$("$REPO_ROOT/scripts/agent/open-pr.sh" --watch "$SPEC_FILE")"; PR_RC=$?
+else
+  PR_OUT="$("$REPO_ROOT/scripts/agent/open-pr.sh" "$SPEC_FILE")"; PR_RC=$?
+fi
 set -e
-printf '%s\n' "$DEPLOY_OUT"
+printf '%s\n' "$PR_OUT"
 
-if [[ $DEPLOY_RC -ne 0 ]]; then
+if [[ $PR_RC -ne 0 ]]; then
   cat <<REPORT
 
-PIPELINE: deploy-failed
-STAGE: deploy
+PIPELINE: pr-failed
+STAGE: pull-request
 SPEC_FILE: $SPEC_FILE
-NEXT: scripts/agent/deploy.sh --rollback
+NEXT: read the transcript in $LOG_DIR, then: scripts/agent/open-pr.sh $SPEC_FILE
 REPORT
   exit 1
 fi
 
 cat <<REPORT
 
-PIPELINE: ok
+PIPELINE: pr-open
 SPEC_FILE: $SPEC_FILE
-COMMIT: $(git rev-parse --short HEAD)
-DEPLOYED: yes
+PR: $(report_field PR "$PR_OUT" || echo unknown)
+AUTO_MERGE: $(report_field AUTO_MERGE "$PR_OUT" || echo unknown)
 SUMMARY: $(report_field SUMMARY "$SPEC_OUT" || echo "$REQUEST")
+NEXT: the required checks merge it, then main builds and deploys. Poll with scripts/agent/pr-status.sh
 REPORT

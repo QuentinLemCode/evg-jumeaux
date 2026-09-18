@@ -12,7 +12,7 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
 import { db } from '@/db';
-import { pointEvents, users } from '@/db/schema';
+import { clientErrors, pointEvents, users } from '@/db/schema';
 import { requireAdminAction } from '@/lib/auth/guards';
 import { applyMatchAction } from '@/lib/matches/apply';
 
@@ -175,6 +175,41 @@ export async function adjustPoints(
     revalidatePath(`/players/${parsed.data.userId}`);
     revalidatePath('/admin');
     revalidatePath('/admin-log');
+    return ok();
+  });
+}
+
+const fingerprintSchema = z.object({
+  fingerprint: z.string().regex(/^[0-9a-f]{20}$/, 'empreinte invalide'),
+  resolved: z.boolean(),
+});
+
+/**
+ * Marks a browser-error group handled, or reopens it (spec 0011, rule 18).
+ *
+ * Resolving hides it from the default view and never deletes it: the count and
+ * the first-seen date are the evidence that it happened. A later occurrence
+ * clears `resolvedAt` by itself, in the report endpoint — a bug that comes
+ * back is news.
+ */
+export async function setClientErrorResolved(
+  input: z.input<typeof fingerprintSchema>,
+): Promise<ActionResult> {
+  return guarded(async () => {
+    await requireAdminAction();
+    const parsed = fingerprintSchema.safeParse(input);
+    if (!parsed.success) return err('Empreinte invalide');
+
+    const updated = await db
+      .update(clientErrors)
+      .set({ resolvedAt: parsed.data.resolved ? Date.now() : null })
+      .where(eq(clientErrors.fingerprint, parsed.data.fingerprint))
+      .returning({ fingerprint: clientErrors.fingerprint });
+
+    if (updated.length === 0) return err('Cette erreur n\u2019existe plus');
+
+    revalidatePath('/admin/errors');
+    revalidatePath('/admin');
     return ok();
   });
 }

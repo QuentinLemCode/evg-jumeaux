@@ -1,5 +1,8 @@
 terraform {
-  required_version = ">= 1.6"
+  # >= 1.16 and not >= 1.6: `terraform fmt` changed its alignment rules
+  # between those, so an older local version reformats every file and the CI
+  # fmt check starts failing on work that looked clean locally.
+  required_version = ">= 1.16"
 
   required_providers {
     google = {

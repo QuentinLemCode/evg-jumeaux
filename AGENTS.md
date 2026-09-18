@@ -47,7 +47,7 @@ src/lib/               domain logic — the part that must be tested
 src/components/        React components (presentational; no domain logic)
 e2e/                   end-to-end tests, one tag per spec (§9)
 src/db/                Drizzle schema, migrations, seed
-terraform/             GCP VM, static IP, firewall, startup script
+terraform/             two GCP VMs (app, agents), Cloudflare DNS + tunnel
 .github/workflows/     CI (typecheck + tests) and infra deploy/destroy
 ```
 
@@ -172,7 +172,8 @@ A deliberate exception is annotated in place and scoped to the rule
 
 ## 6. Spec-driven workflow
 
-The pipeline is: **request → spec → code → deploy**. Each step has one owner.
+The pipeline is: **request → spec → code → pull request → CI → deploy**. Each
+step has one owner, and the last two owners are not agents.
 
 ```
 human (Discord/Telegram)
@@ -184,11 +185,62 @@ Hermes            orchestrator. Talks to the human, never writes app code.
 spec agent        owns specs/. Writes/updates the spec, updates the index.
    │  scripts/agent/code.sh <spec-id>
    ▼
-code agent        owns src/. Implements exactly the spec. Runs the gate.
-   │  scripts/agent/deploy.sh
+code agent        owns src/ and e2e/. Implements exactly the spec, runs the gate.
+   │  scripts/agent/open-pr.sh <spec>
    ▼
-production        docker compose build + up on the VM
+pull request      auto-merge on. The REQUIRED CHECKS decide whether it lands.
+   │
+   ▼
+GitHub Actions    builds the image, pushes it to GHCR, deploys it with no
+                  downtime, verifies /api/health reports the new commit.
 ```
+
+### How the code agent interacts with GitHub
+
+**It works directly in the checkout, commits, and opens a pull request. It
+never pushes to `main` and never deploys.**
+
+```bash
+scripts/agent/open-pr.sh specs/0011-photo-wall.md
+```
+
+which branches (`agent/0011-photo-wall`), commits, rebases onto `origin/main`,
+pushes, opens the PR with the spec's intent and criteria in the body, and turns
+on auto-merge (`gh pr merge --auto --squash`).
+
+Why a PR and not a push to main: an agent that can push to main can deploy a
+broken build at two in the morning, and no amount of instruction in a markdown
+file prevents it. **A branch protection rule does.** The required checks are
+the same gate the agent ran locally, so a red check is information — read it,
+do not re-run it.
+
+Consequences you must respect:
+
+- **Never `git push origin main`.** Not to "save time", not to fix a red check.
+  If the checks are wrong, fix the checks in the PR.
+- **Never disable auto-merge or merge manually.** The agent's token cannot
+  administer the repository precisely so that it cannot lift the rule that
+  constrains it.
+- **A green pipeline is not a deployed change.** It is a merged PR; the Deploy
+  workflow ships it a few minutes later. Report it that way.
+- **One branch per spec.** Two specs in one PR means one red check blocks both.
+- If a rebase onto `origin/main` conflicts, `open-pr.sh` stops. That is a human
+  decision, not one to force.
+
+### Two machines
+
+The **agents VM** runs Hermes, the agents, the gate and the watcher. The
+**application VM** runs only the app. An agent's `npm ci` and build occupy CPU
+and memory for minutes; on a shared machine that shows up in the site's
+response time, during the party, exactly when it is being used.
+
+So: the agents VM holds no application secret (no `AUTH_SECRET`, no VAPID key,
+no tunnel token), and the application VM holds no LLM key and no GitHub token.
+Anything an agent needs from the running app goes through
+`scripts/agent/app-exec.sh` — an allowlist of seven verbs over Tailscale SSH,
+not a shell (`status`, `health`, `ps`, `logs`, `deploy`, `rollback`,
+`client-errors`). Do not add an eighth without asking why the existing seven
+are not enough.
 
 ### Rules for the spec agent
 - One spec per coherent feature, numbered `NNNN-kebab-case-title.md`.
@@ -219,6 +271,9 @@ spec(0004): allow admins to resolve disputed matches
 ```
 Reference the spec: `Spec: specs/0004-match-lifecycle.md`.
 
+The commit lands on a branch, never on `main` — see *How the code agent
+interacts with GitHub* above.
+
 ## 7. What to do when you are stuck
 
 | Situation | Action |
@@ -227,7 +282,9 @@ Reference the spec: `Spec: specs/0004-match-lifecycle.md`.
 | Spec contradicts code | Stop. Report both readings. The human decides. |
 | Change needs a new dependency | Allowed if small and popular; note it in the spec. Anything with native bindings or a paid service needs human approval. |
 | Change would break existing data | Write a migration. Never drop a column that holds history, and never in the same release as the code that stops using it (§8). |
-| Build fails after your change | Fix it or revert it. Never push a red `main`. |
+| Build fails after your change | Fix it in the pull request. You cannot push a red `main` — the branch protection rule is what stops you, and that is deliberate. |
+| A check is red and you disagree with it | Read it. The gate is the one you ran locally, so a difference is information. Never re-run a check hoping for a different answer. |
+| A rebase onto `main` conflicts | Stop and report both sides. A human decides. |
 | Task is bigger than one spec | Split it into numbered specs and say so. |
 
 ## 8. Deploying without downtime — what it costs a migration
@@ -288,8 +345,9 @@ migration that gates a deploy.
 
 ### Order of operations, for reference
 
-`scripts/agent/deploy.sh` does exactly this, and aborts at the first failure
-without touching what is serving:
+`scripts/agent/deploy.sh` runs on the **application VM**, invoked by GitHub
+Actions over Tailscale SSH once a pull request has merged. It does exactly this,
+and aborts at the first failure without touching what is serving:
 
 ```
 pull image ▸ back up SQLite ▸ MIGRATE (old code still serving)

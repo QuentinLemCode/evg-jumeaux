@@ -17,6 +17,7 @@ No code change lands without a spec change first — see `AGENTS.md` §6.
 | `0008` | [Admin console](0008-admin-console.md) | implemented | Game CRUD, dispute resolution, manual adjustments, **public admin log** |
 | `0009` | [PWA and responsive shell](0009-pwa-and-responsive-shell.md) | implemented | Mobile-first shell, installable PWA, desktop layout |
 | `0010` | [Visual design system (« Confetti »)](0010-visual-design-system.md) | implemented | Cream paper, sticker cards, hard shadows, Gabarito, shared screen anatomy — enforced by `lint:design` |
+| `0011` | [Client error reporting](0011-client-error-reporting.md) | implemented | Browser crashes reach a table, an admin screen and the alert channel — grouped, rate limited, no third party |
 
 Status values: `draft` → `ready-for-code` → `implemented` → `superseded`.
 

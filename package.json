@@ -16,6 +16,7 @@
     "db:seed": "tsx src/db/seed/index.ts",
     "db:reset": "tsx src/db/reset.ts",
     "hash-pin": "tsx scripts/hash-pin.ts",
+    "generate-users": "tsx scripts/generate-users.ts",
     "vapid:generate": "tsx scripts/vapid-generate.ts",
     "sweep": "tsx scripts/sweep.ts",
     "test:integration": "vitest run --config vitest.integration.config.ts",

@@ -10,9 +10,11 @@ import { SignJWT, jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
 
 import { env } from '@/lib/env';
+
+import { SESSION_COOKIE } from './cookie';
 import { SESSION_TTL_MS } from '@/lib/domain/types';
 
-export const SESSION_COOKIE = 'evg_session';
+export { SESSION_COOKIE } from './cookie';
 
 function secret(): Uint8Array {
   return new TextEncoder().encode(env().AUTH_SECRET);

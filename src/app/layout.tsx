@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import { Gabarito, Instrument_Sans } from 'next/font/google';
 
+import { ErrorReporter } from '@/components/ErrorReporter';
 import { ServiceWorkerRegistrar } from '@/components/ServiceWorkerRegistrar';
 
 import './globals.css';
@@ -52,6 +53,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="fr" className={`${gabarito.variable} ${instrumentSans.variable}`}>
       <body className="min-h-dvh antialiased">
         {children}
+        {/* In the ROOT layout, so a crash on the login screen is reported too
+            — the one nobody would otherwise hear about (spec 0011, rule 5). */}
+        <ErrorReporter />
         <ServiceWorkerRegistrar />
       </body>
     </html>

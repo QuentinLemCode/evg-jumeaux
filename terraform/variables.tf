@@ -1,6 +1,11 @@
 variable "project_id" {
   description = "ID du projet GCP"
   type        = string
+
+  validation {
+    condition     = length(var.project_id) > 0
+    error_message = "project_id est obligatoire (secret GCP_PROJECT_ID)."
+  }
 }
 
 variable "region" {
@@ -16,25 +21,55 @@ variable "zone" {
 }
 
 variable "instance_name" {
-  description = "Nom de la VM"
+  description = <<-EOT
+    Nom de la VM des AGENTS. Inchangé volontairement : c'est la VM qui existe
+    déjà, et la renommer la détruirait pour la recréer.
+  EOT
   type        = string
   default     = "evg-site-agent"
 }
 
+variable "app_instance_name" {
+  description = "Nom de la VM qui héberge l'application, séparée des agents"
+  type        = string
+  default     = "evg-app"
+}
+
 variable "machine_type" {
   description = <<-EOT
-    Type de machine GCP. e2-medium (2 vCPU / 4 Go) et pas e2-small : la VM
-    construit l'image Docker de l'app (npm ci + next build), ce qui dépasse
-    2 Go de RAM et se termine par un OOM kill silencieux au milieu du build.
+    Type de machine de la VM des AGENTS. e2-medium (4 Go) parce qu'elle fait
+    tourner OpenCode, Claude Code et le gate complet (`npm ci` + `next build`
+    + les tests) — ce qui dépasse 2 Go.
   EOT
   type        = string
   default     = "e2-medium"
 }
 
+variable "app_machine_type" {
+  description = <<-EOT
+    Type de machine de la VM APPLICATIVE. e2-small (2 Go) suffit : moins de
+    50 joueurs, et plus rien n'est construit sur cette machine — la CI publie
+    l'image, la VM la tire. C'est la séparation des deux VM qui rend cette
+    taille possible.
+  EOT
+  type        = string
+  default     = "e2-small"
+}
+
 variable "disk_size_gb" {
-  description = "Taille du disque de boot (Go)"
+  description = "Disque de boot de la VM des agents (Go) : dépôt, node_modules, builds"
   type        = number
   default     = 30
+}
+
+variable "app_disk_size_gb" {
+  description = <<-EOT
+    Disque de boot de la VM applicative (Go). 20 Go : l'image, quelques
+    couches Docker, la base SQLite et 20 sauvegardes. Le watcher alerte au-delà
+    de 85 % d'utilisation.
+  EOT
+  type        = number
+  default     = 20
 }
 
 # --- Tailscale ---------------------------------------------------------------
@@ -43,6 +78,11 @@ variable "tailscale_authkey" {
   description = "Clé d'authentification Tailscale (réutilisable), générée sur https://login.tailscale.com/admin/settings/keys"
   type        = string
   sensitive   = true
+
+  validation {
+    condition     = startswith(var.tailscale_authkey, "tskey-")
+    error_message = "tailscale_authkey doit commencer par « tskey- » (secret TAILSCALE_AUTHKEY)."
+  }
 }
 
 # --- LLM (utilisé par Hermes Agent ET OpenCode) -------------------------------
@@ -51,6 +91,11 @@ variable "llm_api_key" {
   description = "Clé API Agent Platform, partagée par Hermes et par les agents OpenCode"
   type        = string
   sensitive   = true
+
+  validation {
+    condition     = length(var.llm_api_key) > 0
+    error_message = "llm_api_key est obligatoire (secret LLM_API_KEY)."
+  }
 }
 
 variable "llm_api_key_env_name" {
@@ -145,10 +190,32 @@ variable "site_repo_url" {
 
 # --- Secrets applicatifs -----------------------------------------------------
 
+variable "seed_pin_hashes" {
+  description = <<-EOT
+    Hashs bcrypt des PIN, par id de joueur, en JSON encodé en base64.
+    Produit par `npm run generate-users` (secret SEED_PIN_HASHES).
+
+    Base64 parce que Docker Compose interprète les `$` du `.env` qu'il utilise
+    aussi comme env_file : en JSON brut, chaque hash arrive tronqué.
+  EOT
+  type        = string
+  sensitive   = true
+
+  validation {
+    condition     = length(var.seed_pin_hashes) > 0 && !startswith(var.seed_pin_hashes, "{")
+    error_message = "seed_pin_hashes doit être du JSON encodé en base64, pas du JSON brut (secret SEED_PIN_HASHES)."
+  }
+}
+
 variable "auth_secret" {
   description = "Signe le cookie de session (min. 32 caractères). Le changer déconnecte tout le monde."
   type        = string
   sensitive   = true
+
+  validation {
+    condition     = length(var.auth_secret) >= 32
+    error_message = "auth_secret doit faire au moins 32 caractères (secret AUTH_SECRET)."
+  }
 }
 
 variable "vapid_public_key" {
@@ -182,21 +249,41 @@ variable "cloudflare_api_token" {
   EOT
   type        = string
   sensitive   = true
+
+  validation {
+    condition     = length(var.cloudflare_api_token) > 0
+    error_message = "cloudflare_api_token est obligatoire (secret CLOUDFLARE_API_TOKEN)."
+  }
 }
 
 variable "cloudflare_account_id" {
   description = "ID du compte Cloudflare (tableau de bord, colonne de droite)"
   type        = string
+
+  validation {
+    condition     = can(regex("^[0-9a-f]{32}$", var.cloudflare_account_id))
+    error_message = "cloudflare_account_id doit être 32 caractères hexadécimaux (secret CLOUDFLARE_ACCOUNT_ID)."
+  }
 }
 
 variable "cloudflare_zone_id" {
   description = "ID de la zone Cloudflare du domaine"
   type        = string
+
+  validation {
+    condition     = can(regex("^[0-9a-f]{32}$", var.cloudflare_zone_id))
+    error_message = "cloudflare_zone_id doit être 32 caractères hexadécimaux (secret CLOUDFLARE_ZONE_ID)."
+  }
 }
 
 variable "domain" {
   description = "Domaine racine géré par Cloudflare, ex: exemple.com"
   type        = string
+
+  validation {
+    condition     = can(regex("^[a-z0-9.-]+\\.[a-z]{2,}$", var.domain))
+    error_message = "domain doit être un domaine racine, ex. exemple.com (secret DOMAIN)."
+  }
 }
 
 variable "site_subdomain" {
@@ -256,6 +343,11 @@ variable "cloudflare_ingress_cidrs" {
 variable "image_repository" {
   description = "Image publiée par la CI, ex: ghcr.io/moi/evg-jumeaux"
   type        = string
+
+  validation {
+    condition     = length(var.image_repository) > 0
+    error_message = "image_repository est obligatoire."
+  }
 }
 
 variable "image_tag" {
@@ -270,10 +362,55 @@ variable "image_tag" {
 variable "ghcr_username" {
   description = "Utilisateur GitHub pour l'authentification GHCR sur la VM"
   type        = string
+
+  validation {
+    condition     = length(var.ghcr_username) > 0
+    error_message = "ghcr_username est obligatoire."
+  }
 }
 
 variable "ghcr_token" {
   description = "Jeton GitHub en lecture seule (read:packages) pour tirer l'image sur la VM"
   type        = string
   sensitive   = true
+
+  validation {
+    condition     = length(var.ghcr_token) > 0
+    error_message = "ghcr_token est obligatoire (secret GHCR_PULL_TOKEN, read:packages seulement)."
+  }
+}
+
+
+# --- GitHub (l'agent de code ouvre des pull requests) -------------------------
+
+variable "github_token" {
+  description = <<-EOT
+    Jeton GitHub utilisé par l'agent de code via `gh` : pousser une branche,
+    ouvrir une pull request, activer l'auto-merge. Portée minimale pour un
+    jeton à granularité fine sur CE dépôt :
+      Contents: Read and write
+      Pull requests: Read and write
+      Workflows: Read      (pour lire l'état des contrôles)
+    Volontairement PAS le droit d'administrer le dépôt : l'agent ne doit pas
+    pouvoir désactiver la protection de branche qui l'empêche de casser main.
+  EOT
+  type        = string
+  sensitive   = true
+
+  validation {
+    condition     = length(var.github_token) > 0
+    error_message = "github_token est obligatoire (secret AGENT_GITHUB_TOKEN). Sans lui, le code agent ne peut pas pousser."
+  }
+}
+
+variable "git_author_name" {
+  description = "Nom d'auteur des commits de l'agent"
+  type        = string
+  default     = "EVG code agent"
+}
+
+variable "git_author_email" {
+  description = "Adresse d'auteur des commits de l'agent"
+  type        = string
+  default     = "agent@users.noreply.github.com"
 }

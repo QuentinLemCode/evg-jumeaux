@@ -248,6 +248,46 @@ export const notifications = sqliteTable(
   (t) => [index('notifications_user_idx').on(t.userId, t.createdAt)],
 );
 
+/**
+ * Client-side failures, GROUPED (spec 0011).
+ *
+ * One row per distinct failure, not per occurrence: a render loop on one phone
+ * would otherwise write thousands of rows onto a 20 GB disk. A repeat
+ * increments `occurrences` and moves `lastSeenAt`.
+ *
+ * `occurrences` and not `count` - `count` is a SQL function name, and a column
+ * that needs quoting to be read is a column that eventually is not.
+ */
+export const clientErrors = sqliteTable(
+  'client_errors',
+  {
+    id: text('id').primaryKey(),
+    /** The grouping key: kind + normalised message + first stack frames. */
+    fingerprint: text('fingerprint').notNull().unique(),
+    kind: text('kind', { enum: ['render', 'unhandled', 'rejection', 'sw'] }).notNull(),
+    message: text('message').notNull(),
+    stack: text('stack'),
+    /** The route, not the full URL: a query string can carry a destination. */
+    path: text('path').notNull(),
+    appCommit: text('app_commit'),
+    viewport: text('viewport'),
+    occurrences: integer('occurrences').notNull().default(1),
+    firstSeenAt: timestamp('first_seen_at').notNull(),
+    lastSeenAt: timestamp('last_seen_at').notNull(),
+    /** Taken from the session cookie, never from the report body. */
+    lastUserId: text('last_user_id').references(() => users.id),
+    lastUserAgent: text('last_user_agent'),
+    /** The readable summary, e.g. "Safari 18 on iPhone". */
+    lastBrowser: text('last_browser'),
+    resolvedAt: timestamp('resolved_at'),
+    alertedAt: timestamp('alerted_at'),
+  },
+  (t) => [
+    index('client_errors_last_seen_idx').on(t.lastSeenAt),
+    index('client_errors_resolved_idx').on(t.resolvedAt),
+  ],
+);
+
 export type UserRow = typeof users.$inferSelect;
 export type GameRow = typeof games.$inferSelect;
 export type MatchRow = typeof matches.$inferSelect;
@@ -256,3 +296,4 @@ export type MatchParticipantRow = typeof matchParticipants.$inferSelect;
 export type PointEventRow = typeof pointEvents.$inferSelect;
 export type NotificationRow = typeof notifications.$inferSelect;
 export type PushSubscriptionRow = typeof pushSubscriptions.$inferSelect;
+export type ClientErrorRow = typeof clientErrors.$inferSelect;

@@ -26,12 +26,22 @@ How a sentence typed into Discord becomes a deployed change.
   ┌───────────────┐   .opencode/agent/review.md   (advisory, never blocks)
   │    REVIEWER   │   Read-only. Diff vs spec vs conventions.
   └───────┬───────┘
-          │  scripts/agent/deploy.sh
+          │  scripts/agent/open-pr.sh
           ▼
   ┌───────────────┐
-  │  PRODUCTION   │   git pull → backup db → build → migrate → up -d → /api/health
+  │ PULL REQUEST  │   auto-merge on. The REQUIRED CHECKS decide, not the agent.
+  └───────┬───────┘
+          │  GitHub Actions, on main
+          ▼
+  ┌───────────────┐
+  │  PRODUCTION   │   pull image → backup db → migrate → start idle colour →
+  │  (app VM)     │   caddy reload → verify /api/health reports the new commit
   └───────────────┘
 ```
+
+Two machines: everything above the pull request runs on the **agents VM**,
+everything below it on the **application VM**. An agent's build cannot slow the
+site down, and neither machine holds the other's secrets.
 
 ## Why it is split this way
 
@@ -53,6 +63,12 @@ go except back to the human.
 tells Hermes exactly what to ask. A pipeline that always exits 0 is a pipeline
 that guesses.
 
+**The agent cannot push to main.** It opens a pull request with auto-merge and
+the required checks land it. This is the one guardrail that does not depend on
+an agent reading its instructions: the branch protection rule holds whatever
+the agent decides, and the agent's GitHub token has no admin scope with which
+to lift it.
+
 **The gate is verified independently.** `code.sh` re-runs
 `typecheck && test && build` itself after the agent claims `STATUS: done`,
 because "the tests pass" is the single most common thing an agent is wrong
@@ -67,8 +83,10 @@ Every script prints a machine-readable block on its last lines, and that block
 |---|---|---|---|
 | `spec.sh` | spec ready for code | spec written, needs a human | failure |
 | `code.sh` | implemented, gate green | blocked or partial | failure |
+| `open-pr.sh` | PR open (auto-merge on or reported off) | — | could not open it |
+| `pipeline.sh` | PR open | needs a human, nothing pushed | PR step failed |
 | `deploy.sh` | deployed and healthy | — | not deployed, or unhealthy |
-| `pipeline.sh` | deployed | needs a human, nothing deployed | deploy failed |
+| `app-exec.sh` | the allowed verb ran | — | refused or unreachable |
 
 Because the contract is shell commands and report blocks, the agent runtime is
 replaceable:
@@ -87,13 +105,18 @@ files so the two runtimes cannot drift apart.
 The pipeline has no dependency on Hermes, which is how you debug it:
 
 ```bash
-scripts/agent/status.sh                      # read-only snapshot
-scripts/agent/spec.sh "<request>"            # spec only
-scripts/agent/code.sh 0004                   # implement a spec
-scripts/agent/review.sh 0004                 # review the last commit
-scripts/agent/pipeline.sh --no-deploy "..."  # everything except production
-scripts/agent/deploy.sh                      # deploy main
-scripts/agent/deploy.sh --rollback           # previous commit
+scripts/agent/status.sh                    # git, PRs, specs, production
+scripts/agent/spec.sh "<request>"          # spec only
+scripts/agent/code.sh 0004                 # implement a spec
+scripts/agent/review.sh 0004               # review the last commit
+scripts/agent/open-pr.sh specs/0004-….md   # branch, commit, PR, auto-merge
+scripts/agent/pipeline.sh --no-pr "..."    # everything up to the PR
+scripts/agent/pr-status.sh                 # where the PRs stand
+
+# the application lives on another VM — six allowlisted verbs get you there
+scripts/agent/app-exec.sh status
+scripts/agent/app-exec.sh logs caddy
+scripts/agent/app-exec.sh rollback
 ```
 
 Full transcripts land in `.agent-logs/` (git-ignored). When something behaves
@@ -109,6 +132,8 @@ and usually reproduces the same misunderstanding.
 | An agent widens its scope | Each role manual forbids it; the reviewer checks the diff against the spec's *Out of scope* |
 | Scores get wiped | No tool exists for it. It would need a spec, a code change and a review to become possible |
 | A stranger drives the pipeline | Only `DISCORD_ALLOWED_USERS` / `TELEGRAM_ALLOWED_USERS` may call mutating tools |
+| An agent ships something unreviewed | It cannot merge its own PR: the required checks do, and they are the gate it already ran |
+| An agent gets a shell on the app VM | It does not have one. `app-exec.sh` is six allowlisted verbs over Tailscale SSH |
 | A rollback loses results entered since the deploy | `deploy.sh --rollback` reverts code only, never the database, and says so |
 
 ## The failure mode to watch for

@@ -7,6 +7,7 @@ import { Card, SectionTitle } from '@/components/ui/Card';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { requireAdmin } from '@/lib/auth/guards';
+import { countOpenClientErrors } from '@/lib/queries/client-errors';
 import { listDisputedMatches, listNonTerminalMatches } from '@/lib/queries/matches';
 import { getRoster } from '@/lib/queries/roster';
 
@@ -14,10 +15,11 @@ export const dynamic = 'force-dynamic';
 
 export default async function AdminPage() {
   await requireAdmin('/admin');
-  const [disputes, running, roster] = await Promise.all([
+  const [disputes, running, roster, openErrors] = await Promise.all([
     listDisputedMatches(),
     listNonTerminalMatches(),
     getRoster(),
+    countOpenClientErrors(),
   ]);
 
   return (
@@ -32,6 +34,24 @@ export default async function AdminPage() {
         }
       />
 
+      {/* Browser failures are invisible unless somebody looks, so the count
+          sits on the screen an admin already opens (spec 0011). */}
+      <Card accent={openErrors > 0 ? 'coral' : undefined} quiet={openErrors === 0}>
+        <div className="flex items-center gap-3">
+          <span className="min-w-0 flex-1 text-sm">
+            <span className="display block font-bold">Erreurs navigateur</span>
+            <span className="block text-xs text-muted">
+              {openErrors === 0
+                ? 'Rien de signalé chez les joueurs.'
+                : `${openErrors} cause${openErrors > 1 ? 's' : ''} ouverte${openErrors > 1 ? 's' : ''}.`}
+            </span>
+          </span>
+          <ButtonLink href="/admin/errors" size="sm" variant="secondary">
+            Voir
+          </ButtonLink>
+        </div>
+      </Card>
+
       <section>
         <SectionTitle>Résultats contestés</SectionTitle>
         {disputes.length === 0 ? (
@@ -43,6 +63,16 @@ export default async function AdminPage() {
             {disputes.map((match, index) => (
               <li key={match.id} className="space-y-2">
                 <MatchSummaryCard match={match} reveal={index} />
+                {/* The complaint itself. An admin asked to arbitrate without
+                    seeing it is guessing (spec 0008, rule 2). */}
+                {match.disputeReason ? (
+                  <p className="sticker sticker-tangerine px-3 py-2 text-sm text-ink">
+                    <span className="display mb-0.5 block text-[11px] font-bold tracking-wide text-muted uppercase">
+                      Contestation
+                    </span>
+                    {match.disputeReason}
+                  </p>
+                ) : null}
                 <DisputeResolver
                   matchId={match.id}
                   sides={match.sides.map((side) => ({

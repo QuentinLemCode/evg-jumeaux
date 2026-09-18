@@ -47,6 +47,7 @@ export function resetVolatileState(): void {
       DELETE FROM match_sides;
       DELETE FROM matches;
       DELETE FROM push_subscriptions;
+      DELETE FROM client_errors;
     `);
     const placeholders = SEED_GAME_SLUGS.map(() => '?').join(',');
     db.prepare(`DELETE FROM games WHERE slug NOT IN (${placeholders})`).run(...SEED_GAME_SLUGS);
@@ -172,4 +173,49 @@ export function pointEventTypes(userId: string): string[] {
   } finally {
     db.close();
   }
+}
+
+export type ClientErrorGroup = {
+  fingerprint: string;
+  kind: string;
+  message: string;
+  stack: string | null;
+  path: string;
+  occurrences: number;
+  last_user_id: string | null;
+  last_browser: string | null;
+  app_commit: string | null;
+  viewport: string | null;
+  resolved_at: number | null;
+};
+
+/** Reported browser failures, newest first (spec 0011). */
+export function clientErrorGroups(): ClientErrorGroup[] {
+  const db = open();
+  try {
+    return db
+      .prepare('SELECT * FROM client_errors ORDER BY last_seen_at DESC')
+      .all() as ClientErrorGroup[];
+  } finally {
+    db.close();
+  }
+}
+
+/**
+ * Waits for a reported error to land. Reporting is fire-and-forget over
+ * `sendBeacon`, so there is nothing to await in the page — polling is the
+ * honest way to observe it, rather than a fixed sleep that is either flaky or
+ * slow.
+ */
+export async function waitForClientErrors(
+  count: number,
+  timeoutMs = 10_000,
+): Promise<ClientErrorGroup[]> {
+  const deadline = Date.now() + timeoutMs;
+  let groups = clientErrorGroups();
+  while (groups.length < count && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    groups = clientErrorGroups();
+  }
+  return groups;
 }
