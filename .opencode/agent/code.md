@@ -34,7 +34,7 @@ domain-logic rules, and the definition of done there are binding.
    existing style, naming, and comment density.
 
    Touching anything under `src/app/` or `src/components/`? Read
-   `.claude/skills/confetti-ui/SKILL.md` first — it is the operating manual
+   `skills/confetti-ui/SKILL.md` first — it is the operating manual
    for the app's design system, and `npm run lint:design` enforces it.
 
 3. **Plan the diff** as a short list of files and what changes in each. Keep it

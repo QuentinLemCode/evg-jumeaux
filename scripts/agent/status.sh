@@ -13,22 +13,22 @@ for f in /home/hermes/.hermes/.env "$REPO_ROOT/.env"; do
 done
 HEALTH_URL="${HEALTH_URL:-https://${SITE_DOMAIN:-localhost}/api/health}"
 
-# Run as hermes, not root: the checkout is hermes-owned and git refuses to
-# read a repository owned by someone else ("dubious ownership"), which turns
-# this whole section into three identical fatals.
-if [ "$(id -u)" = "0" ] && [ -d "$REPO_ROOT/.git" ] \
-  && [ "$(stat -c %U "$REPO_ROOT/.git" 2>/dev/null)" != "root" ]; then
-  echo "NOTE: running as root on a $(stat -c %U "$REPO_ROOT/.git")-owned checkout."
-  echo "      Re-run as that user:  su - hermes -c 'cd ~/site && scripts/agent/status.sh'"
-  echo
-fi
-
+# git refuses to read a repository owned by another user ("dubious
+# ownership"), so running this as root against the hermes-owned checkout used
+# to print the same fatal three times in place of the summary. Say what to do
+# once, and skip the section rather than narrate the failure.
+GIT_OWNER="$(stat -c %U "$REPO_ROOT/.git" 2>/dev/null || echo unknown)"
 echo "=== git (agents VM working copy) ==="
-echo "branch:  $(git rev-parse --abbrev-ref HEAD)"
-echo "commit:  $(git log -1 --pretty='%h %s (%cr)')"
-echo "dirty:   $(git status --porcelain | wc -l | tr -d ' ') file(s)"
-git fetch --quiet origin main 2>/dev/null || true
-echo "behind:  $(git rev-list --count HEAD..origin/main 2>/dev/null || echo '?') commit(s) behind origin/main"
+if ! git -C "$REPO_ROOT" rev-parse --git-dir >/dev/null 2>&1; then
+  echo "unreadable: this checkout belongs to '$GIT_OWNER' and you are '$(id -un)'."
+  echo "re-run as that user:  su - $GIT_OWNER -c 'cd ~/site && scripts/agent/status.sh'"
+else
+  echo "branch:  $(git rev-parse --abbrev-ref HEAD)"
+  echo "commit:  $(git log -1 --pretty='%h %s (%cr)')"
+  echo "dirty:   $(git status --porcelain | wc -l | tr -d ' ') file(s)"
+  git fetch --quiet origin main 2>/dev/null || true
+  echo "behind:  $(git rev-list --count HEAD..origin/main 2>/dev/null || echo '?') commit(s) behind origin/main"
+fi
 
 echo
 echo "=== gateway and watcher (this VM) ==="
@@ -58,14 +58,6 @@ if systemctl list-unit-files evg-watch-errors.timer >/dev/null 2>&1; then
   fi
 else
   echo "evg-watch-errors.timer: not installed on this machine"
-fi
-
-# The gateway is a SEPARATE program this repository does not ship. Without it
-# there is nothing listening on Discord or Telegram, however well configured
-# the tokens are.
-if [ ! -x /home/hermes/.local/bin/hermes ]; then
-  echo "hermes binary: MISSING at /home/hermes/.local/bin/hermes"
-  echo "  the gateway cannot run — see hermes/README.md"
 fi
 
 echo

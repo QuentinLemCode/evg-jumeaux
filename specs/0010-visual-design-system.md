@@ -197,7 +197,7 @@ None.
       content is visible.
 - [x] Gabarito and Instrument Sans are self-hosted by `next/font`, so no
       request leaves the app for a font host.
-- [x] `.claude/skills/confetti-ui/SKILL.md` exists and is referenced from
+- [x] `skills/confetti-ui/SKILL.md` exists and is referenced from
       `AGENTS.md` §5 as binding for any change under `src/components/` or
       `src/app/`.
 - [x] The shared parts of §8 exist as components: `PageHeader`,

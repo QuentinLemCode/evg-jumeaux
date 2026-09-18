@@ -1,6 +1,14 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "instructions": ["AGENTS.md", "specs/README.md"],
+  "instructions": [
+    "AGENTS.md",
+    "specs/README.md",
+    "skills/write-spec/SKILL.md",
+    "skills/implement-spec/SKILL.md",
+    "skills/review-changes/SKILL.md",
+    "skills/confetti-ui/SKILL.md",
+    "skills/deploy-production/SKILL.md"
+  ],
   "model": "{env:LLM_MODEL}",
   "agent": {
     "spec": {
