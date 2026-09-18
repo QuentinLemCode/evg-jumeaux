@@ -34,9 +34,14 @@ services:
       CADDY_SITE_ADDRESS: ${CADDY_SITE_ADDRESS:-:8080}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      # Rewritten by the deploy script, then `caddy reload` — a graceful
-      # reload, which is what makes the colour switch lossless.
-      - ./caddy/upstream.conf:/etc/caddy/upstream.conf:ro
+      # The DIRECTORY, not the file inside it. Bind-mounting a single file
+      # pins the container to that file's inode, and anything that REPLACES
+      # the file on the host — `git reset --hard` in the deploy step, `sed -i`
+      # in the rollback — leaves the container reading the old inode forever.
+      # The switch then reloads Caddy onto a config it cannot see, Caddy keeps
+      # serving the previous colour, and the deploy fails verification and
+      # rolls back. Every time, after the first.
+      - ./caddy:/etc/caddy/conf:ro
       - caddy_data:/data
       - caddy_config:/config
     restart: unless-stopped
