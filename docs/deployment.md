@@ -384,6 +384,33 @@ curl -s -o /dev/null -w '%{http_code}\n' \
 that model availability differs between the two endpoints: on this project
 `gemini-3.8-flash` and `gemini-2.5-flash` answer, `gemini-2.0-flash` is a 404.
 
+**Not every Gemini model survives a long agent run.** `gemini-3.8-flash`
+answers short prompts fine and then dies partway through a spec agent's
+exploration, after twenty-odd tool calls:
+
+```
+Error: Requests ending with a model turn are not supported.
+```
+
+That is the API refusing a conversation whose last entry is a model turn —
+something the client built, not something the repository can fix. Measured on
+this project, against this endpoint:
+
+| Model | Short prompt | Long tool loop (spec agent) |
+|---|---|---|
+| `gemini-2.5-pro` | works | **works** — completed a spec end to end |
+| `gemini-2.5-flash` | works | untested |
+| `gemini-3.8-flash` | works | **fails** with the error above |
+| `gemini-2.0-flash` | 404 on this endpoint | — |
+
+So `LLM_MODEL` is `google/gemini-2.5-pro`: the spec, code and review agents all
+run long tool loops and none of them may be the one that discovers this again.
+The router (spec 0013) stays on `gemini-2.5-flash` in `.opencode/opencode.json`
+— its calls are short, frequent, and it is the one a human waits on.
+
+If you change the model, run one real `scripts/agent/spec.sh` against it before
+trusting it. A short prompt proves nothing here.
+
 Two APIs must also be enabled on the project, and Terraform does not do it —
 enabling services would need a role the CI service account deliberately does
 not have:
