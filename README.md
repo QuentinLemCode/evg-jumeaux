@@ -191,7 +191,9 @@ so they stay readable in the logs when something goes wrong.
 | `TS_OAUTH_SECRET` | deploy | same client |
 | `DISCORD_WEBHOOK_URL` | infra, deploy | *optional.* Channel → Integrations → Webhooks. Used for error alerts: a webhook needs no gateway alive, so it works when Hermes is what broke. |
 | `DISCORD_BOT_TOKEN` | infra | *optional*, only to talk to Hermes on Discord |
+| `DISCORD_ALLOWED_USERS` | infra | *optional*, same shape as the Telegram one |
 | `TELEGRAM_BOT_TOKEN` | infra | *optional*, from @BotFather |
+| `TELEGRAM_ALLOWED_USERS` | infra | the **numeric** Telegram ids allowed to drive the pipeline, comma-separated (spec 0012). A secret, not a variable, because it sits beside the token and because an id identifies a person. **Empty means nobody is authorised**, not everybody. Get an id from `@userinfobot`. |
 | `TELEGRAM_CHAT_ID` | infra | *optional*, the chat that receives alerts |
 
 ### Variables
@@ -215,8 +217,6 @@ so they stay readable in the logs when something goes wrong.
 | `LLM_BASE_URL` | *(empty)* | only if the Agent Platform key uses a dedicated endpoint |
 | `VAPID_SUBJECT` | `mailto:you@example.com` | |
 | `IMAGE_TAG` | `main` | the bootstrap tag; deploys pin a sha afterwards |
-| `DISCORD_ALLOWED_USERS` | `284102345871466496` | *optional*, who may trigger the pipeline |
-| `TELEGRAM_ALLOWED_USERS` | `123456789` | *optional*, same |
 
 ### Repository settings (three clicks, and the pipeline depends on them)
 

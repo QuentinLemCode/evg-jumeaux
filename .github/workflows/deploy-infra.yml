@@ -65,10 +65,10 @@ jobs:
 
           # --- messaging and alerts ----------------------------------------
           TF_VAR_discord_bot_token: ${{ secrets.DISCORD_BOT_TOKEN }}
-          TF_VAR_discord_allowed_users: ${{ vars.DISCORD_ALLOWED_USERS }}
+          TF_VAR_discord_allowed_users: ${{ secrets.DISCORD_ALLOWED_USERS }}
           TF_VAR_discord_webhook_url: ${{ secrets.DISCORD_WEBHOOK_URL }}
           TF_VAR_telegram_bot_token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TF_VAR_telegram_allowed_users: ${{ vars.TELEGRAM_ALLOWED_USERS }}
+          TF_VAR_telegram_allowed_users: ${{ secrets.TELEGRAM_ALLOWED_USERS }}
           TF_VAR_telegram_chat_id: ${{ secrets.TELEGRAM_CHAT_ID }}
 
           # --- GitHub: the code agent opens pull requests -------------------
