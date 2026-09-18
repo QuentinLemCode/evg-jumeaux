@@ -211,6 +211,7 @@ so they stay readable in the logs when something goes wrong.
 | `SITE_SUBDOMAIN` | `evg` | gives `evg.$DOMAIN` |
 | `INGRESS_MODE` | `tunnel` | `tunnel` (no inbound port) or `public_ip` (80/443 open to Cloudflare only) |
 | `APP_VM_HOSTNAME` | `evg-app` | the tailnet name CI deploys to. **Must equal Terraform's `app_instance_name`** — two places, and only this one is checked. Unset, the deploy falls back to `evg-app`; set to something the tailnet does not have, it fails naming the machines it does have. |
+| `AGENTS_VM_HOSTNAME` | `evg-site-agent` | the tailnet name *Deploy infra* refreshes when run with `refresh_agents`. Same rule as above: it must equal Terraform's `instance_name`, and unset falls back to `evg-site-agent`. |
 | `LLM_MODEL` | `google/gemini-3.8-flash` | Hermes and both agents. Check the exact id with `opencode models`. |
 | `LLM_PROVIDER` | `google` | the provider id on the OpenCode side |
 | `LLM_API_KEY_ENV_NAME` | `GEMINI_API_KEY` | the env var the SDK reads; the wrong name fails silently as "no key" |
@@ -269,7 +270,8 @@ that will never report.
      // carrying the default accept-everything rule already covers this.
      "acls": [
        { "action": "accept", "src": ["autogroup:admin"],            "dst": ["tag:evg-app:22", "tag:evg-agents:22"] },
-       { "action": "accept", "src": ["tag:ci", "tag:evg-agents"],   "dst": ["tag:evg-app:22"] }
+       { "action": "accept", "src": ["tag:ci"],                     "dst": ["tag:evg-app:22", "tag:evg-agents:22"] },
+       { "action": "accept", "src": ["tag:evg-agents"],             "dst": ["tag:evg-app:22"] }
      ],
 
      "ssh": [
@@ -284,10 +286,12 @@ that will never report.
          "users":  ["hermes", "root"]
        },
        {
-         // CI deploys to the application VM.
+         // CI deploys to the application VM, and refreshes the agents VM when
+         // *Deploy infra* is run with refresh_agents. It logs in as hermes, whose
+         // sudo is limited to restarting the one gateway unit.
          "action": "accept",
          "src":    ["tag:ci"],
-         "dst":    ["tag:evg-app"],
+         "dst":    ["tag:evg-app", "tag:evg-agents"],
          "users":  ["hermes"]
        },
        {

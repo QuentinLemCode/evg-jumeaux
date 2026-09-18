@@ -245,6 +245,18 @@ AccuracySec=15s
 WantedBy=timers.target
 UNIT
 
+# Le workflow *Deploy infra* redémarre la passerelle à distance, en SSH comme
+# hermes. Plutôt que de donner root à la CI, un droit sudo limité À CETTE SEULE
+# unité : la CI ne peut rien faire d'autre avec.
+cat > /etc/sudoers.d/hermes-gateway <<'SUDOERS'
+hermes ALL=(root) NOPASSWD: /usr/bin/systemctl restart hermes-gateway, /usr/bin/systemctl restart hermes-gateway.service
+SUDOERS
+chmod 440 /etc/sudoers.d/hermes-gateway
+# Un sudoers invalide verrouille sudo pour tout le monde : on valide avant de
+# le laisser en place.
+visudo -cf /etc/sudoers.d/hermes-gateway >/dev/null \
+  || { echo "WARN: sudoers invalide, retiré"; rm -f /etc/sudoers.d/hermes-gateway; }
+
 systemctl daemon-reload
 # La passerelle vit dans le dépôt (src/hermes, spec 0012) et tourne via npm,
 # donc elle a besoin des node_modules : sans eux le service boucle sur un

@@ -212,7 +212,8 @@ shared with anyone else, member would hand them a shell on these VMs.
   // carrying the default accept-everything rule already covers this.
   "acls": [
     { "action": "accept", "src": ["autogroup:admin"],            "dst": ["tag:evg-app:22", "tag:evg-agents:22"] },
-    { "action": "accept", "src": ["tag:ci", "tag:evg-agents"],   "dst": ["tag:evg-app:22"] }
+    { "action": "accept", "src": ["tag:ci"],                     "dst": ["tag:evg-app:22", "tag:evg-agents:22"] },
+    { "action": "accept", "src": ["tag:evg-agents"],             "dst": ["tag:evg-app:22"] }
   ],
 
   "ssh": [
@@ -227,10 +228,12 @@ shared with anyone else, member would hand them a shell on these VMs.
       "users":  ["hermes", "root"]
     },
     {
-      // CI deploys to the application VM.
+      // CI deploys to the application VM, and refreshes the agents VM when
+      // *Deploy infra* is run with refresh_agents. It logs in as hermes, whose
+      // sudo is limited to restarting the one gateway unit.
       "action": "accept",
       "src":    ["tag:ci"],
-      "dst":    ["tag:evg-app"],
+      "dst":    ["tag:evg-app", "tag:evg-agents"],
       "users":  ["hermes"]
     },
     {
@@ -497,6 +500,39 @@ with a hyphen in it is rejected with an error that looks like a plan failure.
 And `.terraform.lock.hcl` **is** committed on purpose: CI and your laptop must
 resolve the same provider versions. Change them with `terraform init -upgrade`
 and commit the result; never delete the lock file to fix an error.
+
+## Changing the agents VM's configuration
+
+Terraform rewrites that VM's `.env` and its systemd units, but **only a boot
+applies them**: `metadata_startup_script` does not re-run when its metadata
+changes. So a change to `LLM_MODEL`, to the allowlist, or to the gateway's code
+used to need a manual ssh, and the gateway kept running yesterday's
+configuration while the run said "success".
+
+*Deploy infra* takes a `refresh_agents` input, on by default, which afterwards:
+
+1. pulls `origin/main` on the VM's checkout;
+2. runs `npm ci` **only if `package-lock.json` actually moved** — it takes
+   minutes on an e2-medium and most config changes touch no dependency;
+3. restarts `hermes-gateway`;
+4. waits, then asserts the unit is still active and prints its last lines. A
+   restart that exits 0 and then crash-loops looks identical to a good one for
+   about five seconds.
+
+Two things make that possible, and both are in the policy rather than the
+workflow:
+
+- The tailnet `ssh` rule for `tag:ci` includes `tag:evg-agents` (above).
+  Without it the job fails at `ssh` with a policy error.
+- `hermes` has a sudoers drop-in limited to **restarting that one unit**, so
+  CI never needs root on the agents VM:
+
+  ```
+  hermes ALL=(root) NOPASSWD: /usr/bin/systemctl restart hermes-gateway
+  ```
+
+Turn `refresh_agents` off when you are only changing the application VM, or
+when the agents VM is mid-pipeline and you would rather not interrupt it.
 
 ## Every release after that
 

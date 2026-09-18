@@ -6,6 +6,11 @@ name: Deploy infra
 
 on:
   workflow_dispatch:
+    inputs:
+      refresh_agents:
+        description: 'Pull main on the agents VM and restart the Hermes gateway'
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -120,3 +125,76 @@ jobs:
             echo 'fait tout seul au boot ; les suivants passent par le workflow'
             echo '*Deploy* sur `main`.'
           } >> "$GITHUB_STEP_SUMMARY"
+
+  # Terraform rewrites the VM's .env and its systemd units, but only a BOOT
+  # applies them: `metadata_startup_script` does not re-run on a metadata
+  # change. So a config change used to need a manual ssh, and the gateway
+  # kept running yesterday's code and yesterday's environment.
+  refresh-agents:
+    name: Refresh the agents VM
+    needs: terraform
+    if: inputs.refresh_agents
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Join the tailnet
+        uses: tailscale/github-action@v3
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+
+      - name: Check the runner actually joined
+        run: |
+          # The join step above exits 0 even when it failed — see deploy.yml.
+          STATE="$(tailscale status --json | jq -r '.BackendState // "unknown"')"
+          if [ "$STATE" != "Running" ]; then
+            echo "::error::This runner is not on the tailnet (BackendState=$STATE)."
+            tailscale status || true
+            exit 1
+          fi
+
+      - name: Pull main and restart the gateway
+        env:
+          HOST: ${{ vars.AGENTS_VM_HOSTNAME || 'evg-site-agent' }}
+        run: |
+          # Piped over stdin, not quoted onto the ssh command line: nesting
+          # quotes through two shells is how a working script quietly becomes a
+          # no-op, and there is no way to tell by reading it.
+          cat > /tmp/refresh-agents.sh <<'REMOTE'
+          set -euo pipefail
+          cd ~/site
+          BEFORE="$(git rev-parse HEAD)"
+          git fetch --quiet origin main
+          git reset --hard --quiet origin/main
+          AFTER="$(git rev-parse HEAD)"
+          echo "checkout: ${BEFORE:0:7} -> ${AFTER:0:7}"
+
+          # npm ci only when the lockfile actually moved: it takes minutes on an
+          # e2-medium and most configuration changes touch no dependency.
+          if git diff --quiet "$BEFORE" "$AFTER" -- package-lock.json; then
+            echo "lockfile unchanged, skipping npm ci"
+          else
+            echo "lockfile changed, reinstalling"
+            npm ci
+          fi
+
+          sudo systemctl restart hermes-gateway
+          REMOTE
+          ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=20 \
+            "hermes@${HOST}" 'bash -s' < /tmp/refresh-agents.sh
+
+      - name: Prove it came back
+        env:
+          HOST: ${{ vars.AGENTS_VM_HOSTNAME || 'evg-site-agent' }}
+        run: |
+          # A restart that exits 0 and then crash-loops looks identical to a
+          # good one for about five seconds.
+          sleep 12
+          if ! ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=20 \
+            "hermes@${HOST}" 'systemctl is-active hermes-gateway'; then
+            echo "::error::the gateway is not active after the restart"
+            ssh "hermes@${HOST}" 'journalctl -u hermes-gateway -n 25 --no-pager -o cat' || true
+            exit 1
+          fi
+          ssh "hermes@${HOST}" 'journalctl -u hermes-gateway -n 5 --no-pager -o cat'
