@@ -175,7 +175,7 @@ so they stay readable in the logs when something goes wrong.
 | `GCP_WORKLOAD_IDENTITY_PROVIDER` | infra | [keyless auth setup](docs/deployment.md#2-keyless-gcp-auth) — the commands there print this value |
 | `GCP_SERVICE_ACCOUNT` | infra | same; needs `roles/compute.admin` on the project, `roles/storage.objectAdmin` on the state bucket, and `roles/iam.workloadIdentityUser` **on itself** for the repository's principal |
 | `TF_STATE_BUCKET` | infra | the GCS bucket you create by hand (below) |
-| `TAILSCALE_AUTHKEY` | infra | a **reusable** key, Tailscale admin → Settings → Keys |
+| `TAILSCALE_AUTHKEY` | infra | a **reusable** key, Tailscale admin → Settings → Keys, with **no tag on it**. The VMs apply their own (`--advertise-tags=tag:evg-app` / `tag:evg-agents`), and a tagged key overrides that flag — one key cannot give two machines two different tags. Distinct from the CI credential above, which *does* carry `tag:ci`. |
 | `CLOUDFLARE_API_TOKEN` | infra | a scoped token: *Zone → DNS → Edit* on the zone, **and** *Account → Cloudflare Tunnel → Edit*. Not the global key. |
 | `CLOUDFLARE_ACCOUNT_ID` | infra | Cloudflare dashboard, right-hand column |
 | `CLOUDFLARE_ZONE_ID` | infra | the zone's overview page |
@@ -187,8 +187,7 @@ so they stay readable in the logs when something goes wrong.
 | `LLM_API_KEY` | infra | your Agent Platform API key. Hermes **and** both OpenCode agents share it. |
 | `AGENT_GITHUB_TOKEN` | infra | a **fine-grained** PAT on this repo for the code agent: *Contents: read/write*, *Pull requests: read/write*, *Workflows: read*. Deliberately **no** admin scope — the agent must not be able to lift the branch protection that constrains it. |
 | `GHCR_PULL_TOKEN` | infra | a GitHub PAT with **`read:packages` only** — it lives on the VM, so it must not be able to write |
-| `TAILSCALE_CI_AUTHKEY` | deploy | *Either this or the OAuth pair.* A **reusable** key with **`tag:ci` applied to it**, from Tailscale admin → Settings → Keys. Simplest path, and it takes precedence. Expires after 90 days at most. |
-| `TS_OAUTH_CLIENT_ID` | deploy | *The alternative.* Tailscale admin → Settings → OAuth clients, **`auth_keys` write** scope, with **`tag:ci` selected on the client**. The console offers that tag only if it already exists in `tagOwners`, and a client cannot be re-tagged later — one made too early has to be recreated. |
+| `TS_OAUTH_CLIENT_ID` | deploy | Tailscale admin → Settings → OAuth clients, **`auth_keys` write** scope, with **`tag:ci` selected on the client**. The console offers that tag only if it already exists in `tagOwners`, and a client cannot be re-tagged later — one made too early has to be recreated. |
 | `TS_OAUTH_SECRET` | deploy | same client |
 | `DISCORD_WEBHOOK_URL` | infra, deploy | *optional.* Channel → Integrations → Webhooks. Used for error alerts: a webhook needs no gateway alive, so it works when Hermes is what broke. |
 | `DISCORD_BOT_TOKEN` | infra | *optional*, only to talk to Hermes on Discord |

@@ -285,26 +285,45 @@ through MagicDNS. It is only the policy file that cannot name them.
 
 ### How CI gets onto the tailnet
 
-Two ways, and the workflow takes whichever is set. **Do the first one unless you
-have a reason not to.**
+`TS_OAUTH_CLIENT_ID` / `TS_OAUTH_SECRET`: an OAuth client with the
+**`auth_keys` write** scope, which mints a `tag:ci` key per run so nothing
+expires.
 
-**1. A tagged auth key — `TAILSCALE_CI_AUTHKEY`.** Admin console → Settings →
-Keys → Generate auth key: *reusable*, and **apply `tag:ci` to it**. Paste it
-into that secret and you are done. It expires after 90 days at most, which is
-the whole of its downside.
+Two things about it produce the same 403, and the second one is why it is worth
+reading twice:
 
-**2. An OAuth client — `TS_OAUTH_CLIENT_ID` / `TS_OAUTH_SECRET`.** Never
-expires, mints a key per run, and has two failure modes that produce the same
-403:
-
-1. **`tag:ci` must be selected on the client itself.** A client with no tag
-   cannot mint a tagged key — and the console only *offers* the tag if it
-   already exists in `tagOwners`. Create the client **after** applying the
-   policy above, or the selector is empty and you will conclude, reasonably,
-   that there is no such option. **Tags cannot be added to an existing client:
-   one made too early must be deleted and recreated.**
-2. **`tag:ci` must own itself** in `tagOwners` (above). Ownership by
+1. **`tag:ci` must own itself** in `tagOwners` (above). Ownership by
    `autogroup:admin` grants *humans*; the client is not a human.
+2. **`tag:ci` must be selected on the client itself** — and the console only
+   *offers* that tag if it already exists in `tagOwners`. Create the client
+   **after** applying the policy, or the selector is empty and you will
+   conclude, reasonably, that there is no such option. **Tags cannot be added
+   to an existing client**: one created too early has to be deleted and
+   replaced.
+
+### Two auth keys, and only one of them is tagged
+
+This trips people, because the two look like the same kind of credential:
+
+| Credential | Tag on the credential? | Why |
+|---|---|---|
+| The CI one (`TS_OAUTH_*`) | **yes**, `tag:ci` | the runner has no other way to be `tag:ci` |
+| `TAILSCALE_AUTHKEY` (the VMs) | **no** | each VM applies its own tag with `--advertise-tags`, and a tagged key overrides that flag — one key cannot give two machines two different tags |
+
+So `TAILSCALE_AUTHKEY` must be a plain reusable key with the Tags field left
+empty. Its owner has to be a `tagOwner` of `tag:evg-app` and `tag:evg-agents`,
+which `autogroup:admin` covers.
+
+If it was created **with** a tag, the VMs' `--advertise-tags` is refused and
+they stay untagged — invisible to `tag:ci`, and unreachable by the ssh rules
+that name those tags. Check on each machine:
+
+```bash
+tailscale status --json | jq .Self.Tags     # ["tag:evg-app"], or null
+```
+
+`null` with a tagged key is that mistake. Recreate the key without tags, then
+reboot the VM.
 
 Either one missing and the join fails five times with
 
