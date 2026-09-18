@@ -152,6 +152,18 @@ jobs:
         env:
           HOST: ${{ vars.APP_VM_HOSTNAME || 'evg-app' }}
         run: |
+          # The join step above exits 0 EVEN WHEN IT FAILED: its retry loop
+          # ends without propagating the failure, so five 403s in a row still
+          # report success. Check the backend state before anything else, or
+          # every problem downstream looks like an ACL problem.
+          STATE="$(tailscale status --json | jq -r '.BackendState // "unknown"')"
+          if [ "$STATE" != "Running" ]; then
+            echo "::error::This runner is not on the tailnet (BackendState=$STATE). The join step failed and reported success anyway."
+            echo "::error::Scroll up to 'Connect to Tailscale'. A 403 'calling actor does not have enough permissions' means the OAuth client may not mint keys for tag:ci: it must be created WITH that tag, and tagOwners must list tag:ci as an owner of itself."
+            tailscale status || true
+            exit 1
+          fi
+
           # The netmap arrives a moment after the join, so retry before
           # concluding anything.
           for _ in $(seq 1 10); do
