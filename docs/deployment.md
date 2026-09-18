@@ -338,6 +338,58 @@ the tailnet policy were wrong, because from the runner's point of view there is
 no tailnet at all. The deploy's own preflight checks `BackendState` first for
 exactly this reason, and says so.
 
+### The LLM key, and the endpoint it is allowed to reach
+
+Nothing about this is guessable, and getting it wrong means every agent fails
+with an error that sounds like a quota problem.
+
+An Agent Platform / **Vertex AI express** key is restricted, at the
+organisation level, to `aiplatform.googleapis.com`:
+
+```
+constraints/iam.managed.disableServiceAccountApiKeyCreation
+"...unless the API Key's API targets are exclusively limited to the allowedServices"
+```
+
+You cannot widen it — the restriction is an org policy, not a setting on the
+key. And OpenCode's `google` provider calls
+`generativelanguage.googleapis.com` by default, which that key is forbidden to
+reach:
+
+```
+Error: Requests to this API generativelanguage.googleapis.com ... are blocked.
+```
+
+So point it at the endpoint the key *is* allowed to use, with the
+`LLM_BASE_URL` variable:
+
+```
+LLM_BASE_URL = https://aiplatform.googleapis.com/v1/publishers/google
+```
+
+The provider appends `/models/<model>:generateContent`, which is exactly the
+Vertex express shape. Verified by hand before trusting it:
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' \
+  "https://aiplatform.googleapis.com/v1/publishers/google/models/gemini-3.8-flash:generateContent?key=$GEMINI_API_KEY" \
+  -H 'content-type: application/json' \
+  -d '{"contents":[{"role":"user","parts":[{"text":"ok"}]}]}'
+```
+
+`200` and you are done; `403` means the base URL is wrong for your key. Note
+that model availability differs between the two endpoints: on this project
+`gemini-3.8-flash` and `gemini-2.5-flash` answer, `gemini-2.0-flash` is a 404.
+
+Two APIs must also be enabled on the project, and Terraform does not do it —
+enabling services would need a role the CI service account deliberately does
+not have:
+
+```bash
+gcloud services enable aiplatform.googleapis.com generativelanguage.googleapis.com \
+  --project=YOUR_GCP_PROJECT
+```
+
 ### 5. The application secrets
 
 ```bash

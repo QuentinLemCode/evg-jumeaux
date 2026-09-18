@@ -154,3 +154,45 @@ export function truncateForTelegram(text: string, limit = TELEGRAM_LIMIT): strin
   const newline = tail.indexOf('\n');
   return marker + (newline === -1 ? tail : tail.slice(newline + 1));
 }
+
+/** What the router decided about one message (spec 0013, rule 1). */
+export type RouterDecision = 'answer' | 'change' | 'unclear';
+
+export type Routed = { decision: RouterDecision; body: string };
+
+/**
+ * Reads the router's report (spec 0013).
+ *
+ * `null` means the report could not be understood — and the caller must then do
+ * NOTHING (rule 12). "We could not tell what you meant, so we changed the app"
+ * is not an acceptable failure mode, so there is deliberately no fallback here.
+ *
+ * The report arrives mixed with whatever the agent runtime wrote to its own
+ * output, so the decision is SEARCHED for rather than expected on line one. The
+ * LAST match wins: a model that restates the format while thinking would
+ * otherwise have its rehearsal taken for its verdict.
+ */
+export function parseRouterReport(output: string): Routed | null {
+  const lines = output.split('\n');
+
+  let at = -1;
+  let decision: RouterDecision | null = null;
+  for (const [index, line] of lines.entries()) {
+    const match = /^\s*DECISION:\s*(answer|change|unclear)\s*$/i.exec(line);
+    if (match?.[1]) {
+      at = index;
+      decision = match[1].toLowerCase() as RouterDecision;
+    }
+  }
+  if (decision === null || at === -1) return null;
+
+  const separator = lines.findIndex((line, index) => index > at && line.trim() === '---');
+  if (separator === -1) return null;
+
+  const body = lines.slice(separator + 1).join('\n').trim();
+  // An empty body is useless whatever the decision: an answer nobody can read,
+  // a clarifying question that asks nothing, a request with no request in it.
+  if (body === '') return null;
+
+  return { decision, body };
+}

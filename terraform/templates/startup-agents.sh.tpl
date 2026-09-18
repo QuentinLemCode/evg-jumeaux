@@ -149,6 +149,10 @@ chown -R hermes:hermes /home/hermes/.config
 
 cat >> /home/hermes/.bashrc <<'BASHRC'
 set -a
+# opencode s'installe dans ~/.opencode/bin, absent du PATH par défaut. Pour
+# un humain qui se connecte ; les scripts, eux, le résolvent dans lib.sh,
+# parce qu'un service systemd ne lit jamais ce fichier.
+export PATH="$HOME/.opencode/bin:$HOME/.local/bin:$PATH"
 [ -f /home/hermes/.hermes/.env ] && . /home/hermes/.hermes/.env
 set +a
 export AGENT_RUNTIME=opencode
