@@ -141,11 +141,31 @@ jobs:
           oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
           tags: tag:ci
 
+      # The hostname lives in two places that have to agree — Terraform's
+      # `app_instance_name` and this variable — and nothing checked. A
+      # mismatch surfaced as `ssh: Could not resolve hostname`, which reads
+      # like a network fault rather than a configuration one. So: default to
+      # the Terraform default, and if it is still not there, say which
+      # machines ARE.
+      - name: Resolve the application VM on the tailnet
+        id: host
+        env:
+          HOST: ${{ vars.APP_VM_HOSTNAME || 'evg-app' }}
+        run: |
+          PEERS=$(tailscale status --json | jq -r '.Peer[]?.HostName' | sort | tr '\n' ' ')
+          if ! echo " $PEERS " | grep -q " ${HOST} "; then
+            echo "::error::APP_VM_HOSTNAME is '${HOST}', but this tailnet has: ${PEERS:-(none)}"
+            echo "::error::Set the APP_VM_HOSTNAME repository variable to the machine that serves the app."
+            exit 1
+          fi
+          echo "host=${HOST}" >> "$GITHUB_OUTPUT"
+          echo "deploying to ${HOST}"
+
       - name: Deploy
         env:
           # The APPLICATION VM. The agents live on a separate one and are
           # deliberately not involved in a deploy.
-          HOST: ${{ vars.APP_VM_HOSTNAME }}
+          HOST: ${{ steps.host.outputs.host }}
           TAG: ${{ needs.build.outputs.tag }}
           COMMIT: ${{ needs.build.outputs.commit }}
         run: |
