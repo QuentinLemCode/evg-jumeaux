@@ -166,34 +166,69 @@ itself. You never touch the Cloudflare DNS panel: the record for
 
 ### 4. The tailnet ACL
 
-Terraform creates the VMs and the Tailscale key, but not the ACL that lets CI
-deploy and the agents VM read the app's logs. Two grants, both narrow:
+Terraform creates the VMs and joins them to the tailnet, but not the policy
+that lets CI deploy and the agents VM read the app's logs.
 
-```jsonc
-"tagOwners": { "tag:ci": ["autogroup:admin"] },
-"ssh": [
-  {
-    // CI deploys to the application VM.
-    "action": "accept",
-    "src":    ["tag:ci"],
-    "dst":    ["evg-app"],
-    "users":  ["hermes"]
-  },
-  {
-    // The agents VM reads the app's logs when it diagnoses an error. It has no
-    // shell there in practice — app-exec.sh is an allowlist — but the grant is
-    // what the allowlist runs over.
-    "action": "accept",
-    "src":    ["evg-site-agent"],
-    "dst":    ["evg-app"],
-    "users":  ["hermes"]
-  }
-]
+**Machines are named by tag, never by hostname.** A Tailscale SSH rule accepts
+tags, users, and entries from the `hosts` section in `src` and `dst` — a bare
+machine name is rejected:
+
+```
+Error: [ssh] "evg-site-agent" is not allowed in src
+Error: invalid dst "evg-app"
 ```
 
+Each VM applies its own tag with `tailscale up --advertise-tags=…` from its
+startup script — `tag:evg-app` and `tag:evg-agents` — and the CI runner gets
+`tag:ci` from the OAuth client. So the **auth key must be created without tags
+of its own**: a tagged key wins, and `--advertise-tags` is then refused.
+
+```jsonc
+{
+  "tagOwners": {
+    "tag:ci":         ["autogroup:admin"],
+    "tag:evg-app":    ["autogroup:admin"],
+    "tag:evg-agents": ["autogroup:admin"]
+  },
+
+  // ADD to the acls array you already have; do not replace it. The ssh block
+  // governs Tailscale SSH, but the connection must also be permitted at the
+  // network level. A tailnet still carrying the default accept-everything rule
+  // already covers this.
+  "acls": [
+    { "action": "accept", "src": ["tag:ci", "tag:evg-agents"], "dst": ["tag:evg-app:22"] }
+  ],
+
+  "ssh": [
+    {
+      // CI deploys to the application VM.
+      "action": "accept",
+      "src":    ["tag:ci"],
+      "dst":    ["tag:evg-app"],
+      "users":  ["hermes"]
+    },
+    {
+      // The agents VM reads the app's logs when it diagnoses an error. It has
+      // no shell there in practice — app-exec.sh is an allowlist — but the
+      // grant is what the allowlist runs over.
+      "action": "accept",
+      "src":    ["tag:evg-agents"],
+      "dst":    ["tag:evg-app"],
+      "users":  ["hermes"]
+    }
+  ]
+}
+```
+
+Nothing grants the app VM access to the agents VM, deliberately: the app has no
+reason to reach the machine holding the LLM and GitHub credentials.
+
+Hostnames still work for *connecting* — `tailscale ssh hermes@evg-app` resolves
+through MagicDNS. It is only the policy file that cannot name them.
+
 Also create an OAuth client with the `auth_keys` scope, and put its id and
-secret in `TS_OAUTH_CLIENT_ID` / `TS_OAUTH_SECRET`. Without this the deploy
-job joins the tailnet and then fails at `ssh`.
+secret in `TS_OAUTH_CLIENT_ID` / `TS_OAUTH_SECRET`. Without this the deploy job
+joins the tailnet and then fails at `ssh`.
 
 ### 5. The application secrets
 
