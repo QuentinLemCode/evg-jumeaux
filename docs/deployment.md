@@ -197,7 +197,13 @@ shared with anyone else, member would hand them a shell on these VMs.
 ```jsonc
 {
   "tagOwners": {
-    "tag:ci":         ["autogroup:admin"],
+    // tag:ci owns ITSELF, and that is not a typo. The CI runner joins with an
+    // auth key minted by an OAuth client, and an OAuth client may only mint
+    // keys for tags it owns. Listing only autogroup:admin grants humans, not
+    // the client, and the join fails with
+    //   Status: 403, "calling actor does not have enough permissions"
+    // The OAuth client must also be created WITH tag:ci selected.
+    "tag:ci":         ["autogroup:admin", "tag:ci"],
     "tag:evg-app":    ["autogroup:admin"],
     "tag:evg-agents": ["autogroup:admin"]
   },
@@ -277,9 +283,30 @@ reason to reach the machine holding the LLM and GitHub credentials.
 Hostnames still work for *connecting* — `tailscale ssh hermes@evg-app` resolves
 through MagicDNS. It is only the policy file that cannot name them.
 
-Also create an OAuth client with the `auth_keys` scope, and put its id and
-secret in `TS_OAUTH_CLIENT_ID` / `TS_OAUTH_SECRET`. Without this the deploy job
-joins the tailnet and then fails at `ssh`.
+### The OAuth client, and the 403 it produces
+
+Create an OAuth client with the **`auth_keys` write scope**, and put its id and
+secret in `TS_OAUTH_CLIENT_ID` / `TS_OAUTH_SECRET`.
+
+Two things about it are easy to get wrong and produce the same error:
+
+1. **Select `tag:ci` on the client itself** when creating it. An OAuth client
+   with no tag cannot mint a tagged auth key.
+2. **`tag:ci` must own itself** in `tagOwners` (above). Ownership by
+   `autogroup:admin` grants *humans*; the client is not a human.
+
+Either one missing and the join fails five times with
+
+```
+Status: 403, Message: "calling actor does not have enough permissions to perform this function"
+```
+
+and then — this is the part that wastes the afternoon —
+**`tailscale/github-action` reports the step as SUCCESSFUL anyway.** Its retry
+loop ends without propagating the failure. Every later step then fails as if
+the tailnet policy were wrong, because from the runner's point of view there is
+no tailnet at all. The deploy's own preflight checks `BackendState` first for
+exactly this reason, and says so.
 
 ### 5. The application secrets
 

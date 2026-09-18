@@ -254,7 +254,13 @@ that will never report.
    ```jsonc
 {
      "tagOwners": {
-       "tag:ci":         ["autogroup:admin"],
+       // tag:ci owns ITSELF, and that is not a typo. The CI runner joins with an
+       // auth key minted by an OAuth client, and an OAuth client may only mint
+       // keys for tags it owns. Listing only autogroup:admin grants humans, not
+       // the client, and the join fails with
+       //   Status: 403, "calling actor does not have enough permissions"
+       // The OAuth client must also be created WITH tag:ci selected.
+       "tag:ci":         ["autogroup:admin", "tag:ci"],
        "tag:evg-app":    ["autogroup:admin"],
        "tag:evg-agents": ["autogroup:admin"]
      },
