@@ -218,7 +218,20 @@ WantedBy=timers.target
 UNIT
 
 systemctl daemon-reload
-systemctl enable --now hermes-gateway || echo "WARN: hermes-gateway n'a pas démarré"
+# Le binaire hermes N'EST PAS fourni par ce dépôt : c'est une passerelle
+# conversationnelle externe, à installer dans /home/hermes/.local/bin.
+# Sans lui, rien n'écoute Discord ni Telegram — et un service activé qui ne
+# peut pas démarrer est plus trompeur qu'un message clair.
+if [ -x /home/hermes/.local/bin/hermes ]; then
+  systemctl enable --now hermes-gateway \
+    || echo "WARN: hermes-gateway installé mais n'a pas démarré — journalctl -u hermes-gateway"
+else
+  systemctl enable hermes-gateway
+  echo "WARN: /home/hermes/.local/bin/hermes est ABSENT."
+  echo "WARN: la passerelle est activée mais ne démarrera pas : aucun bot ne répondra."
+  echo "WARN: installer le binaire puis: systemctl start hermes-gateway"
+  echo "WARN: les scripts de scripts/agent/ fonctionnent sans lui."
+fi
 %{ if site_repo_url != "" ~}
 systemctl enable --now evg-watch-errors.timer
 %{ endif ~}

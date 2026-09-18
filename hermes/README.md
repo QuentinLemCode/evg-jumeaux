@@ -4,9 +4,34 @@ Hermes is the conversational front door to the pipeline. It runs on the
 **agents VM** as the `hermes-gateway` systemd unit, bridges Discord/Telegram,
 and calls the scripts in `scripts/agent/`.
 
+> ## The binary is not in this repository
+>
+> `hermes-gateway.service` runs `/home/hermes/.local/bin/hermes gateway`, and
+> **nothing installs that binary** — not this repository, not the Terraform
+> startup script. Hermes is a separate conversational gateway you supply; this
+> repository provides its prompt, its tool manifest, and the scripts those
+> tools call.
+>
+> Until it is installed, the unit is enabled but cannot start, and **no bot
+> answers on Discord or Telegram however well the tokens are configured**.
+> Tagging it in a chat produces nothing at all — there is no process listening.
+>
+> `scripts/agent/status.sh` reports this explicitly, at the top.
+>
+> **Everything else works without it.** The pipeline is shell scripts:
+>
+> ```bash
+> tailscale ssh hermes@evg-site-agent
+> cd ~/site
+> scripts/agent/status.sh                      # where everything stands
+> scripts/agent/pipeline.sh "add a photo wall" # spec → code → review → PR
+> ```
+>
+> That is the contract Hermes automates, not a fallback for it.
+
 The application runs on a **different** VM. Hermes has no shell there: anything
 about the running app goes through `scripts/agent/app-exec.sh`, an allowlist of
-six verbs over Tailscale SSH. An agent with an open shell on the production host
+seven verbs over Tailscale SSH. An agent with an open shell on the production host
 would eventually use it.
 
 ## What Hermes is and is not
@@ -22,7 +47,7 @@ and terse with humans.
 
 1. **System prompt** → `hermes/system-prompt.md`. This is the behaviour
    contract: routing rules, the destructive-request guard, the reporting style.
-2. **Tools** → `hermes/tools.json`. Six tools, each a shell command in
+2. **Tools** → `hermes/tools.json`. Each is a shell command in
    `scripts/agent/` that prints a machine-readable report block.
 3. **Working directory** → `/home/hermes/site` on the agents VM (the checkout
    created by the Terraform startup script). `pipeline.sh` resets it to

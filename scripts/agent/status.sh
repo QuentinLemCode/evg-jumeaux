@@ -21,6 +21,33 @@ git fetch --quiet origin main 2>/dev/null || true
 echo "behind:  $(git rev-list --count HEAD..origin/main 2>/dev/null || echo '?') commit(s) behind origin/main"
 
 echo
+echo "=== gateway and watcher (this VM) ==="
+# Asked first because it is the question a silent Telegram raises, and the
+# answer is not in the git state below.
+for UNIT in hermes-gateway evg-error-watcher; do
+  if ! systemctl list-unit-files "$UNIT.service" >/dev/null 2>&1; then
+    echo "$UNIT: not installed on this machine"
+    continue
+  fi
+  STATE="$(systemctl is-active "$UNIT" 2>/dev/null || true)"
+  printf '%s: %s' "$UNIT" "${STATE:-unknown}"
+  if [ "$STATE" != "active" ]; then
+    printf ' — %s\n' "$(systemctl show -p Result --value "$UNIT" 2>/dev/null || echo '?')"
+    journalctl -u "$UNIT" -n 3 --no-pager -o cat 2>/dev/null | sed 's/^/    /'
+  else
+    printf ' (since %s)\n' "$(systemctl show -p ActiveEnterTimestamp --value "$UNIT" 2>/dev/null)"
+  fi
+done
+
+# The gateway is a SEPARATE program this repository does not ship. Without it
+# there is nothing listening on Discord or Telegram, however well configured
+# the tokens are.
+if [ ! -x /home/hermes/.local/bin/hermes ]; then
+  echo "hermes binary: MISSING at /home/hermes/.local/bin/hermes"
+  echo "  the gateway cannot run — see hermes/README.md"
+fi
+
+echo
 echo "=== pull requests ==="
 if command -v gh >/dev/null && gh auth status >/dev/null 2>&1; then
   gh pr list --state open --limit 5 \
