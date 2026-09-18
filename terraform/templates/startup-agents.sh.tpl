@@ -148,7 +148,17 @@ chown hermes:hermes /home/hermes/.bashrc
 
 %{ if site_repo_url != "" ~}
 echo "=== [7/8] Dépôt de travail ==="
-su - hermes -c "git clone ${site_repo_url} $SITE_DIR"
+# Idempotent on purpose: a GCE startup script runs at EVERY boot, and with
+# `set -e` an unguarded `git clone` into an existing directory aborts the whole
+# script — leaving the machine half-configured after any reboot, maintenance
+# event or live migration. That also makes a reboot the safe way to re-run this
+# script, which is how a changed Tailscale tag gets applied.
+if [ -d "$SITE_DIR/.git" ]; then
+  su - hermes -c "cd $SITE_DIR && git fetch --quiet origin && git reset --hard --quiet origin/HEAD" \
+    || su - hermes -c "cd $SITE_DIR && git fetch --quiet origin main && git reset --hard --quiet origin/main"
+else
+  su - hermes -c "git clone ${site_repo_url} $SITE_DIR"
+fi
 su - hermes -c "cd $SITE_DIR && git config user.name '${git_author_name}'"
 su - hermes -c "cd $SITE_DIR && git config user.email '${git_author_email}'"
 # Pousser une branche courante par défaut, jamais main : l'agent crée

@@ -220,6 +220,31 @@ of its own**: a tagged key wins, and `--advertise-tags` is then refused.
 }
 ```
 
+**Applying a tag to a machine that is already running.** `--advertise-tags`
+only *requests* the tag; on a node that is already authenticated it takes a
+reauthentication to take effect, and `tailscale up` merely prints a login URL.
+`--force-reauth` drops the Tailscale connection, so running it over Tailscale
+SSH kills the session that is running it. Two ways out:
+
+```bash
+# On the VM, detached so losing the SSH session does not kill it:
+sudo systemd-run --unit=retag --collect \
+  tailscale up --ssh --advertise-tags=tag:evg-app --authkey=tskey-... --force-reauth
+
+# Or simply reboot: the startup script carries both the auth key and the tag,
+# and it is idempotent, so a boot re-applies the whole configuration.
+sudo reboot
+```
+
+Check the result on the machine itself:
+
+```bash
+tailscale status --json | jq .Self.Tags     # ["tag:evg-app"], or null
+```
+
+An untagged VM is invisible to `tag:ci`, which is what
+`No peers visible at all` in the deploy log means.
+
 Nothing grants the app VM access to the agents VM, deliberately: the app has no
 reason to reach the machine holding the LLM and GitHub credentials.
 

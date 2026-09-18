@@ -71,7 +71,17 @@ usermod -aG docker hermes
 
 %{ if site_repo_url != "" ~}
 echo "=== [6/7] Application ==="
-su - hermes -c "git clone ${site_repo_url} $SITE_DIR"
+# Idempotent on purpose: a GCE startup script runs at EVERY boot, and with
+# `set -e` an unguarded `git clone` into an existing directory aborts the whole
+# script — leaving the machine half-configured after any reboot, maintenance
+# event or live migration. That also makes a reboot the safe way to re-run this
+# script, which is how a changed Tailscale tag gets applied.
+if [ -d "$SITE_DIR/.git" ]; then
+  su - hermes -c "cd $SITE_DIR && git fetch --quiet origin && git reset --hard --quiet origin/HEAD" \
+    || su - hermes -c "cd $SITE_DIR && git fetch --quiet origin main && git reset --hard --quiet origin/main"
+else
+  su - hermes -c "git clone ${site_repo_url} $SITE_DIR"
+fi
 
 # --- .env : lu par docker compose (substitution ET env_file de l'app) --------
 cat > $SITE_DIR/.env <<APPENV
