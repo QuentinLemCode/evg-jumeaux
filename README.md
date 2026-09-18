@@ -212,7 +212,7 @@ so they stay readable in the logs when something goes wrong.
 | `INGRESS_MODE` | `tunnel` | `tunnel` (no inbound port) or `public_ip` (80/443 open to Cloudflare only) |
 | `APP_VM_HOSTNAME` | `evg-app` | the tailnet name CI deploys to. **Must equal Terraform's `app_instance_name`** — two places, and only this one is checked. Unset, the deploy falls back to `evg-app`; set to something the tailnet does not have, it fails naming the machines it does have. |
 | `AGENTS_VM_HOSTNAME` | `evg-site-agent` | the tailnet name *Deploy infra* refreshes when run with `refresh_agents`. Same rule as above: it must equal Terraform's `instance_name`, and unset falls back to `evg-site-agent`. |
-| `LLM_MODEL` | `google/gemini-3.8-flash` | Hermes and both agents. Check the exact id with `opencode models`. |
+| `LLM_MODEL` | `google/gemini-2.5-pro` | The spec, code and review agents. **Not every model survives a long tool loop** — `gemini-3.8-flash` fails a real spec run with `Requests ending with a model turn are not supported`. The router runs on `gemini-2.5-flash`, set per-agent in `.opencode/opencode.json`. See [docs/deployment.md](docs/deployment.md). |
 | `LLM_PROVIDER` | `google` | the provider id on the OpenCode side |
 | `LLM_API_KEY_ENV_NAME` | `GEMINI_API_KEY` | the env var the SDK reads; the wrong name fails silently as "no key" |
 | `LLM_BASE_URL` | `https://aiplatform.googleapis.com/v1/publishers/google` | **Required for an Agent Platform / Vertex express key.** Such a key is restricted by org policy to `aiplatform.googleapis.com`, and OpenCode's `google` provider calls `generativelanguage.googleapis.com` unless told otherwise — so every agent fails with `Requests to this API are blocked`. See [docs/deployment.md](docs/deployment.md). |

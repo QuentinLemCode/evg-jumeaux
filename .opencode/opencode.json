@@ -24,7 +24,8 @@
       "description": "Read-only. Given production logs, says in three lines what broke, the likely cause, and the first thing to check."
     },
     "route": {
-      "description": "Read-only. Decides whether a message is a question about the app or a request to change it, and answers the questions itself."
+      "description": "Read-only. Decides whether a message is a question about the app or a request to change it, and answers the questions itself.",
+      "model": "google/gemini-2.5-flash"
     }
   }
 }
