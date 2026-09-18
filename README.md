@@ -196,6 +196,13 @@ so they stay readable in the logs when something goes wrong.
 
 ### Variables
 
+> **Every variable below must be set.** An unset repository variable is not an
+> absence: Actions passes `TF_VAR_…=` as an empty string, which *overrides* the
+> Terraform default. An unset `SITE_REPO_URL` is a VM that runs `git clone ""`
+> and never boots. Terraform now refuses the plan and names the variable rather
+> than building that, but it still has to be set.
+
+
 | Name | Example | What |
 |---|---|---|
 | `SITE_REPO_URL` | `https://github.com/you/evg-jumeaux.git` | cloned onto the VM for the deploy scripts |

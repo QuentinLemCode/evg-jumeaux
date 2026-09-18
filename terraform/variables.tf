@@ -107,12 +107,22 @@ variable "llm_api_key_env_name" {
   EOT
   type        = string
   default     = "GEMINI_API_KEY"
+
+  validation {
+    condition     = can(regex("^[A-Z][A-Z0-9_]*$", var.llm_api_key_env_name))
+    error_message = "llm_api_key_env_name doit etre un nom de variable d environnement, ex. GEMINI_API_KEY (variable LLM_API_KEY_ENV_NAME)."
+  }
 }
 
 variable "llm_provider" {
   description = "Identifiant du provider côté OpenCode (ex: google)"
   type        = string
   default     = "google"
+
+  validation {
+    condition     = length(var.llm_provider) > 0
+    error_message = "llm_provider est obligatoire (variable LLM_PROVIDER)."
+  }
 }
 
 variable "llm_base_url" {
@@ -133,6 +143,11 @@ variable "llm_model" {
   EOT
   type        = string
   default     = "google/gemini-3.8-flash"
+
+  validation {
+    condition     = length(var.llm_model) > 0
+    error_message = "llm_model est obligatoire (variable LLM_MODEL)."
+  }
 }
 
 # --- Messagerie ----------------------------------------------------------------
@@ -186,6 +201,11 @@ variable "site_repo_url" {
   description = "URL du dépôt Git de l'app à cloner sur la VM (laisser vide pour ne rien déployer)"
   type        = string
   default     = ""
+
+  validation {
+    condition     = can(regex("^https://", var.site_repo_url))
+    error_message = "site_repo_url doit etre une URL https de clone (variable SITE_REPO_URL). Vide, la VM tente un git clone sans argument et ne demarre jamais."
+  }
 }
 
 # --- Secrets applicatifs -----------------------------------------------------
@@ -235,6 +255,14 @@ variable "vapid_subject" {
   description = "Contact VAPID, au format mailto:"
   type        = string
   default     = ""
+
+  validation {
+    # Cross-variable, allowed since Terraform 1.9: web-push refuses to send
+    # without a subject, so keys with no subject is a silent no-notifications
+    # deploy rather than a configuration error.
+    condition     = var.vapid_public_key == "" || can(regex("^(mailto:|https://)", var.vapid_subject))
+    error_message = "vapid_subject doit être un mailto: ou une URL https dès que vapid_public_key est renseigné (variable VAPID_SUBJECT)."
+  }
 }
 
 
@@ -290,6 +318,11 @@ variable "site_subdomain" {
   description = "Sous-domaine du site : evg -> evg.exemple.com"
   type        = string
   default     = "evg"
+
+  validation {
+    condition     = can(regex("^[a-z0-9-]+$", var.site_subdomain))
+    error_message = "site_subdomain doit etre un label DNS, ex. evg (variable SITE_SUBDOMAIN). Vide, le site serait publie sur le domaine racine."
+  }
 }
 
 variable "ingress_mode" {
@@ -357,6 +390,11 @@ variable "image_tag" {
   EOT
   type        = string
   default     = "main"
+
+  validation {
+    condition     = length(var.image_tag) > 0
+    error_message = "image_tag est obligatoire, ex. main (variable IMAGE_TAG)."
+  }
 }
 
 variable "ghcr_username" {

@@ -95,6 +95,11 @@ jobs:
         run: |
           IMAGE="ghcr.io/${{ steps.meta.outputs.repo }}:${{ steps.meta.outputs.tag }}"
           mkdir -p /tmp/smoke
+          # The image runs as `node` (uid 1000) and a bind mount SHADOWS the
+          # image's own ownership, taking the host directory's instead. The
+          # runner's user is uid 1001, so without this the very first thing the
+          # container does is fail to create the database.
+          sudo chown 1000:1000 /tmp/smoke
           # Migrations must run in the image that will serve them.
           docker run --rm -e AUTH_SECRET=smoke-secret-at-least-32-characters-ok \
             -v /tmp/smoke:/app/data "$IMAGE" npm run --silent db:migrate

@@ -115,8 +115,17 @@ CFENV
 chown hermes:hermes $SITE_DIR/.env $SITE_DIR/deploy.env $SITE_DIR/cloudflared.env
 chmod 600 $SITE_DIR/.env $SITE_DIR/deploy.env $SITE_DIR/cloudflared.env
 
-mkdir -p $SITE_DIR/data/backups
-chown -R hermes:hermes $SITE_DIR/data
+# Two writers share this directory, and they are not the same user:
+#   - the container, which runs as `node` = uid 1000 and creates evg.db;
+#   - hermes on the host, which takes the pre-migration backup in deploy.sh.
+# A bind mount ignores the image's ownership and takes the host's, and
+# `useradd` gave hermes whatever uid was free (1000 is usually taken on a GCE
+# image), so "chown hermes" alone leaves the container unable to write at all.
+# Owner 1000 with hermes' group and g+s gives both of them write access and
+# keeps the group on anything created later.
+mkdir -p $SITE_DIR/data/backups $SITE_DIR/data/deploy
+chown -R 1000:"$(id -g hermes)" $SITE_DIR/data
+chmod -R 2775 $SITE_DIR/data
 
 echo "--- GHCR + premier déploiement ---"
 su - hermes -c "echo '${ghcr_token}' | docker login ghcr.io -u '${ghcr_username}' --password-stdin"
