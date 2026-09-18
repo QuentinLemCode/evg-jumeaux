@@ -20,6 +20,7 @@ No code change lands without a spec change first — see `AGENTS.md` §6.
 | `0011` | [Client error reporting](0011-client-error-reporting.md) | implemented | Browser crashes reach a table, an admin screen and the alert channel — grouped, rate limited, no third party |
 | `0012` | [Telegram gateway](0012-telegram-gateway.md) | implemented | Mention-gated bot: commands and change requests reach `scripts/agent/`, one job at a time |
 | `0013` | [Natural-language routing](0013-natural-language-routing.md) | implemented | The bot decides: a question is answered, a change request runs the pipeline, a vague one gets a question back |
+| `0014` | [Conversational memory](0014-conversational-memory.md) | implemented | Remembers the thread, asks blocking questions in the chat, resumes from the answer |
 
 Status values: `draft` → `ready-for-code` → `implemented` → `superseded`.
 

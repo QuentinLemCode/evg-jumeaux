@@ -11,13 +11,17 @@
  * It holds no conversation — a model driving `hermes/tools.json` sits on top of
  * this transport and is a separate spec.
  */
-import { resolve } from 'node:path';
+import { mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
 
 import { Runner, since } from './jobs';
+import { Memory } from './memory';
 import {
   directedAtBot,
   isAuthorised,
   parseAllowlist,
+  parsePipelineReport,
   parseRouterReport,
   route,
   type Command,
@@ -26,6 +30,7 @@ import { Telegram } from './telegram';
 
 const REPO_ROOT = resolve(import.meta.dirname, '../..');
 const AGENT = `${REPO_ROOT}/scripts/agent`;
+const MEMORY_FILE = process.env.HERMES_MEMORY ?? `${REPO_ROOT}/data/hermes/conversations.json`;
 
 const HELP = `Tague-moi avec :
 
@@ -33,6 +38,7 @@ const HELP = `Tague-moi avec :
 /errors   les erreurs navigateur ouvertes
 /logs     les dernières lignes de l'app
 /deploy   redéployer la dernière image
+/reset    oublier notre conversation
 
 Ou parle-moi normalement :
 
@@ -51,6 +57,7 @@ const SCRIPTS: Record<Command, { what: string; command: string; args: string[] }
   logs: { what: '/logs', command: `${AGENT}/app-exec.sh`, args: ['logs'] },
   deploy: { what: '/deploy', command: `${AGENT}/app-exec.sh`, args: ['deploy'] },
   help: null,
+  reset: null,
 };
 
 function requireEnv(name: string): string {
@@ -67,6 +74,10 @@ async function main(): Promise<void> {
   const tg = new Telegram(requireEnv('TELEGRAM_BOT_TOKEN'));
   const allowlist = parseAllowlist(process.env.TELEGRAM_ALLOWED_USERS);
   const runner = new Runner(REPO_ROOT);
+  const memory = new Memory(MEMORY_FILE);
+  if (memory.lostOnStart) {
+    console.warn(`hermes: conversation store at ${MEMORY_FILE} was unreadable — starting empty`);
+  }
 
   if (allowlist.length === 0) {
     // Rule 7: keep running and refuse everyone. A misconfigured allowlist must
@@ -114,7 +125,7 @@ async function main(): Promise<void> {
         continue;
       }
 
-      await handle(tg, runner, directed);
+      await handle(tg, runner, memory, directed);
     }
   }
 }
@@ -122,12 +133,32 @@ async function main(): Promise<void> {
 async function handle(
   tg: Telegram,
   runner: Runner,
+  memory: Memory,
   directed: { text: string; chatId: number; messageId: number; fromLabel: string },
 ): Promise<void> {
   const decision = route(directed.text);
 
+  // Recorded AFTER authorisation (0014 rule: an unauthorised message is never
+  // remembered and so can never colour a later answer).
+  memory.record(directed.chatId, 'human', directed.text);
+
+  if (decision.kind === 'command' && decision.command === 'reset') {
+    const dropped = memory.reset(directed.chatId);
+    const said =
+      dropped.turns === 0 && !dropped.hadPending
+        ? 'Il n’y avait rien à oublier.'
+        : `Oublié : ${dropped.turns} message(s)` +
+          (dropped.hadPending ? ' et la question en attente.' : '.');
+    await tg.send(directed.chatId, said, directed.messageId);
+    return;
+  }
+
   if (decision.kind === 'unknown-command') {
-    await tg.send(directed.chatId, `Je ne connais pas ${decision.typed}.\n\n${HELP}`, directed.messageId);
+    await tg.send(
+      directed.chatId,
+      `Je ne connais pas ${decision.typed}.\n\n${HELP}`,
+      directed.messageId,
+    );
     return;
   }
   if (decision.kind === 'command' && decision.command === 'help') {
@@ -139,11 +170,13 @@ async function handle(
   // whether it was asked a question or asked to change something. Commands
   // bypass it — they already say what they want.
   let job: { what: string; command: string; args: string[] } | null;
+  let requestForPipeline: string | null = null;
   if (decision.kind === 'command') {
     job = SCRIPTS[decision.command];
   } else {
-    const routed = await routeMessage(tg, runner, directed, decision.request);
+    const routed = await routeMessage(tg, runner, memory, directed, decision.request);
     if (!routed) return;
+    requestForPipeline = routed;
     job = { what: 'pipeline', command: `${AGENT}/pipeline.sh`, args: [routed] };
   }
   if (!job) return;
@@ -178,8 +211,30 @@ async function handle(
     return;
   }
 
+  // A blocked pipeline is a QUESTION, not a filed ticket (spec 0014, rules
+  // 6-8). The previous behaviour dumped the raw report and stopped, leaving a
+  // state only a terminal could resolve — during a weekend away, that is a
+  // request that never happens.
+  const outcome = parsePipelineReport(result.output);
+
+  if (outcome?.status === 'needs-human' && outcome.reason) {
+    const question =
+      `${heading}\n\n⏸ Je me suis arrêté là :\n\n${outcome.reason}\n\n` +
+      'Réponds-moi ici et je reprends — pas besoin de toucher au dépôt.';
+    await tg.edit(directed.chatId, ackId, question);
+    memory.record(directed.chatId, 'bot', `Arrêté : ${outcome.reason}`);
+    // Remember what was asked AND the request behind it, so the next message
+    // can be merged into a request the pipeline can restart from (rule 9).
+    memory.await_(directed.chatId, requestForPipeline ?? job.what, outcome.reason);
+    console.log(`hermes: ${directed.fromLabel} → needs-human (${outcome.reason.slice(0, 80)})`);
+    return;
+  }
+
   const verdict = result.ok ? '✅' : '❌';
-  await tg.edit(directed.chatId, ackId, `${heading}\n\n${verdict}\n${result.output}`);
+  const tail = outcome?.pr ? `${outcome.pr}\n\n${result.output}` : result.output;
+  await tg.edit(directed.chatId, ackId, `${heading}\n\n${verdict}\n${tail}`);
+  memory.record(directed.chatId, 'bot', `${verdict} ${outcome?.pr ?? outcome?.status ?? ''}`.trim());
+  if (result.ok) memory.resolve(directed.chatId);
 }
 
 
@@ -198,15 +253,20 @@ async function handle(
 async function routeMessage(
   tg: Telegram,
   runner: Runner,
+  memory: Memory,
   directed: { chatId: number; messageId: number; fromLabel: string },
   message: string,
 ): Promise<string | null> {
   const thinking = await tg.send(directed.chatId, 'Je regarde…', directed.messageId);
 
   // Not through the Runner's lock: routing is not a job, so a question can be
-  // answered while a pipeline runs (rule 11).
+  // answered while a pipeline runs (0013 rule 11).
   const router = new Runner(REPO_ROOT);
-  const result = await router.run('route', `${AGENT}/route.sh`, [message]);
+  const result = await router.run('route', `${AGENT}/route.sh`, [
+    '--context',
+    writeContext(memory, directed.chatId),
+    message,
+  ]);
   const routed = result ? parseRouterReport(result.output) : null;
 
   if (!routed) {
@@ -223,6 +283,10 @@ async function routeMessage(
 
   if (routed.decision === 'answer' || routed.decision === 'unclear') {
     await tg.edit(directed.chatId, thinking, routed.body);
+    memory.record(directed.chatId, 'bot', routed.body);
+    // An `unclear` is a question the bot is now waiting on, exactly like one
+    // from a blocked pipeline (0014 rule 6).
+    if (routed.decision === 'unclear') memory.await_(directed.chatId, message, routed.body);
     console.log(`hermes: ${directed.fromLabel} → ${routed.decision}`);
     return null;
   }
@@ -239,8 +303,37 @@ async function routeMessage(
     return null;
   }
 
-  await tg.edit(directed.chatId, thinking, `Compris : « ${routed.body} »`);
+  const understood = `Compris : « ${routed.body} »`;
+  await tg.edit(directed.chatId, thinking, understood);
+  memory.record(directed.chatId, 'bot', understood);
+  // The request carried the answer, so nothing is pending any more.
+  memory.resolve(directed.chatId);
   return routed.body;
+}
+
+/**
+ * The conversation as the router is given it (spec 0014, rule 1), in a file
+ * rather than an argument: a chat contains quotes, newlines and whatever a
+ * guest typed, none of which belongs on a command line.
+ */
+function writeContext(memory: Memory, chatId: number): string {
+  const transcript = memory.transcript(chatId);
+  const pending = memory.pending(chatId);
+  const body = [
+    '## Conversation',
+    '',
+    transcript || '(rien pour l’instant)',
+    '',
+    '## En attente',
+    '',
+    pending
+      ? `Question posée : ${pending.question}\nDemande d’origine : ${pending.request}`
+      : '(rien)',
+  ].join('\n');
+
+  const path = join(mkdtempSync(join(tmpdir(), 'hermes-ctx-')), 'context.md');
+  writeFileSync(path, `${body}\n`, { mode: 0o600 });
+  return path;
 }
 
 main().catch((error) => {

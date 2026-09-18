@@ -172,6 +172,14 @@ if [ -d "$SITE_DIR/.git" ]; then
 else
   su - hermes -c "git clone ${site_repo_url} $SITE_DIR"
 fi
+# Écrits par hermes, jamais par root : un `sudo ./status.sh` suffisait à
+# laisser .agent-logs appartenir à root, et `tee` échouait alors en emportant
+# LA SORTIE DE L'AGENT — le pipeline concluait « open questions » sans avoir
+# reçu le moindre rapport.
+mkdir -p $SITE_DIR/.agent-logs $SITE_DIR/data/hermes
+chown -R hermes:hermes $SITE_DIR/.agent-logs $SITE_DIR/data
+chmod 700 $SITE_DIR/data/hermes
+
 su - hermes -c "cd $SITE_DIR && git config user.name '${git_author_name}'"
 su - hermes -c "cd $SITE_DIR && git config user.email '${git_author_email}'"
 # Pousser une branche courante par défaut, jamais main : l'agent crée

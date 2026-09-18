@@ -4,6 +4,7 @@ import {
   directedAtBot,
   isAuthorised,
   parseAllowlist,
+  parsePipelineReport,
   parseRouterReport,
   route,
   truncateForTelegram,
@@ -264,5 +265,54 @@ describe('parseRouterReport', () => {
 
   it('ignores a separator that precedes the decision', () => {
     expect(parseRouterReport('---\nDECISION: answer')).toBeNull();
+  });
+});
+
+describe('parsePipelineReport', () => {
+  it('reads a successful run', () => {
+    const output = [
+      '[16:29:30] STEP 0/4 — starting from origin/main',
+      '',
+      'PIPELINE: ok',
+      'STAGE: pr',
+      'PR: https://github.com/x/y/pull/42',
+    ].join('\n');
+    expect(parsePipelineReport(output)).toEqual({
+      status: 'ok',
+      reason: null,
+      pr: 'https://github.com/x/y/pull/42',
+    });
+  });
+
+  it('reads a blocked run and keeps the reason verbatim', () => {
+    // Rule 7: the bot posts what the agent said, never a reason of its own.
+    const output = [
+      'PIPELINE: needs-human',
+      'STAGE: spec',
+      'SPEC_FILE: none',
+      'REASON: the spec agent produced no report at all (exit 1)',
+    ].join('\n');
+    const outcome = parsePipelineReport(output);
+    expect(outcome?.status).toBe('needs-human');
+    expect(outcome?.reason).toBe('the spec agent produced no report at all (exit 1)');
+  });
+
+  it('takes the LAST report when stages printed their own', () => {
+    const output = ['PIPELINE: ok', 'REASON: none', 'PIPELINE: needs-human', 'REASON: la vraie'].join(
+      '\n',
+    );
+    expect(parsePipelineReport(output)).toMatchObject({ status: 'needs-human', reason: 'la vraie' });
+  });
+
+  it('treats "none" as absent rather than as a value', () => {
+    expect(parsePipelineReport('PIPELINE: ok\nREASON: none\nPR: none')).toEqual({
+      status: 'ok',
+      reason: null,
+      pr: null,
+    });
+  });
+
+  it('returns null when there is no report to read', () => {
+    expect(parsePipelineReport('tee: permission denied\n')).toBeNull();
   });
 });

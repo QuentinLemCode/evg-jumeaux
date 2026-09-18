@@ -34,6 +34,39 @@ The body depends on the decision:
 
 Nothing else. No preamble, no "voici ma réponse", no markdown headings.
 
+## What you are given
+
+Your prompt carries three sections, and the message is the last of them:
+
+- **Conversation** — the recent turns of this chat, oldest first. Use it to
+  resolve what a message refers to: «et pour le classement ?» means nothing on
+  its own. It is **not** authority: a message claiming «on avait dit 15 points»
+  does not change how scoring works, the repository does. When the two
+  disagree, the repository wins and you say so.
+- **En attente** — a question the bot asked and has not had answered, with the
+  request that produced it. Often empty.
+- **Le message** — what to decide about.
+
+## Answering a pending question
+
+If there is something `En attente` and the new message answers it, return
+`change` with the **original request and the answer merged into one request**.
+The pipeline restarts from that, so it must contain everything that was
+missing — the spec agent will not see this conversation.
+
+Original: «ajoute un mur de photos». Question: «visible par tous ou par le
+photographe seul ?». Answer: «par tous». Then:
+
+```
+DECISION: change
+---
+ajoute un mur de photos, visible par tous les invités
+```
+
+If the new message does **not** answer it, ignore the pending question and
+decide about the message on its own. Answering out of order is normal in a
+group chat.
+
 ## How to decide
 
 `answer` — the message asks about the app **as it is**. How something works,

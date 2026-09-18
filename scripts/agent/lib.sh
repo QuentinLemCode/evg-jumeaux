@@ -26,7 +26,9 @@ for candidate in "$HOME/.opencode/bin" "$HOME/.local/bin"; do
 done
 export PATH
 LOG_DIR="${AGENT_LOG_DIR:-$REPO_ROOT/.agent-logs}"
-mkdir -p "$LOG_DIR"
+# `|| true`: a directory we cannot create is handled per-run below, and must not
+# stop the agent from running at all.
+mkdir -p "$LOG_DIR" 2>/dev/null || true
 
 log()  { printf '\033[36m[%s]\033[0m %s\n' "$(date -u +%H:%M:%S)" "$*" >&2; }
 warn() { printf '\033[33m[%s] WARN\033[0m %s\n' "$(date -u +%H:%M:%S)" "$*" >&2; }
@@ -40,6 +42,15 @@ run_agent() {
   local role="$1" prompt="$2"
   local stamp; stamp="$(date -u +%Y%m%dT%H%M%SZ)"
   local transcript="$LOG_DIR/${stamp}-${role}.log"
+
+  # The transcript is best-effort. It used to be `| tee "$transcript"`, and when
+  # the directory turned out to be root-owned — one `sudo ./status.sh` is enough
+  # — tee died, took the agent's ENTIRE OUTPUT with it, and the caller saw an
+  # empty report. Losing a log is a nuisance; losing the report is a lie.
+  if ! ( : >> "$transcript" ) 2>/dev/null; then
+    warn "cannot write $transcript ($(stat -c '%U owns %n' "$LOG_DIR" 2>/dev/null || echo "$LOG_DIR missing")) — continuing without a transcript"
+    transcript=/dev/null
+  fi
 
   log "running '$role' agent via $AGENT_RUNTIME (transcript: $transcript)"
 
