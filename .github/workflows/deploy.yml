@@ -137,19 +137,11 @@ jobs:
       - name: Join the tailnet
         uses: tailscale/github-action@v3
         with:
-          # TWO ways in, and the first one that is set wins.
-          #
-          # A tagged auth key is the simple one: created in the admin console
-          # with tag:ci applied to it, nothing to get wrong at runtime. It
-          # expires (90 days at most), which is the price.
-          #
-          # OAuth mints that key per run and never expires, but it fails with
-          #   403 "calling actor does not have enough permissions"
-          # unless the client carries tag:ci — and the console only offers that
-          # tag if it already exists in tagOwners when the client is created.
-          # A client made before the tag existed cannot be fixed; tags are not
-          # editable afterwards, it has to be recreated.
-          authkey: ${{ secrets.TAILSCALE_CI_AUTHKEY }}
+          # The OAuth client mints a tag:ci auth key per run, so nothing here
+          # expires. It must carry tag:ci itself, and the console only offers
+          # that tag if it already exists in tagOwners when the client is
+          # created — a client made before the tag cannot be re-tagged, only
+          # replaced. See docs/deployment.md.
           oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
           oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
           tags: tag:ci
@@ -174,7 +166,6 @@ jobs:
             echo "::error::This runner is not on the tailnet (BackendState=$STATE). The join step failed and reported success anyway."
             echo "::error::Scroll up to 'Connect to Tailscale' for the real reason."
             echo "::error::A 403 'calling actor does not have enough permissions' means the OAuth client may not mint keys for tag:ci. The console only offers that tag if it exists in tagOwners BEFORE the client is created, and a client cannot be re-tagged afterwards."
-            echo "::error::The shortcut: create a reusable auth key with tag:ci applied and put it in the TAILSCALE_CI_AUTHKEY secret. It takes precedence over OAuth."
             tailscale status || true
             exit 1
           fi
