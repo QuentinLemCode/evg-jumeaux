@@ -48,3 +48,5 @@ coverage/
 
 # user seed data
 user-seed.txt
+# generated PIN hashes — set as the SEED_PIN_HASHES secret, never commit
+.secrets/

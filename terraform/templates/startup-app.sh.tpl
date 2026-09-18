@@ -73,6 +73,7 @@ cat > $SITE_DIR/.env <<APPENV
 NODE_ENV=production
 DATABASE_PATH=/app/data/evg.db
 AUTH_SECRET=${auth_secret}
+SEED_PIN_HASHES=${seed_pin_hashes}
 SITE_DOMAIN=$SITE_DOMAIN
 HEALTH_URL=https://$SITE_DOMAIN/api/health
 %{ if vapid_public_key != "" ~}

@@ -181,6 +181,7 @@ so they stay readable in the logs when something goes wrong.
 | `CLOUDFLARE_ZONE_ID` | infra | the zone's overview page |
 | `DOMAIN` | infra, deploy | your root domain, e.g. `example.com`. A secret so it stays out of the logs. |
 | `AUTH_SECRET` | infra | `openssl rand -base64 48` |
+| `SEED_PIN_HASHES` | infra | `npm run generate-users -- <roster-file>`, then `gh secret set SEED_PIN_HASHES < .secrets/seed-pin-hashes.b64`. Base64-encoded JSON of id → bcrypt hash. **No PIN hash goes in the repository**: a 6-digit PIN behind bcrypt falls to a GPU in minutes. |
 | `VAPID_PUBLIC_KEY` | infra | `npm run vapid:generate` |
 | `VAPID_PRIVATE_KEY` | infra | same run — never commit it |
 | `LLM_API_KEY` | infra | your Agent Platform API key. Hermes **and** both OpenCode agents share it. |

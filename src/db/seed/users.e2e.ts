@@ -19,7 +19,10 @@
  */
 import type { SeedUser } from './users';
 
-/** bcrypt of `123456` — the DEV_PIN. Public by design; test data only. */
+/** The PIN every E2E player shares. Public by design; test data only. */
+export const DEV_PIN = '123456';
+
+/** bcrypt of DEV_PIN. */
 const E2E_PIN_HASH = '$2b$12$qM/eqAqm1MwcNsCaIrr2r.GKJrCf8pb1EQ1crncDgRiqmFdkq4Ope';
 
 export const e2eUsers: SeedUser[] = [

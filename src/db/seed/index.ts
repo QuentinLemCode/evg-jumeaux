@@ -11,8 +11,8 @@ import { eq } from 'drizzle-orm';
 import { db } from '../index';
 import { games, users } from '../schema';
 import { seedGames } from './games';
-import { DEV_PIN, seedUsers, type SeedUser } from './users';
-import { e2eUsers } from './users.e2e';
+import { seedRoster, type SeedUser } from './users';
+import { DEV_PIN, e2eUsers } from './users.e2e';
 
 
 function fail(message: string): never {
@@ -21,18 +21,111 @@ function fail(message: string): never {
 }
 
 /**
- * Which roster to seed. The end-to-end suite asks for its own (see
- * `users.e2e.ts`); everything else gets the real guest list.
+ * Where the PIN hashes come from (spec 0002, rules 6-7).
  *
- * Refused in production, because seeding the test roster there would put nine
- * players with one publicly known PIN into the real database.
+ * NOT from the repository. A 6-digit PIN is a million possibilities, and
+ * bcrypt at cost 12 runs at thousands of guesses a second on one GPU: a
+ * published hash is a PIN anyone recovers in minutes, and the escalating
+ * lockout cannot help because the attack never touches the login form.
+ *
+ * `SEED_PIN_HASHES` is a JSON object of id -> bcrypt hash, produced by
+ * `npm run generate-users` alongside the roster itself.
+ */
+/**
+ * A complete bcrypt hash: `$2b$12$` plus exactly 53 characters of salt and
+ * digest. Checked in full, not by its prefix, because of the failure below.
+ */
+const BCRYPT = /^\$2[aby]?\$\d{2}\$[./A-Za-z0-9]{53}$/;
+
+function pinHashesFromEnv(): Map<string, string> {
+  const raw = process.env.SEED_PIN_HASHES?.trim();
+  if (!raw) {
+    fail(
+      'SEED_PIN_HASHES is not set. Generate it with ' +
+        '`npm run generate-users -- <roster-file>` and set it as a secret ' +
+        '(GitHub) or in the VM environment.',
+    );
+  }
+
+  // Base64 is the transport, because a bcrypt hash starts with `$2b$12$` and
+  // Docker Compose interpolates `$` in the project `.env` it also uses as an
+  // env_file: raw JSON arrives as `{"id":"$2b$12"}`, silently truncated. That
+  // still looked like a hash to a prefix check, so it would have seeded
+  // unusable hashes and failed every login with nothing to point at.
+  // Raw JSON is still accepted, for a local shell where it is safe.
+  let text = raw;
+  if (!text.startsWith('{')) {
+    try {
+      text = Buffer.from(raw, 'base64').toString('utf8');
+    } catch {
+      fail('SEED_PIN_HASHES is neither JSON nor base64-encoded JSON.');
+    }
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    fail('SEED_PIN_HASHES did not decode to valid JSON. Expected {"id": "$2b$12$..."}.');
+  }
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+    fail('SEED_PIN_HASHES must be a JSON object of id -> bcrypt hash.');
+  }
+
+  const hashes = new Map<string, string>();
+  for (const [id, value] of Object.entries(parsed as Record<string, unknown>)) {
+    if (typeof value !== 'string') {
+      fail(`SEED_PIN_HASHES['${id}'] is not a string.`);
+    }
+    if (!BCRYPT.test(value)) {
+      fail(
+        `SEED_PIN_HASHES['${id}'] is not a complete bcrypt hash ` +
+          `(got ${value.length} characters, expected 60). ` +
+          'If it was passed as raw JSON through a Docker Compose .env, the ' +
+          'dollar signs were eaten — pass it base64-encoded.',
+      );
+    }
+    hashes.set(id, value);
+  }
+  return hashes;
+}
+
+/**
+ * Which roster to seed. The end-to-end suite asks for its own (see
+ * `users.e2e.ts`); everything else gets the real guest list, with each hash
+ * resolved from the secret.
  */
 const roster: SeedUser[] = (() => {
-  if (process.env.SEED_ROSTER !== 'e2e') return seedUsers;
-  if (process.env.NODE_ENV === 'production') {
-    fail('SEED_ROSTER=e2e refuses to run with NODE_ENV=production');
+  if (process.env.SEED_ROSTER === 'e2e') {
+    // The invariant is about the DATABASE, not the mode: the suite runs a
+    // production build with NODE_ENV=production on purpose, against a
+    // throwaway file that `scripts/e2e-prepare.mjs` creates and deletes.
+    const target = process.env.DATABASE_PATH ?? '';
+    if (!/(^|\/)\.e2e(\/|$)/.test(target)) {
+      fail(
+        `SEED_ROSTER=e2e only seeds the throwaway database under .e2e/ — ` +
+          `DATABASE_PATH is '${target || '(unset)'}'`,
+      );
+    }
+    return e2eUsers;
   }
-  return e2eUsers;
+
+  const hashes = pinHashesFromEnv();
+  const missing = seedRoster.filter((u) => !hashes.has(u.id)).map((u) => u.id);
+  if (missing.length > 0) {
+    fail(
+      `SEED_PIN_HASHES has no entry for: ${missing.join(', ')}. ` +
+        'Regenerate it from the same roster file.',
+    );
+  }
+  const extra = [...hashes.keys()].filter((id) => !seedRoster.some((u) => u.id === id));
+  if (extra.length > 0) {
+    // Not fatal: a departed guest keeps their rows, so a stale hash is
+    // harmless. Worth saying, because it usually means a stale secret.
+    console.warn(`seed: SEED_PIN_HASHES has entries not in the roster: ${extra.join(', ')}`);
+  }
+
+  return seedRoster.map((entry) => ({ ...entry, pinHash: hashes.get(entry.id)! }));
 })();
 
 function validate(): void {

@@ -17,9 +17,10 @@ leaderboard — at the cost of one commit whenever someone is added.
 ## Behaviour
 
 1. The roster is declared in a seed file that is committed to the repository:
-   `src/db/seed/users.ts`.
-2. Each player has: a stable id (kebab-case slug), a display name, a role, a
-   PIN hash, and an emoji used as their avatar.
+   `src/db/seed/users.ts`. It holds no secret: id, display name, role, avatar.
+2. Each player has: a stable id (kebab-case slug), a display name, a role, an
+   emoji used as their avatar, and a PIN hash that comes from **outside** the
+   repository.
 3. There are exactly two roles: `admin` and `user`. There is no role hierarchy
    beyond "an admin can do everything a user can, plus the operations listed in
    0008".
@@ -30,10 +31,28 @@ leaderboard — at the cost of one commit whenever someone is added.
    orphan the matches and points they are part of. Removing someone from the
    weekend means removing them from the seed file; their history stays in the
    database and remains visible.
-6. PIN hashes are generated with `npm run hash-pin <pin>` and pasted into the
-   seed. The plain PIN is never committed.
-7. At least one player must have the `admin` role. Seeding fails loudly if none
-   does.
+6. **No PIN and no PIN hash is ever committed.** A 6-digit PIN is a million
+   possibilities and bcrypt at cost 12 runs at thousands of guesses a second
+   on one GPU, so a published hash is a PIN recoverable in minutes. The
+   escalating lockout of 0001 defends the login form and does nothing here:
+   the attack never touches it.
+7. PIN hashes are supplied at seed time in `SEED_PIN_HASHES`, a JSON object of
+   id -> bcrypt hash, **base64-encoded**. Seeding fails, naming the ids, if a
+   player has no hash or if a hash is not a complete 60-character bcrypt
+   string.
+8. Base64 is not decoration: Docker Compose interpolates `$` in the project
+   `.env` it also passes to the container as an env_file, so raw JSON arrives
+   truncated at the first `$` of `$2b$12$` — and a truncated hash still looks
+   like a hash.
+9. `npm run generate-users -- <roster-file>` produces both halves from one
+   private input: the committed roster, and the base64 secret in
+   `.secrets/`, which is gitignored and written mode 0600.
+10. The end-to-end suite never uses this roster or these hashes. It seeds its
+    own players from `src/db/seed/users.e2e.ts`, selected with
+    `SEED_ROSTER=e2e`, which is refused unless the target database is the
+    throwaway one under `.e2e/`.
+11. At least one player must have the `admin` role. Seeding fails loudly if
+    none does.
 
 ## Data model
 
@@ -65,6 +84,7 @@ permanent identifier and must never be reused for a different person.
 | Seed contains a duplicate id | Seeding aborts before writing anything | (server log only) |
 | Seed contains no admin | Seeding aborts | (server log only) |
 | Seed contains a non-hashed PIN | Seeding aborts | (server log only) |
+| `SEED_PIN_HASHES` missing, malformed, or short a player | Seeding aborts naming the ids | (server log only) |
 | A match references a player no longer in the seed | The player stays in the database and renders normally | — |
 
 ## Acceptance criteria
@@ -78,6 +98,10 @@ permanent identifier and must never be reused for a different person.
 - [x] `npm run hash-pin 123456` prints a hash that verifies against `123456`
       and differs between two runs (salted).
 - [x] No plain-text PIN appears anywhere in the repository.
+- [x] No PIN **hash** appears anywhere in the repository either — the roster
+      file carries none, and seeding without `SEED_PIN_HASHES` fails.
+- [x] A hash truncated by Compose interpolation is refused rather than seeded.
+- [x] The end-to-end suite passes without any real guest's PIN.
 
 ## End-to-end coverage
 
@@ -101,3 +125,5 @@ None.
 | Date | Change | Why |
 |---|---|---|
 | 2026-09-14 | Created | Initial harness and application bootstrap |
+| 2026-09-18 | PIN hashes move out of the repository into `SEED_PIN_HASHES` | The repository is public, and a 6-digit PIN behind bcrypt cost 12 falls to a GPU in minutes — the committed hashes were the PINs |
+| 2026-09-18 | The end-to-end suite gets its own roster | Sharing one list meant the tests needed real guests' PINs, and every change to the guest list broke them |

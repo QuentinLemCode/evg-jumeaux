@@ -39,6 +39,7 @@ resource "google_compute_instance" "app" {
       ingress_mode      = var.ingress_mode
       tunnel_token      = local.tunnel_token
       auth_secret       = var.auth_secret
+      seed_pin_hashes   = var.seed_pin_hashes
       vapid_public_key  = var.vapid_public_key
       vapid_private_key = var.vapid_private_key
       vapid_subject     = var.vapid_subject

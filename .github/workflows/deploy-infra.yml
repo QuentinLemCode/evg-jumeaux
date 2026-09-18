@@ -77,6 +77,7 @@ jobs:
           # --- the app -----------------------------------------------------
           TF_VAR_site_repo_url: ${{ vars.SITE_REPO_URL }}
           TF_VAR_auth_secret: ${{ secrets.AUTH_SECRET }}
+          TF_VAR_seed_pin_hashes: ${{ secrets.SEED_PIN_HASHES }}
           TF_VAR_vapid_public_key: ${{ secrets.VAPID_PUBLIC_KEY }}
           TF_VAR_vapid_private_key: ${{ secrets.VAPID_PRIVATE_KEY }}
           TF_VAR_vapid_subject: ${{ vars.VAPID_SUBJECT }}

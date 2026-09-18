@@ -7,10 +7,10 @@
  */
 import { expect, type Page } from '@playwright/test';
 
-import { e2eUsers } from '../../src/db/seed/users.e2e';
+import { DEV_PIN, e2eUsers } from '../../src/db/seed/users.e2e';
 
-/** The PIN every player in the E2E roster shares (`users.e2e.ts`). */
-export const DEV_PIN = '123456';
+/** Re-exported so the specs have one import for everything roster-shaped. */
+export { DEV_PIN };
 
 /**
  * Named handles on the E2E roster.

@@ -190,6 +190,23 @@ variable "site_repo_url" {
 
 # --- Secrets applicatifs -----------------------------------------------------
 
+variable "seed_pin_hashes" {
+  description = <<-EOT
+    Hashs bcrypt des PIN, par id de joueur, en JSON encodé en base64.
+    Produit par `npm run generate-users` (secret SEED_PIN_HASHES).
+
+    Base64 parce que Docker Compose interprète les `$` du `.env` qu'il utilise
+    aussi comme env_file : en JSON brut, chaque hash arrive tronqué.
+  EOT
+  type        = string
+  sensitive   = true
+
+  validation {
+    condition     = length(var.seed_pin_hashes) > 0 && !startswith(var.seed_pin_hashes, "{")
+    error_message = "seed_pin_hashes doit être du JSON encodé en base64, pas du JSON brut (secret SEED_PIN_HASHES)."
+  }
+}
+
 variable "auth_secret" {
   description = "Signe le cookie de session (min. 32 caractères). Le changer déconnecte tout le monde."
   type        = string
