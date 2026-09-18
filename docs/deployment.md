@@ -283,15 +283,26 @@ reason to reach the machine holding the LLM and GitHub credentials.
 Hostnames still work for *connecting* — `tailscale ssh hermes@evg-app` resolves
 through MagicDNS. It is only the policy file that cannot name them.
 
-### The OAuth client, and the 403 it produces
+### How CI gets onto the tailnet
 
-Create an OAuth client with the **`auth_keys` write scope**, and put its id and
-secret in `TS_OAUTH_CLIENT_ID` / `TS_OAUTH_SECRET`.
+Two ways, and the workflow takes whichever is set. **Do the first one unless you
+have a reason not to.**
 
-Two things about it are easy to get wrong and produce the same error:
+**1. A tagged auth key — `TAILSCALE_CI_AUTHKEY`.** Admin console → Settings →
+Keys → Generate auth key: *reusable*, and **apply `tag:ci` to it**. Paste it
+into that secret and you are done. It expires after 90 days at most, which is
+the whole of its downside.
 
-1. **Select `tag:ci` on the client itself** when creating it. An OAuth client
-   with no tag cannot mint a tagged auth key.
+**2. An OAuth client — `TS_OAUTH_CLIENT_ID` / `TS_OAUTH_SECRET`.** Never
+expires, mints a key per run, and has two failure modes that produce the same
+403:
+
+1. **`tag:ci` must be selected on the client itself.** A client with no tag
+   cannot mint a tagged key — and the console only *offers* the tag if it
+   already exists in `tagOwners`. Create the client **after** applying the
+   policy above, or the selector is empty and you will conclude, reasonably,
+   that there is no such option. **Tags cannot be added to an existing client:
+   one made too early must be deleted and recreated.**
 2. **`tag:ci` must own itself** in `tagOwners` (above). Ownership by
    `autogroup:admin` grants *humans*; the client is not a human.
 
