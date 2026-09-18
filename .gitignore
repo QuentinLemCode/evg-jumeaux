@@ -45,3 +45,6 @@ coverage/
 .vscode/
 .idea/
 *.tfvars.json
+
+# user seed data
+user-seed.txt
