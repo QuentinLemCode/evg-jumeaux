@@ -187,7 +187,8 @@ so they stay readable in the logs when something goes wrong.
 | `LLM_API_KEY` | infra | your Agent Platform API key. Hermes **and** both OpenCode agents share it. |
 | `AGENT_GITHUB_TOKEN` | infra | a **fine-grained** PAT on this repo for the code agent: *Contents: read/write*, *Pull requests: read/write*, *Workflows: read*. Deliberately **no** admin scope — the agent must not be able to lift the branch protection that constrains it. |
 | `GHCR_PULL_TOKEN` | infra | a GitHub PAT with **`read:packages` only** — it lives on the VM, so it must not be able to write |
-| `TS_OAUTH_CLIENT_ID` | deploy | Tailscale admin → Settings → OAuth clients, scope `auth_keys` |
+| `TAILSCALE_CI_AUTHKEY` | deploy | *Either this or the OAuth pair.* A **reusable** key with **`tag:ci` applied to it**, from Tailscale admin → Settings → Keys. Simplest path, and it takes precedence. Expires after 90 days at most. |
+| `TS_OAUTH_CLIENT_ID` | deploy | *The alternative.* Tailscale admin → Settings → OAuth clients, **`auth_keys` write** scope, with **`tag:ci` selected on the client**. The console offers that tag only if it already exists in `tagOwners`, and a client cannot be re-tagged later — one made too early has to be recreated. |
 | `TS_OAUTH_SECRET` | deploy | same client |
 | `DISCORD_WEBHOOK_URL` | infra, deploy | *optional.* Channel → Integrations → Webhooks. Used for error alerts: a webhook needs no gateway alive, so it works when Hermes is what broke. |
 | `DISCORD_BOT_TOKEN` | infra | *optional*, only to talk to Hermes on Discord |
