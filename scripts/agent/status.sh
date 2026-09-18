@@ -13,6 +13,16 @@ for f in /home/hermes/.hermes/.env "$REPO_ROOT/.env"; do
 done
 HEALTH_URL="${HEALTH_URL:-https://${SITE_DOMAIN:-localhost}/api/health}"
 
+# Run as hermes, not root: the checkout is hermes-owned and git refuses to
+# read a repository owned by someone else ("dubious ownership"), which turns
+# this whole section into three identical fatals.
+if [ "$(id -u)" = "0" ] && [ -d "$REPO_ROOT/.git" ] \
+  && [ "$(stat -c %U "$REPO_ROOT/.git" 2>/dev/null)" != "root" ]; then
+  echo "NOTE: running as root on a $(stat -c %U "$REPO_ROOT/.git")-owned checkout."
+  echo "      Re-run as that user:  su - hermes -c 'cd ~/site && scripts/agent/status.sh'"
+  echo
+fi
+
 echo "=== git (agents VM working copy) ==="
 echo "branch:  $(git rev-parse --abbrev-ref HEAD)"
 echo "commit:  $(git log -1 --pretty='%h %s (%cr)')"
@@ -24,20 +34,31 @@ echo
 echo "=== gateway and watcher (this VM) ==="
 # Asked first because it is the question a silent Telegram raises, and the
 # answer is not in the git state below.
-for UNIT in hermes-gateway evg-error-watcher; do
-  if ! systemctl list-unit-files "$UNIT.service" >/dev/null 2>&1; then
-    echo "$UNIT: not installed on this machine"
-    continue
-  fi
-  STATE="$(systemctl is-active "$UNIT" 2>/dev/null || true)"
-  printf '%s: %s' "$UNIT" "${STATE:-unknown}"
+
+# The gateway is a long-running service: active or it is not working.
+if systemctl list-unit-files hermes-gateway.service >/dev/null 2>&1; then
+  STATE="$(systemctl is-active hermes-gateway 2>/dev/null || true)"
+  printf 'hermes-gateway: %s\n' "${STATE:-unknown}"
   if [ "$STATE" != "active" ]; then
-    printf ' — %s\n' "$(systemctl show -p Result --value "$UNIT" 2>/dev/null || echo '?')"
-    journalctl -u "$UNIT" -n 3 --no-pager -o cat 2>/dev/null | sed 's/^/    /'
-  else
-    printf ' (since %s)\n' "$(systemctl show -p ActiveEnterTimestamp --value "$UNIT" 2>/dev/null)"
+    journalctl -u hermes-gateway -n 3 --no-pager -o cat 2>/dev/null | sed 's/^/    /'
   fi
-done
+else
+  echo "hermes-gateway: not installed on this machine"
+fi
+
+# The watcher is the opposite shape: a oneshot fired by a TIMER, so the service
+# being inactive is the normal state and only the timer says anything useful.
+if systemctl list-unit-files evg-watch-errors.timer >/dev/null 2>&1; then
+  printf 'evg-watch-errors.timer: %s' "$(systemctl is-active evg-watch-errors.timer 2>/dev/null || echo unknown)"
+  printf ' — last run %s, result %s\n' \
+    "$(systemctl show -p ExecMainStartTimestamp --value evg-watch-errors.service 2>/dev/null || echo never)" \
+    "$(systemctl show -p Result --value evg-watch-errors.service 2>/dev/null || echo '?')"
+  if [ "$(systemctl show -p Result --value evg-watch-errors.service 2>/dev/null)" != "success" ]; then
+    journalctl -u evg-watch-errors -n 3 --no-pager -o cat 2>/dev/null | sed 's/^/    /'
+  fi
+else
+  echo "evg-watch-errors.timer: not installed on this machine"
+fi
 
 # The gateway is a SEPARATE program this repository does not ship. Without it
 # there is nothing listening on Discord or Telegram, however well configured
