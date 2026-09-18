@@ -373,11 +373,11 @@ The browser binary is cached by Playwright version, the small checks share one
 
 ## Before the party
 
-> **Hermes itself is not in this repository.** `hermes-gateway.service` runs
-> `/home/hermes/.local/bin/hermes gateway`, and nothing installs that binary —
-> so no bot answers on Discord or Telegram until you put one there. The
-> pipeline does not need it: `scripts/agent/pipeline.sh` is the same contract,
-> driven from a shell. See [hermes/README.md](hermes/README.md).
+> **Telegram**: mention the bot to reach the pipeline — `@bot /status`, or
+> `@bot ajoute un mur de photos`. It answers only to the ids in
+> `TELEGRAM_ALLOWED_USERS`, and ignores anything it is not tagged in. The
+> gateway is `src/hermes/` (spec 0012); the conversational layer on top of it
+> is not built yet. See [hermes/README.md](hermes/README.md).
 
 
 1. **Put the real guests in `src/db/seed/users.ts`** — id, name, role, avatar.

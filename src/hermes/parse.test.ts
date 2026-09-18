@@ -1,0 +1,190 @@
+import { describe, expect, it } from 'vitest';
+
+import {
+  directedAtBot,
+  isAuthorised,
+  parseAllowlist,
+  route,
+  truncateForTelegram,
+  type TgMessage,
+} from './parse';
+
+const BOT = { username: 'evg_bot', id: 999 };
+
+function message(text: string, entities?: TgMessage['entities']): TgMessage {
+  return {
+    message_id: 1,
+    from: { id: 42, username: 'quentin' },
+    chat: { id: -100, type: 'group' },
+    text,
+    entities,
+  };
+}
+
+/** Builds the `mention` entity Telegram would send for a given substring. */
+function mention(text: string, needle = '@evg_bot') {
+  return [{ type: 'mention', offset: text.indexOf(needle), length: needle.length }];
+}
+
+describe('directedAtBot', () => {
+  it('ignores a message with no mention', () => {
+    expect(directedAtBot(message('on joue au palet ?'), BOT)).toBeNull();
+  });
+
+  it('accepts a mention and strips it', () => {
+    const text = '@evg_bot /status';
+    expect(directedAtBot(message(text, mention(text)), BOT)?.text).toBe('/status');
+  });
+
+  it('accepts the mention at the end just the same', () => {
+    const text = '/status @evg_bot';
+    expect(directedAtBot(message(text, mention(text)), BOT)?.text).toBe('/status');
+  });
+
+  it('accepts a mention in the middle of a sentence', () => {
+    const text = 'dis @evg_bot ajoute un mur de photos';
+    expect(directedAtBot(message(text, mention(text)), BOT)?.text).toBe(
+      'dis ajoute un mur de photos',
+    );
+  });
+
+  it('refuses text that merely looks like a mention', () => {
+    // The whole point of rule 2: a quoted or pasted "@evg_bot" carries no
+    // entity, and must not be able to start a deploy.
+    expect(directedAtBot(message('il a écrit @evg_bot hier'), BOT)).toBeNull();
+  });
+
+  it('is case-insensitive about the username', () => {
+    const text = '@EVG_Bot /logs';
+    expect(directedAtBot(message(text, mention(text, '@EVG_Bot')), BOT)?.text).toBe('/logs');
+  });
+
+  it('ignores a mention of somebody else', () => {
+    const text = '@pablo regarde ça';
+    expect(directedAtBot(message(text, mention(text, '@pablo')), BOT)).toBeNull();
+  });
+
+  it('accepts a text_mention pointing at the bot id', () => {
+    // What Telegram sends when the bot has no username in that context.
+    const text = 'Hermes /status';
+    const entities = [{ type: 'text_mention', offset: 0, length: 6, user: { id: 999 } }];
+    expect(directedAtBot(message(text, entities), BOT)?.text).toBe('/status');
+  });
+
+  it('ignores a text_mention of another user', () => {
+    const text = 'Pablo /status';
+    const entities = [{ type: 'text_mention', offset: 0, length: 5, user: { id: 7 } }];
+    expect(directedAtBot(message(text, entities), BOT)).toBeNull();
+  });
+
+  it('strips several mentions, keeping the offsets valid', () => {
+    const text = '@evg_bot fais un truc @evg_bot';
+    const entities = [
+      { type: 'mention', offset: 0, length: 8 },
+      { type: 'mention', offset: 22, length: 8 },
+    ];
+    expect(directedAtBot(message(text, entities), BOT)?.text).toBe('fais un truc');
+  });
+
+  it('gets the offsets right after an emoji', () => {
+    // Telegram counts UTF-16 code units, and 🎉 is two of them. Converting to
+    // code points here would shift every later offset by one.
+    const text = '🎉 @evg_bot /status';
+    const entities = [{ type: 'mention', offset: 3, length: 8 }];
+    expect(directedAtBot(message(text, entities), BOT)?.text).toBe('🎉 /status');
+  });
+
+  it('carries a label for the refusal log', () => {
+    const text = '@evg_bot /deploy';
+    expect(directedAtBot(message(text, mention(text)), BOT)?.fromLabel).toBe('@quentin (42)');
+  });
+
+  it('ignores a message with no text at all', () => {
+    expect(directedAtBot({ message_id: 1, chat: { id: 1, type: 'group' } }, BOT)).toBeNull();
+  });
+});
+
+describe('isAuthorised', () => {
+  it('accepts a listed id', () => {
+    expect(isAuthorised(42, [7, 42])).toBe(true);
+  });
+
+  it('refuses an unlisted id', () => {
+    expect(isAuthorised(1, [7, 42])).toBe(false);
+  });
+
+  it('refuses EVERYONE when the list is empty', () => {
+    // Rule 7. The opposite reading turns a forgotten variable into an open door
+    // that can deploy production from a group chat.
+    expect(isAuthorised(42, [])).toBe(false);
+  });
+});
+
+describe('parseAllowlist', () => {
+  it('reads a comma-separated list', () => {
+    expect(parseAllowlist('42, 7 ,123')).toEqual([42, 7, 123]);
+  });
+
+  it('is empty for undefined or blank', () => {
+    expect(parseAllowlist(undefined)).toEqual([]);
+    expect(parseAllowlist('  ')).toEqual([]);
+  });
+
+  it('drops anything that is not a number rather than guessing', () => {
+    expect(parseAllowlist('42,@quentin,,7')).toEqual([42, 7]);
+  });
+});
+
+describe('route', () => {
+  it('treats a bare mention as help', () => {
+    expect(route('')).toEqual({ kind: 'command', command: 'help' });
+  });
+
+  it('maps the five commands', () => {
+    for (const [text, command] of [
+      ['/status', 'status'],
+      ['/errors', 'errors'],
+      ['/logs', 'logs'],
+      ['/deploy', 'deploy'],
+      ['/help', 'help'],
+    ] as const) {
+      expect(route(text)).toEqual({ kind: 'command', command });
+    }
+  });
+
+  it('accepts the @bot suffix Telegram adds in groups', () => {
+    expect(route('/status@evg_bot')).toEqual({ kind: 'command', command: 'status' });
+  });
+
+  it('reports an unknown command instead of running the pipeline', () => {
+    expect(route('/destroy')).toEqual({ kind: 'unknown-command', typed: '/destroy' });
+  });
+
+  it('treats free text as a change request', () => {
+    expect(route('ajoute un mur de photos')).toEqual({
+      kind: 'request',
+      request: 'ajoute un mur de photos',
+    });
+  });
+});
+
+describe('truncateForTelegram', () => {
+  it('leaves a short message alone', () => {
+    expect(truncateForTelegram('court')).toBe('court');
+  });
+
+  it('keeps the END of a long one', () => {
+    const text = Array.from({ length: 500 }, (_, i) => `ligne ${i}`).join('\n');
+    const out = truncateForTelegram(text, 200);
+    expect(out.length).toBeLessThanOrEqual(200);
+    expect(out).toContain('ligne 499');
+    expect(out).not.toContain('ligne 0\n');
+  });
+
+  it('starts at a line boundary rather than mid-word', () => {
+    const text = 'aaaa\nbbbb\ncccc\ndddd';
+    const out = truncateForTelegram(text, 14);
+    expect(out.startsWith('[…]\n')).toBe(true);
+    expect(out.slice(4).split('\n')[0]).toMatch(/^(bbbb|cccc|dddd)$/);
+  });
+});

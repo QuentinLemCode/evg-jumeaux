@@ -18,6 +18,7 @@ No code change lands without a spec change first — see `AGENTS.md` §6.
 | `0009` | [PWA and responsive shell](0009-pwa-and-responsive-shell.md) | implemented | Mobile-first shell, installable PWA, desktop layout |
 | `0010` | [Visual design system (« Confetti »)](0010-visual-design-system.md) | implemented | Cream paper, sticker cards, hard shadows, Gabarito, shared screen anatomy — enforced by `lint:design` |
 | `0011` | [Client error reporting](0011-client-error-reporting.md) | implemented | Browser crashes reach a table, an admin screen and the alert channel — grouped, rate limited, no third party |
+| `0012` | [Telegram gateway](0012-telegram-gateway.md) | implemented | Mention-gated bot: commands and change requests reach `scripts/agent/`, one job at a time |
 
 Status values: `draft` → `ready-for-code` → `implemented` → `superseded`.
 

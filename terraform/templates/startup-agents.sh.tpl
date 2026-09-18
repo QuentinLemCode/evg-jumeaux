@@ -172,7 +172,7 @@ echo "=== [7/8] Pas de site_repo_url : dépôt non cloné ==="
 echo "=== [8/8] Services systemd ==="
 cat > /etc/systemd/system/hermes-gateway.service <<'UNIT'
 [Unit]
-Description=Hermes Agent Gateway (orchestrateur du pipeline spec-driven)
+Description=Hermes Telegram gateway (spec 0012)
 After=network-online.target
 Wants=network-online.target
 
@@ -181,7 +181,7 @@ Type=simple
 User=hermes
 WorkingDirectory=/home/hermes/site
 EnvironmentFile=/home/hermes/.hermes/.env
-ExecStart=/home/hermes/.local/bin/hermes gateway
+ExecStart=/usr/bin/env npm run --silent hermes:gateway
 Restart=always
 RestartSec=5
 
@@ -218,19 +218,26 @@ WantedBy=timers.target
 UNIT
 
 systemctl daemon-reload
-# Le binaire hermes N'EST PAS fourni par ce dépôt : c'est une passerelle
-# conversationnelle externe, à installer dans /home/hermes/.local/bin.
-# Sans lui, rien n'écoute Discord ni Telegram — et un service activé qui ne
-# peut pas démarrer est plus trompeur qu'un message clair.
-if [ -x /home/hermes/.local/bin/hermes ]; then
+# La passerelle vit dans le dépôt (src/hermes, spec 0012) et tourne via npm,
+# donc elle a besoin des node_modules : sans eux le service boucle sur un
+# redémarrage, ce qui est moins lisible qu'un message ici.
+if [ -d "$SITE_DIR/node_modules/.bin" ]; then
   systemctl enable --now hermes-gateway \
-    || echo "WARN: hermes-gateway installé mais n'a pas démarré — journalctl -u hermes-gateway"
+    || echo "WARN: hermes-gateway n'a pas démarré — journalctl -u hermes-gateway"
 else
   systemctl enable hermes-gateway
-  echo "WARN: /home/hermes/.local/bin/hermes est ABSENT."
-  echo "WARN: la passerelle est activée mais ne démarrera pas : aucun bot ne répondra."
-  echo "WARN: installer le binaire puis: systemctl start hermes-gateway"
-  echo "WARN: les scripts de scripts/agent/ fonctionnent sans lui."
+  echo "WARN: node_modules absent : npm ci a échoué plus haut."
+  echo "WARN: la passerelle ne démarrera pas. Relancer sur la VM :"
+  echo "WARN:   cd $SITE_DIR && npm ci && sudo systemctl start hermes-gateway"
+fi
+
+# Sans jeton il n'y a pas de bot, et le service sortira en échec à chaque
+# démarrage. Le dire une fois vaut mieux qu'un journal qui boucle.
+if ! grep -q '^TELEGRAM_BOT_TOKEN=.' /home/hermes/.hermes/.env; then
+  echo "WARN: TELEGRAM_BOT_TOKEN est vide : la passerelle refusera de démarrer."
+fi
+if ! grep -q '^TELEGRAM_ALLOWED_USERS=.' /home/hermes/.hermes/.env; then
+  echo "WARN: TELEGRAM_ALLOWED_USERS est vide : la passerelle refusera TOUT LE MONDE."
 fi
 %{ if site_repo_url != "" ~}
 systemctl enable --now evg-watch-errors.timer
