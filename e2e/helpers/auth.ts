@@ -7,19 +7,41 @@
  */
 import { expect, type Page } from '@playwright/test';
 
-/** The shared development PIN from the seed (spec 0002). */
+import { e2eUsers } from '../../src/db/seed/users.e2e';
+
+/** The PIN every player in the E2E roster shares (`users.e2e.ts`). */
 export const DEV_PIN = '123456';
 
+/**
+ * Named handles on the E2E roster.
+ *
+ * Resolved FROM `e2eUsers` rather than copied out of it. The suite used to
+ * hardcode these, so replacing the seed with the real guest list left every
+ * test looking for people who no longer existed — and the symptom was a
+ * 45-second locator timeout, not a message about the roster.
+ */
+function player(id: string) {
+  const found = e2eUsers.find((u) => u.id === id);
+  if (!found) {
+    throw new Error(
+      `e2e: no player '${id}' in the E2E roster. ` +
+        `Add them to src/db/seed/users.e2e.ts, or fix the key here. ` +
+        `Known: ${e2eUsers.map((u) => u.id).join(', ')}`,
+    );
+  }
+  return { id: found.id, name: found.name, role: found.role } as const;
+}
+
 export const PLAYERS = {
-  quentin: { id: 'quentin', name: 'Quentin', role: 'admin' },
-  jumeau1: { id: 'jumeau-1', name: 'Jumeau 1', role: 'admin' },
-  antoine: { id: 'antoine', name: 'Antoine', role: 'user' },
-  baptiste: { id: 'baptiste', name: 'Baptiste', role: 'user' },
-  clement: { id: 'clement', name: 'Clément', role: 'user' },
-  hugo: { id: 'hugo', name: 'Hugo', role: 'user' },
-  lucas: { id: 'lucas', name: 'Lucas', role: 'user' },
-  romain: { id: 'romain', name: 'Romain', role: 'user' },
-  thomas: { id: 'thomas', name: 'Thomas', role: 'user' },
+  quentin: player('quentin'),
+  jumeau1: player('jumeau-1'),
+  antoine: player('antoine'),
+  baptiste: player('baptiste'),
+  clement: player('clement'),
+  hugo: player('hugo'),
+  lucas: player('lucas'),
+  romain: player('romain'),
+  thomas: player('thomas'),
 } as const;
 
 export type PlayerKey = keyof typeof PLAYERS;

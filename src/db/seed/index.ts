@@ -11,16 +11,33 @@ import { eq } from 'drizzle-orm';
 import { db } from '../index';
 import { games, users } from '../schema';
 import { seedGames } from './games';
-import { DEV_PIN, seedUsers } from './users';
+import { DEV_PIN, seedUsers, type SeedUser } from './users';
+import { e2eUsers } from './users.e2e';
+
 
 function fail(message: string): never {
   console.error(`seed: ${message}`);
   process.exit(1);
 }
 
+/**
+ * Which roster to seed. The end-to-end suite asks for its own (see
+ * `users.e2e.ts`); everything else gets the real guest list.
+ *
+ * Refused in production, because seeding the test roster there would put nine
+ * players with one publicly known PIN into the real database.
+ */
+const roster: SeedUser[] = (() => {
+  if (process.env.SEED_ROSTER !== 'e2e') return seedUsers;
+  if (process.env.NODE_ENV === 'production') {
+    fail('SEED_ROSTER=e2e refuses to run with NODE_ENV=production');
+  }
+  return e2eUsers;
+})();
+
 function validate(): void {
   const ids = new Set<string>();
-  for (const user of seedUsers) {
+  for (const user of roster) {
     if (ids.has(user.id)) fail(`duplicate user id '${user.id}'`);
     ids.add(user.id);
     if (!/^[a-z0-9-]+$/.test(user.id)) {
@@ -34,11 +51,11 @@ function validate(): void {
       );
     }
   }
-  if (!seedUsers.some((u) => u.role === 'admin')) {
+  if (!roster.some((u) => u.role === 'admin')) {
     fail('the roster has no admin — at least one player must have role "admin"');
   }
 
-  const usingDevPins = seedUsers.some((u) => bcrypt.compareSync(DEV_PIN, u.pinHash));
+  const usingDevPins = roster.some((u) => bcrypt.compareSync(DEV_PIN, u.pinHash));
   if (usingDevPins && process.env.NODE_ENV === 'production' && !process.env.ALLOW_DEV_PINS) {
     fail(
       'the roster still uses the shared development PIN. Generate real PINs ' +
@@ -55,7 +72,7 @@ async function seed(): Promise<void> {
   validate();
   const now = Date.now();
 
-  for (const user of seedUsers) {
+  for (const user of roster) {
     const existing = await db.select().from(users).where(eq(users.id, user.id)).limit(1);
     if (existing.length === 0) {
       await db.insert(users).values({ ...user, createdAt: now });
@@ -69,7 +86,7 @@ async function seed(): Promise<void> {
     }
   }
 
-  const [firstAdmin] = seedUsers.filter((u) => u.role === 'admin');
+  const [firstAdmin] = roster.filter((u) => u.role === 'admin');
   if (!firstAdmin) fail('unreachable: validated above');
 
   for (const game of seedGames) {
@@ -91,10 +108,10 @@ async function seed(): Promise<void> {
     }
   }
 
-  const roster = await db.select().from(users);
+  const seeded = await db.select().from(users);
   console.log(
-    `seed: done — ${roster.length} players ` +
-      `(${roster.filter((u) => u.role === 'admin').length} admin)`,
+    `seed: done — ${seeded.length} players ` +
+      `(${seeded.filter((u) => u.role === 'admin').length} admin)`,
   );
 }
 
