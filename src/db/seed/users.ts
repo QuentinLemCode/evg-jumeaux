@@ -38,18 +38,18 @@ export type SeedUser = RosterEntry & { pinHash: string };
 
 // generate-users:begin — replaced wholesale by `npm run generate-users`.
 export const seedRoster: RosterEntry[] = [
-  { id: 'quentin', name: 'Quentin', role: 'admin', avatar: '🐙' },
-  { id: 'pablo', name: 'Pablo', role: 'admin', avatar: '🐯' },
-  { id: 'ravno', name: 'Ravno', role: 'user', avatar: '🐺' },
-  { id: 'gabriel', name: 'Gabriel', role: 'user', avatar: '🐗' },
-  { id: 'benjamin', name: 'Benjamin', role: 'user', avatar: '🦄' },
+  { id: 'quentin', name: 'Quentin', role: 'admin', avatar: '🧠' },
+  { id: 'pablo', name: 'Pablo', role: 'admin', avatar: '👑' },
+  { id: 'ravno', name: 'Ravno', role: 'user', avatar: '🐻' },
+  { id: 'gabriel', name: 'Gabriel', role: 'user', avatar: '🦊' },
+  { id: 'benjamin', name: 'Benjamin', role: 'user', avatar: '🦉' },
   { id: 'alex', name: 'Alex', role: 'user', avatar: '🐺' },
-  { id: 'arthur', name: 'Arthur', role: 'user', avatar: '🐯' },
-  { id: 'felix', name: 'Félix', role: 'user', avatar: '🐗' },
-  { id: 'nemo', name: 'Némo', role: 'user', avatar: '🧠' },
-  { id: 'garreau', name: 'Garreau', role: 'user', avatar: '🐺' },
-  { id: 'robin', name: 'Robin', role: 'user', avatar: '🧠' },
-  { id: 'tim', name: 'Tim', role: 'user', avatar: '🦊' },
-  { id: 'tom', name: 'Tom', role: 'user', avatar: '🦅' },
+  { id: 'arthur', name: 'Arthur', role: 'user', avatar: '🦁' },
+  { id: 'felix', name: 'Félix', role: 'user', avatar: '🐯' },
+  { id: 'nemo', name: 'Némo', role: 'user', avatar: '🦅' },
+  { id: 'garreau', name: 'Garreau', role: 'user', avatar: '🐗' },
+  { id: 'robin', name: 'Robin', role: 'user', avatar: '🦌' },
+  { id: 'tim', name: 'Tim', role: 'user', avatar: '🐸' },
+  { id: 'tom', name: 'Tom', role: 'user', avatar: '🦈' },
 ];
 // generate-users:end
