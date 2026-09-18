@@ -36,14 +36,22 @@ export class Telegram {
     }
   }
 
-  async getMe(): Promise<{ id: number; username: string }> {
-    const me = await this.call<{ id: number; username?: string }>('getMe', {}, 10_000);
+  async getMe(): Promise<{ id: number; username: string; canReadAllGroupMessages?: boolean }> {
+    const me = await this.call<{
+      id: number;
+      username?: string;
+      can_read_all_group_messages?: boolean;
+    }>('getMe', {}, 10_000);
     if (!me.username) {
       // Without a username there is no `@mention` to gate on, and rule 1 has
       // nothing to stand on.
       throw new Error('this bot has no username; mention gating cannot work');
     }
-    return { id: me.id, username: me.username };
+    return {
+      id: me.id,
+      username: me.username,
+      canReadAllGroupMessages: me.can_read_all_group_messages,
+    };
   }
 
   /** Blocks for up to POLL_SECONDS. Returns [] on a timeout, which is normal. */

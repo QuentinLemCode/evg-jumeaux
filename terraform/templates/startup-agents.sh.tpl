@@ -201,6 +201,11 @@ Type=simple
 User=hermes
 WorkingDirectory=/home/hermes/site
 EnvironmentFile=/home/hermes/.hermes/.env
+# HERMES_DEBUG=1 fait journaliser chaque message reçu et rejeté. Coûteux en
+# bruit dans un groupe bavard, mais sans lui « le bot ne répond pas » a deux
+# causes indistinguables : Telegram ne livre rien, ou la mention n'est pas
+# reconnue. Laisser à 1 le temps de la mise en route.
+Environment=HERMES_DEBUG=1
 ExecStart=/usr/bin/env npm run --silent hermes:gateway
 Restart=always
 RestartSec=5

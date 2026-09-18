@@ -53,6 +53,19 @@ const SCRIPTS: Record<Command, { what: string; command: string; args: string[] }
   help: null,
 };
 
+
+/**
+ * Debug logging, off unless HERMES_DEBUG is set.
+ *
+ * Kept off by default because a party group is chatty and every message it
+ * carries would be logged; kept AVAILABLE because without it "the bot does not
+ * answer" has two indistinguishable causes.
+ */
+const DEBUG = process.env.HERMES_DEBUG === '1';
+function debug(message: string): void {
+  if (DEBUG) console.log(`hermes: [debug] ${message}`);
+}
+
 function requireEnv(name: string): string {
   const value = process.env[name];
   if (!value || value.trim() === '') {
@@ -78,7 +91,21 @@ async function main(): Promise<void> {
   }
 
   const me = await tg.getMe();
-  console.log(`hermes: @${me.username} (${me.id}) listening, ${allowlist.length} authorised id(s)`);
+  console.log(
+    `hermes: @${me.username} (${me.id}) listening, ${allowlist.length} authorised id(s), ` +
+      `debug=${DEBUG ? 'on' : 'off'}`,
+  );
+  if (me.canReadAllGroupMessages === false) {
+    // Privacy mode. Telegram then delivers only commands, @mentions and
+    // replies — and a changed setting takes effect only after the bot is
+    // REMOVED from the group and added again, which is the step everyone
+    // misses.
+    console.warn(
+      'hermes: privacy mode is ON (can_read_all_group_messages=false). Mentions and ' +
+        'commands should still arrive; plain text will not. If nothing arrives at all, ' +
+        'disable privacy in BotFather (/setprivacy) and then RE-ADD the bot to the group.',
+    );
+  }
 
   let offset = 0;
   let backoff = 1_000;
@@ -97,12 +124,26 @@ async function main(): Promise<void> {
       continue;
     }
 
+    if (updates.length > 0) debug(`poll returned ${updates.length} update(s)`);
+
     for (const update of updates) {
       offset = Math.max(offset, update.update_id + 1);
       if (!update.message) continue;
 
       const directed = directedAtBot(update.message, me);
-      if (!directed) continue; // Not for us. Silence is the whole point of rule 1.
+      if (!directed) {
+        // Silence towards the CHAT is rule 1. Silence towards the operator was
+        // my own doing, and it made two very different situations look
+        // identical: "Telegram delivers nothing" and "it arrives and the
+        // mention is not recognised". One is a BotFather setting, the other is
+        // a bug here, and there was no way to tell them apart.
+        debug(
+          `ignored update ${update.update_id}: chat=${update.message.chat.type} ` +
+            `entities=${(update.message.entities ?? []).map((e) => e.type).join(',') || 'none'} ` +
+            `text=${JSON.stringify((update.message.text ?? '').slice(0, 60))}`,
+        );
+        continue;
+      }
 
       if (!isAuthorised(directed.fromId, allowlist)) {
         console.warn(`hermes: refused ${directed.fromLabel}`);
