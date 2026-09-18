@@ -152,14 +152,33 @@ jobs:
         env:
           HOST: ${{ vars.APP_VM_HOSTNAME || 'evg-app' }}
         run: |
-          PEERS=$(tailscale status --json | jq -r '.Peer[]?.HostName' | sort | tr '\n' ' ')
-          if ! echo " $PEERS " | grep -q " ${HOST} "; then
-            echo "::error::APP_VM_HOSTNAME is '${HOST}', but this tailnet has: ${PEERS:-(none)}"
-            echo "::error::Set the APP_VM_HOSTNAME repository variable to the machine that serves the app."
-            exit 1
+          # The netmap arrives a moment after the join, so retry before
+          # concluding anything.
+          for _ in $(seq 1 10); do
+            PEERS=$(tailscale status --json | jq -r '.Peer[]?.HostName' | sort | tr '\n' ' ')
+            if echo " $PEERS " | grep -q " ${HOST} "; then
+              echo "host=${HOST}" >> "$GITHUB_OUTPUT"
+              echo "deploying to ${HOST}"
+              exit 0
+            fi
+            sleep 3
+          done
+
+          echo "::error::'${HOST}' is not visible on this tailnet. Peers: ${PEERS:-(none)}"
+          if [ -z "${PEERS// /}" ]; then
+            # No peers at all is an ACL answer, not a naming one: tag:ci can
+            # only see what an acls rule lets it reach. The usual cause is the
+            # VM not actually carrying tag:evg-app — `--advertise-tags` on an
+            # already-authenticated node only REQUESTS the tag and needs a
+            # reauthentication to take effect. Check on the VM with:
+            #     tailscale status --json | jq .Self.Tags
+            echo "::error::No peers visible at all. Either no acls rule grants tag:ci access, or the app VM does not actually carry tag:evg-app (advertise-tags needs a reauth to take effect)."
+          else
+            echo "::error::Set APP_VM_HOSTNAME to one of the machines listed above."
           fi
-          echo "host=${HOST}" >> "$GITHUB_OUTPUT"
-          echo "deploying to ${HOST}"
+          echo '--- tailscale status ---'
+          tailscale status || true
+          exit 1
 
       - name: Deploy
         env:
