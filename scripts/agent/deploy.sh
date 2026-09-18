@@ -241,8 +241,16 @@ fi
 
 # The sweeper is colour-agnostic, so it just moves to the new image. A one
 # minute gap costs nothing: expiry is also applied lazily on every read.
+#
+# IMAGE_TAG has to be passed explicitly, like every other compose call here.
+# This script reads the OLD tag into its own environment at startup (that is
+# how PREVIOUS_FILE gets it), and Compose prefers the shell over `.env` — so
+# without this the sweeper was recreated on the PREVIOUS image every single
+# deploy, while `.env` said the new one.
 log "restarting the sweeper on the new image"
-$COMPOSE --profile "$PROFILES_BASE" --profile "$TARGET" up -d --no-deps sweeper || warn "sweeper restart failed"
+IMAGE_TAG="$TARGET_TAG" GIT_COMMIT="$TARGET_COMMIT" \
+  $COMPOSE --profile "$PROFILES_BASE" --profile "$TARGET" up -d --no-deps sweeper \
+  || warn "sweeper restart failed"
 
 docker image prune -f --filter 'until=168h' >/dev/null 2>&1 || true
 
