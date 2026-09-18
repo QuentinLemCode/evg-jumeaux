@@ -252,28 +252,31 @@ that will never report.
    app's logs:
 
    ```jsonc
-   {
-     // Both VMs and the CI runner are identified by a TAG. A Tailscale SSH
-     // rule cannot name a machine: src and dst take tags, users, or entries
-     // from the `hosts` section — never a hostname. That is what
-     //   Error: [ssh] "evg-site-agent" is not allowed in src
-     //   Error: invalid dst "evg-app"
-     // are telling you.
+{
      "tagOwners": {
        "tag:ci":         ["autogroup:admin"],
        "tag:evg-app":    ["autogroup:admin"],
        "tag:evg-agents": ["autogroup:admin"]
      },
 
-     // ADD this to the acls array you already have — do not replace it. The
-     // ssh block governs Tailscale SSH; the connection still has to be
-     // permitted at the network level. A tailnet that still has the default
-     // accept-everything rule already covers this.
+     // ADD to the acls array you already have; do not replace it. A tailnet still
+     // carrying the default accept-everything rule already covers this.
      "acls": [
-       { "action": "accept", "src": ["tag:ci", "tag:evg-agents"], "dst": ["tag:evg-app:22"] }
+       { "action": "accept", "src": ["autogroup:admin"],            "dst": ["tag:evg-app:22", "tag:evg-agents:22"] },
+       { "action": "accept", "src": ["tag:ci", "tag:evg-agents"],   "dst": ["tag:evg-app:22"] }
      ],
 
      "ssh": [
+       {
+         // YOU. Without this rule you cannot reach either machine:
+         //     tailnet policy does not permit you to SSH to this node
+         // autogroup:admin, not autogroup:member — on a shared tailnet, member
+         // would hand every colleague a shell on these VMs.
+         "action": "accept",
+         "src":    ["autogroup:admin"],
+         "dst":    ["tag:evg-app", "tag:evg-agents"],
+         "users":  ["hermes", "root"]
+       },
        {
          // CI deploys to the application VM.
          "action": "accept",
@@ -282,9 +285,9 @@ that will never report.
          "users":  ["hermes"]
        },
        {
-         // The agents VM reads the app's logs when it diagnoses an error. It
-         // has no shell there in practice — app-exec.sh is an allowlist — but
-         // the grant is what the allowlist runs over.
+         // The agents VM reads the app's logs when it diagnoses an error. It has
+         // no shell there in practice — app-exec.sh is an allowlist — but the
+         // grant is what the allowlist runs over.
          "action": "accept",
          "src":    ["tag:evg-agents"],
          "dst":    ["tag:evg-app"],

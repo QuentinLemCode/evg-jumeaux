@@ -183,6 +183,17 @@ startup script — `tag:evg-app` and `tag:evg-agents` — and the CI runner gets
 `tag:ci` from the OAuth client. So the **auth key must be created without tags
 of its own**: a tagged key wins, and `--advertise-tags` is then refused.
 
+**Three parties need a rule, not two.** The rules below cover CI and the
+agents VM *and you*: without the operator rule, `tailscale ssh` answers
+
+```
+tailnet policy does not permit you to SSH to this node
+```
+
+on both machines, which is how you lock yourself out of your own
+infrastructure. `autogroup:admin` rather than `autogroup:member`: on a tailnet
+shared with anyone else, member would hand them a shell on these VMs.
+
 ```jsonc
 {
   "tagOwners": {
@@ -191,15 +202,24 @@ of its own**: a tagged key wins, and `--advertise-tags` is then refused.
     "tag:evg-agents": ["autogroup:admin"]
   },
 
-  // ADD to the acls array you already have; do not replace it. The ssh block
-  // governs Tailscale SSH, but the connection must also be permitted at the
-  // network level. A tailnet still carrying the default accept-everything rule
-  // already covers this.
+  // ADD to the acls array you already have; do not replace it. A tailnet still
+  // carrying the default accept-everything rule already covers this.
   "acls": [
-    { "action": "accept", "src": ["tag:ci", "tag:evg-agents"], "dst": ["tag:evg-app:22"] }
+    { "action": "accept", "src": ["autogroup:admin"],            "dst": ["tag:evg-app:22", "tag:evg-agents:22"] },
+    { "action": "accept", "src": ["tag:ci", "tag:evg-agents"],   "dst": ["tag:evg-app:22"] }
   ],
 
   "ssh": [
+    {
+      // YOU. Without this rule you cannot reach either machine:
+      //     tailnet policy does not permit you to SSH to this node
+      // autogroup:admin, not autogroup:member — on a shared tailnet, member
+      // would hand every colleague a shell on these VMs.
+      "action": "accept",
+      "src":    ["autogroup:admin"],
+      "dst":    ["tag:evg-app", "tag:evg-agents"],
+      "users":  ["hermes", "root"]
+    },
     {
       // CI deploys to the application VM.
       "action": "accept",
@@ -244,6 +264,12 @@ tailscale status --json | jq .Self.Tags     # ["tag:evg-app"], or null
 
 An untagged VM is invisible to `tag:ci`, which is what
 `No peers visible at all` in the deploy log means.
+
+**If you are already locked out**, the policy editor in the Tailscale admin
+console is the way back in — it is a web UI and needs no SSH. There is no
+other route: the GCP firewall denies inbound 22 (`evg-deny-ssh-public`), so
+`gcloud compute ssh` cannot reach the machines either; only the serial console
+can, and it needs a password that was never set.
 
 Nothing grants the app VM access to the agents VM, deliberately: the app has no
 reason to reach the machine holding the LLM and GitHub credentials.
