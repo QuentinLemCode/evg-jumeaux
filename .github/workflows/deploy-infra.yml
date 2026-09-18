@@ -65,6 +65,7 @@ jobs:
           TF_VAR_llm_api_key: ${{ secrets.LLM_API_KEY }}
           TF_VAR_llm_api_key_env_name: ${{ vars.LLM_API_KEY_ENV_NAME }}
           TF_VAR_llm_provider: ${{ vars.LLM_PROVIDER }}
+          TF_VAR_agents_service_account: ${{ vars.AGENTS_SERVICE_ACCOUNT }}
           TF_VAR_llm_base_url: ${{ vars.LLM_BASE_URL }}
           TF_VAR_llm_model: ${{ vars.LLM_MODEL }}
 

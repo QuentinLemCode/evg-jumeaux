@@ -341,84 +341,78 @@ the tailnet policy were wrong, because from the runner's point of view there is
 no tailnet at all. The deploy's own preflight checks `BackendState` first for
 exactly this reason, and says so.
 
-### The LLM key, and the endpoint it is allowed to reach
+### Vertex AI, through a service account rather than a key
 
-Nothing about this is guessable, and getting it wrong means every agent fails
-with an error that sounds like a quota problem.
+The agents reach Gemini through **Vertex AI, authenticated by the service
+account attached to their VM**. There is no API key on that machine: OpenCode
+asks the metadata server for a token. Nothing to rotate, nothing to leak, and
+revoking access is detaching one account.
 
-An Agent Platform / **Vertex AI express** key is restricted, at the
-organisation level, to `aiplatform.googleapis.com`:
+`location` is **`global`**. The regional endpoints return 404 for
+`gemini-3.8-flash` on this project — measured, not assumed.
 
-```
-constraints/iam.managed.disableServiceAccountApiKeyCreation
-"...unless the API Key's API targets are exclusively limited to the allowedServices"
-```
-
-You cannot widen it — the restriction is an org policy, not a setting on the
-key. And OpenCode's `google` provider calls
-`generativelanguage.googleapis.com` by default, which that key is forbidden to
-reach:
-
-```
-Error: Requests to this API generativelanguage.googleapis.com ... are blocked.
-```
-
-So point it at the endpoint the key *is* allowed to use, with the
-`LLM_BASE_URL` variable:
-
-```
-LLM_BASE_URL = https://aiplatform.googleapis.com/v1/publishers/google
-```
-
-The provider appends `/models/<model>:generateContent`, which is exactly the
-Vertex express shape. Verified by hand before trusting it:
+Terraform attaches the account but does not create it, and that split is
+deliberate: creating identities and granting them roles needs
+`serviceAccountAdmin` and `projectIamAdmin`, and a workflow that can mint
+identities is a workflow that can grant itself anything. Three commands, once:
 
 ```bash
-curl -s -o /dev/null -w '%{http_code}\n' \
-  "https://aiplatform.googleapis.com/v1/publishers/google/models/gemini-3.8-flash:generateContent?key=$GEMINI_API_KEY" \
-  -H 'content-type: application/json' \
-  -d '{"contents":[{"role":"user","parts":[{"text":"ok"}]}]}'
+PROJECT=YOUR_GCP_PROJECT
+SA=evg-agents@$PROJECT.iam.gserviceaccount.com
+CI=<the service account from step 2>
+
+gcloud iam service-accounts create evg-agents --project="$PROJECT" \
+  --display-name="Agents VM (Vertex AI)"
+
+# The only role it needs. Not editor, not aiplatform.admin.
+gcloud projects add-iam-policy-binding "$PROJECT" \
+  --member="serviceAccount:$SA" --role=roles/aiplatform.user
+
+# Let CI attach it to the VM — on this account only, not project-wide.
+gcloud iam service-accounts add-iam-policy-binding "$SA" --project="$PROJECT" \
+  --member="serviceAccount:$CI" --role=roles/iam.serviceAccountUser
 ```
 
-`200` and you are done; `403` means the base URL is wrong for your key. Note
-that model availability differs between the two endpoints: on this project
-`gemini-3.8-flash` and `gemini-2.5-flash` answer, `gemini-2.0-flash` is a 404.
+Then set the `AGENTS_SERVICE_ACCOUNT` variable to that email, and
+`LLM_PROVIDER=google-vertex`, `LLM_MODEL=google-vertex/gemini-3.8-flash`.
 
-**Not every Gemini model survives a long agent run.** `gemini-3.8-flash`
-answers short prompts fine and then dies partway through a spec agent's
-exploration, after twenty-odd tool calls:
+Verify from the VM itself — this is what the agent does:
+
+```bash
+curl -s -H 'Metadata-Flavor: Google' \
+  http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/email
+```
+
+#### Why not an API key
+
+Because it did not work, and the way it failed is worth knowing.
+
+An Agent Platform key is restricted by org policy to
+`aiplatform.googleapis.com`, so OpenCode's `google` provider — which speaks the
+Gemini API and calls `generativelanguage.googleapis.com` — has to be pointed at
+the Vertex endpoint with `baseURL`. That *looks* like it works: short prompts
+answer fine. It then dies partway through a real agent run:
 
 ```
 Error: Requests ending with a model turn are not supported.
 ```
 
-That is the API refusing a conversation whose last entry is a model turn —
-something the client built, not something the repository can fix. Measured on
-this project, against this endpoint:
+The cause, established by replaying the API by hand:
 
-| Model | Short prompt | Long tool loop (spec agent) |
+| | `thoughtSignature` echoed back | omitted |
 |---|---|---|
-| `gemini-2.5-pro` | works | **works** — completed a spec end to end |
-| `gemini-2.5-flash` | works | untested |
-| `gemini-3.8-flash` | works | **fails** with the error above |
-| `gemini-2.0-flash` | 404 on this endpoint | — |
+| `gemini-3.8-flash` | works | **`Function call is missing a thought_signature`** |
+| `gemini-2.5-pro` | works | works |
 
-So `LLM_MODEL` is `google/gemini-2.5-pro`: the spec, code and review agents all
-run long tool loops and none of them may be the one that discovers this again.
-The router (spec 0013) stays on `gemini-2.5-flash` in `.opencode/opencode.json`
-— its calls are short, frequent, and it is the one a human waits on.
+**Gemini 3 requires the thought signature of every `functionCall` to be sent
+back on the following turn.** Gemini 2.5 does not. The two endpoints are not
+the same protocol, and the mismatch only surfaces once a conversation is long
+enough to carry tool calls forward — which is every real agent run and no
+smoke test.
 
-If you change the model, run one real `scripts/agent/spec.sh` against it before
-trusting it. A short prompt proves nothing here.
-
-Two APIs must also be enabled on the project, and Terraform does not do it —
-enabling services would need a role the CI service account deliberately does
-not have:
-
-```bash
-gcloud services enable aiplatform.googleapis.com generativelanguage.googleapis.com \
-  --project=YOUR_GCP_PROJECT
-```
+The `google-vertex` provider handles it, because it is the one written for that
+endpoint. Verified end to end: the spec agent completed a full run on
+`gemini-3.8-flash` and amended a spec.
 
 ### 5. The application secrets
 

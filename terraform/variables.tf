@@ -87,6 +87,20 @@ variable "tailscale_authkey" {
 
 # --- LLM (utilisé par Hermes Agent ET OpenCode) -------------------------------
 
+variable "agents_service_account" {
+  description = <<-EOT
+    Service account attaché à la VM des agents. Il leur donne Vertex AI par le
+    serveur de métadonnées, donc AUCUNE clé d'API n'est stockée sur la machine.
+
+    Créé à la main, pas par Terraform : le compte de service de la CI n'a
+    volontairement ni serviceAccountAdmin ni projectIamAdmin — pouvoir créer
+    des identités et leur accorder des rôles est précisément ce qu'on ne veut
+    pas déléguer à un workflow. Voir docs/deployment.md.
+  EOT
+  type        = string
+  default     = ""
+}
+
 variable "llm_api_key" {
   description = "Clé API Agent Platform, partagée par Hermes et par les agents OpenCode"
   type        = string

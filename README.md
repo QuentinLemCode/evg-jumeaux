@@ -184,7 +184,7 @@ so they stay readable in the logs when something goes wrong.
 | `SEED_PIN_HASHES` | infra | `npm run generate-users -- <roster-file>`, then `gh secret set SEED_PIN_HASHES < .secrets/seed-pin-hashes.b64`. Base64-encoded JSON of id → bcrypt hash. **No PIN hash goes in the repository**: a 6-digit PIN behind bcrypt falls to a GPU in minutes. |
 | `VAPID_PUBLIC_KEY` | infra | `npm run vapid:generate` |
 | `VAPID_PRIVATE_KEY` | infra | same run — never commit it |
-| `LLM_API_KEY` | infra | your Agent Platform API key. Hermes **and** both OpenCode agents share it. |
+| `LLM_API_KEY` | infra | *Only for `LLM_PROVIDER=google`.* Unused with `google-vertex`, which authenticates through the VM's service account. |
 | `AGENT_GITHUB_TOKEN` | infra | a **fine-grained** PAT on this repo for the code agent: *Contents: read/write*, *Pull requests: read/write*, *Workflows: read*. Deliberately **no** admin scope — the agent must not be able to lift the branch protection that constrains it. |
 | `GHCR_PULL_TOKEN` | infra | a GitHub PAT with **`read:packages` only** — it lives on the VM, so it must not be able to write |
 | `TS_OAUTH_CLIENT_ID` | deploy | Tailscale admin → Settings → OAuth clients, **`auth_keys` write** scope, with **`tag:ci` selected on the client**. The console offers that tag only if it already exists in `tagOwners`, and a client cannot be re-tagged later — one made too early has to be recreated. |
@@ -212,10 +212,10 @@ so they stay readable in the logs when something goes wrong.
 | `INGRESS_MODE` | `tunnel` | `tunnel` (no inbound port) or `public_ip` (80/443 open to Cloudflare only) |
 | `APP_VM_HOSTNAME` | `evg-app` | the tailnet name CI deploys to. **Must equal Terraform's `app_instance_name`** — two places, and only this one is checked. Unset, the deploy falls back to `evg-app`; set to something the tailnet does not have, it fails naming the machines it does have. |
 | `AGENTS_VM_HOSTNAME` | `evg-site-agent` | the tailnet name *Deploy infra* refreshes when run with `refresh_agents`. Same rule as above: it must equal Terraform's `instance_name`, and unset falls back to `evg-site-agent`. |
-| `LLM_MODEL` | `google/gemini-2.5-pro` | The spec, code and review agents. **Not every model survives a long tool loop** — `gemini-3.8-flash` fails a real spec run with `Requests ending with a model turn are not supported`. The router runs on `gemini-2.5-flash`, set per-agent in `.opencode/opencode.json`. See [docs/deployment.md](docs/deployment.md). |
-| `LLM_PROVIDER` | `google` | the provider id on the OpenCode side |
+| `LLM_MODEL` | `google-vertex/gemini-3.8-flash` | The agents and the router. |
+| `LLM_PROVIDER` | `google-vertex` | Vertex AI through the VM's service account — **no API key on the machine**. The `google` provider (Gemini API) is the alternative and needs `LLM_BASE_URL`; it breaks on long agent runs, see [docs/deployment.md](docs/deployment.md). |
+| `AGENTS_SERVICE_ACCOUNT` | `evg-agents@PROJECT.iam.gserviceaccount.com` | Attached to the agents VM, giving it Vertex AI with no key. Created by hand — Terraform attaches it but must not be able to mint identities. Commands in [docs/deployment.md](docs/deployment.md). |
 | `LLM_API_KEY_ENV_NAME` | `GEMINI_API_KEY` | the env var the SDK reads; the wrong name fails silently as "no key" |
-| `LLM_BASE_URL` | `https://aiplatform.googleapis.com/v1/publishers/google` | **Required for an Agent Platform / Vertex express key.** Such a key is restricted by org policy to `aiplatform.googleapis.com`, and OpenCode's `google` provider calls `generativelanguage.googleapis.com` unless told otherwise — so every agent fails with `Requests to this API are blocked`. See [docs/deployment.md](docs/deployment.md). |
 | `VAPID_SUBJECT` | `mailto:you@example.com` | |
 | `IMAGE_TAG` | `main` | the bootstrap tag; deploys pin a sha afterwards |
 
