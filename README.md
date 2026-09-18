@@ -250,30 +250,55 @@ that will never report.
    ```
 
 2. **The tailnet ACL** that lets CI deploy and lets the agents VM read the
-   app's logs. In the Tailscale admin console, add two narrow SSH rules — both
-   target the *application* VM, `evg-app`:
+   app's logs:
 
    ```jsonc
-   "tagOwners": { "tag:ci": ["autogroup:admin"] },
-   "ssh": [
-     {
-       "action": "accept",
-       "src":    ["tag:ci"],
-       "dst":    ["evg-app"],
-       "users":  ["hermes"]
+   {
+     // Both VMs and the CI runner are identified by a TAG. A Tailscale SSH
+     // rule cannot name a machine: src and dst take tags, users, or entries
+     // from the `hosts` section — never a hostname. That is what
+     //   Error: [ssh] "evg-site-agent" is not allowed in src
+     //   Error: invalid dst "evg-app"
+     // are telling you.
+     "tagOwners": {
+       "tag:ci":         ["autogroup:admin"],
+       "tag:evg-app":    ["autogroup:admin"],
+       "tag:evg-agents": ["autogroup:admin"]
      },
-     {
-       "action": "accept",
-       "src":    ["evg-site-agent"],
-       "dst":    ["evg-app"],
-       "users":  ["hermes"]
-     }
-   ]
+
+     // ADD this to the acls array you already have — do not replace it. The
+     // ssh block governs Tailscale SSH; the connection still has to be
+     // permitted at the network level. A tailnet that still has the default
+     // accept-everything rule already covers this.
+     "acls": [
+       { "action": "accept", "src": ["tag:ci", "tag:evg-agents"], "dst": ["tag:evg-app:22"] }
+     ],
+
+     "ssh": [
+       {
+         // CI deploys to the application VM.
+         "action": "accept",
+         "src":    ["tag:ci"],
+         "dst":    ["tag:evg-app"],
+         "users":  ["hermes"]
+       },
+       {
+         // The agents VM reads the app's logs when it diagnoses an error. It
+         // has no shell there in practice — app-exec.sh is an allowlist — but
+         // the grant is what the allowlist runs over.
+         "action": "accept",
+         "src":    ["tag:evg-agents"],
+         "dst":    ["tag:evg-app"],
+         "users":  ["hermes"]
+       }
+     ]
+   }
    ```
 
-   Without the first, the deploy job authenticates to the tailnet and then
-   cannot open a shell. Without the second, the error watcher cannot reach the
-   logs it diagnoses.
+   The VMs apply their own tag with `tailscale up --advertise-tags=…` in the
+   startup script, so **the auth key must be created without tags of its own**:
+   a tagged key wins and the flag is refused. The CI runner gets `tag:ci` from
+   the OAuth client.
 
 Add the Workload Identity Federation pool and service account to that list if
 you have not set them up yet — the commands are in
