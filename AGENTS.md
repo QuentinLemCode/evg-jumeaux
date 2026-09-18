@@ -205,8 +205,20 @@ scripts/agent/open-pr.sh specs/0011-photo-wall.md
 ```
 
 which branches (`agent/0011-photo-wall`), commits, rebases onto `origin/main`,
-pushes, opens the PR with the spec's intent and criteria in the body, and turns
-on auto-merge (`gh pr merge --auto --squash`).
+pushes, opens the PR with the spec's intent and criteria in the body, and arms
+auto-merge (`gh pr merge --auto --squash --delete-branch`).
+
+It then **reads the state back from GitHub** rather than trusting the exit
+code, and reports one of:
+
+| `AUTO_MERGE` | Meaning |
+|---|---|
+| `armed` | auto-merge is on; the required checks will merge it |
+| `merged` | nothing was blocking it, so it merged on the spot |
+| `off` | auto-merge is NOT on — the script names the repository setting at fault, and the PR waits for a human |
+
+`off` is never something to work around. Both causes are repository settings
+the agent's token deliberately cannot change.
 
 Why a PR and not a push to main: an agent that can push to main can deploy a
 broken build at two in the morning, and no amount of instruction in a markdown

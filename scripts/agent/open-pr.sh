@@ -105,17 +105,46 @@ PR_URL="$(gh pr view --json url --jq .url)"
 PR_NUMBER="$(gh pr view --json number --jq .number)"
 log "pull request #$PR_NUMBER — $PR_URL"
 
-# --- 5. auto-merge, with an honest fallback ----------------------------------
+# --- 5. auto-merge, asked for AND verified -----------------------------------
+#
+# `gh pr merge --auto` exiting 0 is not proof: it can also merge the PR on the
+# spot when nothing is blocking it. So the state is read back from GitHub
+# rather than inferred from an exit code, and a failure prints what GitHub
+# actually said instead of a guess.
 AUTO=false
-if gh pr merge "$PR_NUMBER" --auto --squash --delete-branch >/dev/null 2>&1; then
-  AUTO=true
-  log "auto-merge enabled — the required checks will merge it"
-else
-  # Auto-merge needs the repo setting AND a ruleset with required checks; with
-  # neither, GitHub refuses. Say so instead of pretending it worked.
-  warn "auto-merge unavailable (repo setting off, or no required checks configured)"
-  warn "see docs/deployment.md — the PR stays open for a human to merge"
-fi
+MERGE_ERR="$(gh pr merge "$PR_NUMBER" --auto --squash --delete-branch 2>&1)" && MERGE_OK=true || MERGE_OK=false
+
+# `autoMergeRequest` is non-null only while auto-merge is armed; once it fires
+# the PR is simply MERGED.
+AUTO_STATE="$(gh pr view "$PR_NUMBER" --json autoMergeRequest,state \
+  --jq 'if .state == "MERGED" then "merged" elif .autoMergeRequest then "armed" else "off" end' 2>/dev/null || echo unknown)"
+
+case "$AUTO_STATE" in
+  armed)
+    AUTO=true
+    log "auto-merge armed — the required checks will merge it"
+    ;;
+  merged)
+    AUTO=true
+    log "nothing was blocking it: the pull request merged immediately"
+    ;;
+  *)
+    warn "auto-merge is NOT armed${MERGE_ERR:+ — gh said: $MERGE_ERR}"
+    # Name the cause rather than listing the possibilities. These two are the
+    # only ones that produce this, and both are repository settings a human
+    # has to fix; the agent's token deliberately cannot.
+    if [ "$(gh api "repos/{owner}/{repo}" --jq .allow_auto_merge 2>/dev/null)" != "true" ]; then
+      warn "cause: Settings > General > Pull Requests > Allow auto-merge is OFF"
+    elif ! gh api "repos/{owner}/{repo}/rules/branches/$BASE" \
+      --jq '.[] | select(.type=="required_status_checks")' 2>/dev/null | grep -q .; then
+      warn "cause: no required status check on '$BASE' — auto-merge has nothing to wait for"
+    else
+      warn "cause: unclear; both repository settings look correct"
+    fi
+    warn "see README.md > Repository settings — the PR stays open for a human to merge"
+    ;;
+esac
+$MERGE_OK || true
 
 if $WATCH; then
   log "waiting for the checks"
@@ -133,7 +162,7 @@ PR: $PR_URL
 NUMBER: $PR_NUMBER
 BRANCH: $BRANCH
 BASE: $BASE
-AUTO_MERGE: $($AUTO && echo enabled || echo unavailable)
+AUTO_MERGE: $AUTO_STATE
 STATE: $STATE
 NEXT: $($AUTO && echo "the required checks merge it, then main deploys" || echo "a human must merge it")
 REPORT
