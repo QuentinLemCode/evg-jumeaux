@@ -24,7 +24,13 @@ echo "=== [1/8] Système ==="
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -y
 apt-get upgrade -y
-apt-get install -y curl git ufw ca-certificates jq python3
+# python3 make g++ : better-sqlite3 embarque un binding.gyp et AUCUN script
+# d'install, donc npm lance `node-gyp rebuild` par défaut, même avec des
+# prebuilds disponibles. Sans les trois, `npm ci` échoue en entier sur
+# « not found: make » — et le gate que le code agent doit exécuter ici
+# (typecheck, tests, next build) ne peut pas tourner du tout.
+# Le Dockerfile de l'app installe les mêmes trois, pour la même raison.
+apt-get install -y curl git ufw ca-certificates jq python3 make g++
 
 echo "=== [2/8] Swap ==="
 # Le gate (`npm ci` + `next build` + les tests) tient large sur 4 Go, mais deux
@@ -164,7 +170,14 @@ su - hermes -c "cd $SITE_DIR && git config user.email '${git_author_email}'"
 # Pousser une branche courante par défaut, jamais main : l'agent crée
 # explicitement sa branche, ceci n'est qu'une ceinture de plus.
 su - hermes -c "cd $SITE_DIR && git config push.default current"
-su - hermes -c "cd $SITE_DIR && npm ci" || echo "WARN: npm ci a échoué — relancer sur la VM"
+if ! su - hermes -c "cd $SITE_DIR && npm ci"; then
+  # Avalé par un || echo jusqu'ici, ce qui laissait node_modules VIDE et la
+  # passerelle comme le gate incapables de démarrer, sans rien de visible.
+  echo "WARN: npm ci a ÉCHOUÉ. node_modules est vide :"
+  echo "WARN:   - la passerelle Telegram ne démarrera pas (pas de tsx)"
+  echo "WARN:   - le code agent ne peut pas exécuter le gate"
+  echo "WARN: relancer sur la VM : cd $SITE_DIR && npm ci"
+fi
 %{ else ~}
 echo "=== [7/8] Pas de site_repo_url : dépôt non cloné ==="
 %{ endif ~}

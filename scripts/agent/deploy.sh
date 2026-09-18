@@ -159,23 +159,33 @@ if ! $HEALTHY; then
 fi
 log "app-$TARGET is healthy"
 
-# --- 6. the switch: rewrite the upstream, reload Caddy gracefully -------------
-cat > caddy/upstream.conf <<UPSTREAM
+# Points Caddy at one colour.
+#
+# ALWAYS `cat >`, which truncates the file in place and keeps its inode. The
+# container bind-mounts this file's directory, and anything that REPLACES the
+# file — `sed -i`, `git reset --hard` — would hand it a stale inode and the
+# switch would silently do nothing.
+write_upstream() {
+  cat > caddy/upstream.conf <<UPSTREAM
 # The live colour. Rewritten by scripts/agent/deploy.sh and applied with a
 # graceful \`caddy reload\`, so requests in flight are never dropped.
-reverse_proxy app-$TARGET:3000 {
+reverse_proxy app-$1:3000 {
 	health_uri /api/health
 	health_interval 5s
 	health_timeout 3s
 	fail_duration 10s
 }
 UPSTREAM
+}
+
+# --- 6. the switch: rewrite the upstream, reload Caddy gracefully -------------
+write_upstream "$TARGET"
 
 log "reloading Caddy onto app-$TARGET"
 if ! $COMPOSE exec -T caddy caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile; then
   # Put the pointer back before giving up, or a later reload would switch to a
   # colour we are about to stop.
-  sed -i "s/app-$TARGET:3000/app-$CURRENT:3000/" caddy/upstream.conf 2>/dev/null || true
+  write_upstream "$CURRENT" 2>/dev/null || true
   abort_target
   die "Caddy reload failed — $CURRENT is still serving"
 fi
@@ -192,7 +202,7 @@ for _ in $(seq 1 20); do
 done
 if ! $OK; then
   warn "public health check did not report the new commit; rolling the switch back"
-  sed -i "s/app-$TARGET:3000/app-$CURRENT:3000/" caddy/upstream.conf
+  write_upstream "$CURRENT"
   $COMPOSE exec -T caddy caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile || true
   abort_target
   die "deploy aborted at verification — $CURRENT is still serving"
