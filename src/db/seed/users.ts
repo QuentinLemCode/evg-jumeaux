@@ -32,21 +32,18 @@ export type SeedUser = {
   pinHash: string;
 };
 
-const DEV_PIN_HASH = '$2b$12$qM/eqAqm1MwcNsCaIrr2r.GKJrCf8pb1EQ1crncDgRiqmFdkq4Ope';
-
 export const seedUsers: SeedUser[] = [
-  { id: 'quentin', name: 'Quentin', role: 'admin', avatar: '🧠', pinHash: DEV_PIN_HASH },
-  { id: 'jumeau-1', name: 'Jumeau 1', role: 'admin', avatar: '👑', pinHash: DEV_PIN_HASH },
-  { id: 'jumeau-2', name: 'Jumeau 2', role: 'admin', avatar: '👑', pinHash: DEV_PIN_HASH },
-  { id: 'antoine', name: 'Antoine', role: 'user', avatar: '🐻', pinHash: DEV_PIN_HASH },
-  { id: 'baptiste', name: 'Baptiste', role: 'user', avatar: '🦊', pinHash: DEV_PIN_HASH },
-  { id: 'clement', name: 'Clément', role: 'user', avatar: '🦉', pinHash: DEV_PIN_HASH },
-  { id: 'hugo', name: 'Hugo', role: 'user', avatar: '🐺', pinHash: DEV_PIN_HASH },
-  { id: 'julien', name: 'Julien', role: 'user', avatar: '🦁', pinHash: DEV_PIN_HASH },
-  { id: 'lucas', name: 'Lucas', role: 'user', avatar: '🐯', pinHash: DEV_PIN_HASH },
-  { id: 'mathieu', name: 'Mathieu', role: 'user', avatar: '🦅', pinHash: DEV_PIN_HASH },
-  { id: 'nicolas', name: 'Nicolas', role: 'user', avatar: '🐗', pinHash: DEV_PIN_HASH },
-  { id: 'pierre', name: 'Pierre', role: 'user', avatar: '🦌', pinHash: DEV_PIN_HASH },
-  { id: 'romain', name: 'Romain', role: 'user', avatar: '🐸', pinHash: DEV_PIN_HASH },
-  { id: 'thomas', name: 'Thomas', role: 'user', avatar: '🦈', pinHash: DEV_PIN_HASH },
+  {"id":"quentin","name":"Quentin","role":"admin","avatar":"🐙","pinHash":"$2b$12$n7xSrv6vtgwbxQm3tOKokOX5C4thX2MdaGE41BWBlFrKctZreKolG"},
+  {"id":"pablo","name":"Pablo","role":"admin","avatar":"🐯","pinHash":"$2b$12$d8Gjs1bZeh.jpAOSc3L6Yu/RhMCFsuKVUDQgIAMemkPegmRy8SALK"},
+  {"id":"ravno","name":"Ravno","role":"user","avatar":"🐺","pinHash":"$2b$12$VtSd/FlLTnCSRj3EGCLjNOYq/BnhFQDSYl8XhfQlr85L4ovtuIRzS"},
+  {"id":"gabriel","name":"Gabriel","role":"user","avatar":"🐗","pinHash":"$2b$12$7KfOPdWve6IkUdRv1EEXh.te3FmbYoewMrtcyRCnEFkddCqrJBd8m"},
+  {"id":"benjamin","name":"Benjamin","role":"user","avatar":"🦄","pinHash":"$2b$12$Ryw4o3Npw9jftBbzNN/CXOvvjRMDcUNaKXqqeHKp4xvbRQrg2jiVS"},
+  {"id":"alex","name":"Alex","role":"user","avatar":"🐺","pinHash":"$2b$12$.2qg7nTmqOj7VAMRqx3Xme/QjGO/gOAMUR8r/GOvwN23zGMziqSe2"},
+  {"id":"arthur","name":"Arthur","role":"user","avatar":"🐯","pinHash":"$2b$12$d8x7IwtUsjM2LlZXXa6FEuyNZxTxtSE7CGYgqfQlnsuzEFTBCXm6q"},
+  {"id":"felix","name":"Félix","role":"user","avatar":"🐗","pinHash":"$2b$12$9ONkV1G6NZ42Dye62fSmv.CI6ZBjHLy6wvUrNjDryzp33pt1PFAAq"},
+  {"id":"nemo","name":"Némo","role":"user","avatar":"🧠","pinHash":"$2b$12$ftqO63s/vCzhZVYbDcRU6.2x.M0GAl3UgE3z1u9udD56gpKCyiRk."},
+  {"id":"garreau","name":"Garreau","role":"user","avatar":"🐺","pinHash":"$2b$12$PPk309P6rBG9PjIjc9tmi.EQ7XACxZyqdykzFBxw8YEnP5soTAGgi"},
+  {"id":"robin","name":"Robin","role":"user","avatar":"🧠","pinHash":"$2b$12$I6XpSjy4FLzeojTfaEk4oeRcNqkdHHVSBd55U6kXSwUmPbLVIvRXi"},
+  {"id":"tim","name":"Tim","role":"user","avatar":"🦊","pinHash":"$2b$12$bagkSl./O6Is5dhvplVvNuLk8vBObWq6tBiNkjqkQA2QrSOtWRvGa"},
+  {"id":"tom","name":"Tom","role":"user","avatar":"🦅","pinHash":"$2b$12$uiSJakZaRe2yDdzbAfrP4.Vn/66a91i2Z8Kpr6mM6iT1AdhCsxAou"},
 ];
