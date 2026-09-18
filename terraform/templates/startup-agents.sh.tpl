@@ -129,6 +129,28 @@ chmod 600 /home/hermes/.hermes/.env
 # Config OpenCode globale : le modèle et, si la clé passe par un endpoint
 # dédié, son URL de base.
 mkdir -p /home/hermes/.config/opencode
+%{ if llm_provider == "google-vertex" ~}
+# Vertex AI par le compte de service attaché à la VM : pas de clé sur la
+# machine, rien à faire tourner, rien à révoquer si elle est compromise — il
+# suffit de détacher le compte.
+#
+# `location: global` parce que c'est la seule qui sert le modèle : les
+# endpoints régionaux répondent 404 pour gemini-3.8-flash sur ce projet.
+cat > /home/hermes/.config/opencode/opencode.json <<OCJSON
+{
+  "\$schema": "https://opencode.ai/config.json",
+  "model": "${llm_model}",
+  "provider": {
+    "google-vertex": {
+      "options": {
+        "project": "${project_id}",
+        "location": "global"
+      }
+    }
+  }
+}
+OCJSON
+%{ else ~}
 cat > /home/hermes/.config/opencode/opencode.json <<OCJSON
 {
   "\$schema": "https://opencode.ai/config.json",
@@ -145,6 +167,7 @@ cat > /home/hermes/.config/opencode/opencode.json <<OCJSON
   }
 }
 OCJSON
+%{ endif ~}
 chown -R hermes:hermes /home/hermes/.config
 
 cat >> /home/hermes/.bashrc <<'BASHRC'

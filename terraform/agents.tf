@@ -15,8 +15,19 @@
 resource "google_compute_instance" "agents" {
   name         = var.instance_name
   machine_type = var.machine_type
-  zone         = var.zone
-  tags         = [var.instance_name]
+
+  # Vertex AI sans clé : l'agent s'authentifie par le serveur de métadonnées.
+  # `cloud-platform` est le scope large mais c'est l'IAM du compte qui borne
+  # réellement — il n'a que roles/aiplatform.user.
+  dynamic "service_account" {
+    for_each = var.agents_service_account != "" ? [1] : []
+    content {
+      email  = var.agents_service_account
+      scopes = ["cloud-platform"]
+    }
+  }
+  zone = var.zone
+  tags = [var.instance_name]
 
   boot_disk {
     initialize_params {
@@ -35,6 +46,7 @@ resource "google_compute_instance" "agents" {
 
   metadata = {
     startup-script = templatefile("${path.module}/templates/startup-agents.sh.tpl", {
+      project_id             = var.project_id
       instance_name          = var.instance_name
       app_instance_name      = var.app_instance_name
       tailscale_authkey      = var.tailscale_authkey
