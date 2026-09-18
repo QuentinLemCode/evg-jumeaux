@@ -208,8 +208,7 @@ so they stay readable in the logs when something goes wrong.
 | `SITE_REPO_URL` | `https://github.com/you/evg-jumeaux.git` | cloned onto the VM for the deploy scripts |
 | `SITE_SUBDOMAIN` | `evg` | gives `evg.$DOMAIN` |
 | `INGRESS_MODE` | `tunnel` | `tunnel` (no inbound port) or `public_ip` (80/443 open to Cloudflare only) |
-| `APP_VM_HOSTNAME` | `evg-app` | the tailnet name CI deploys to |
-| `AGENTS_VM_HOSTNAME` | `evg-site-agent` | where the agents and the watcher run |
+| `APP_VM_HOSTNAME` | `evg-app` | the tailnet name CI deploys to. **Must equal Terraform's `app_instance_name`** — two places, and only this one is checked. Unset, the deploy falls back to `evg-app`; set to something the tailnet does not have, it fails naming the machines it does have. |
 | `LLM_MODEL` | `google/gemini-3.8-flash` | Hermes and both agents. Check the exact id with `opencode models`. |
 | `LLM_PROVIDER` | `google` | the provider id on the OpenCode side |
 | `LLM_API_KEY_ENV_NAME` | `GEMINI_API_KEY` | the env var the SDK reads; the wrong name fails silently as "no key" |
