@@ -12,18 +12,25 @@ and calls the scripts in `scripts/agent/`.
 > It reacts **only when the bot is mentioned**, and only to the ids in
 > `TELEGRAM_ALLOWED_USERS`.
 >
-> What it does **not** do is hold a conversation. It routes:
+> It routes, and since spec 0013 it decides for itself which way:
 >
-> | You send | It runs |
+> | You send | What happens |
 > |---|---|
-> | `@bot /status` | `status.sh` |
+> | `@bot /status` | `status.sh` — commands bypass the router |
 > | `@bot /errors`, `/logs`, `/deploy` | `app-exec.sh <verb>` |
-> | `@bot ajoute un mur de photos` | `pipeline.sh "ajoute un mur de photos"` |
+> | `@bot comment le score est calculé ?` | answered from the repository, nothing is written |
+> | `@bot corrige les marges du classement sur iPhone SE` | `pipeline.sh` — spec, code, review, PR |
+> | `@bot corrige l'UI` | a question back: which screen, which symptom |
 >
-> The model-driven layer this directory's prompt and manifest describe —
-> Gemini choosing tools, answering in prose — sits on top of that transport and
-> is not built yet. `system-prompt.md` and `tools.json` are its contract, kept
-> here and unused until it is.
+> The router is the `route` agent (`.opencode/agent/route.md`), read-only by
+> construction — no write, edit or bash tool — because answering a question
+> must not change anything. It leans towards asking rather than guessing: a
+> question mistaken for a change request costs a branch and a pull request,
+> while the reverse costs one message.
+>
+> `system-prompt.md` and `tools.json` describe a fuller model-driven gateway,
+> one that holds a conversation across turns. That is still unbuilt; the router
+> decides one message at a time and keeps no history.
 >
 > Everything also works from a shell, which is how it is tested:
 >

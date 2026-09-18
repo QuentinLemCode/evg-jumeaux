@@ -4,6 +4,7 @@ import {
   directedAtBot,
   isAuthorised,
   parseAllowlist,
+  parseRouterReport,
   route,
   truncateForTelegram,
   type TgMessage,
@@ -186,5 +187,82 @@ describe('truncateForTelegram', () => {
     const out = truncateForTelegram(text, 14);
     expect(out.startsWith('[…]\n')).toBe(true);
     expect(out.slice(4).split('\n')[0]).toMatch(/^(bbbb|cccc|dddd)$/);
+  });
+});
+
+describe('parseRouterReport', () => {
+  const report = (decision: string, body: string) => `DECISION: ${decision}\n---\n${body}`;
+
+  it('reads the three decisions', () => {
+    expect(parseRouterReport(report('answer', 'Dix points.'))).toEqual({
+      decision: 'answer',
+      body: 'Dix points.',
+    });
+    expect(parseRouterReport(report('change', 'corrige les marges du classement'))).toEqual({
+      decision: 'change',
+      body: 'corrige les marges du classement',
+    });
+    expect(parseRouterReport(report('unclear', 'Quel écran ?'))).toEqual({
+      decision: 'unclear',
+      body: 'Quel écran ?',
+    });
+  });
+
+  it('finds the decision inside the runtime noise around it', () => {
+    // run_agent merges the agent's stderr into stdout, so the report never
+    // arrives alone.
+    const output = [
+      '[14:02:11] running route agent via opencode',
+      'some progress line',
+      'DECISION: answer',
+      '---',
+      'Les points viennent de scoring.ts (spec 0005).',
+    ].join('\n');
+    expect(parseRouterReport(output)?.decision).toBe('answer');
+    expect(parseRouterReport(output)?.body).toContain('scoring.ts');
+  });
+
+  it('keeps a multi-line answer whole', () => {
+    const body = 'Première ligne.\n\nTroisième ligne.';
+    expect(parseRouterReport(report('answer', body))?.body).toBe(body);
+  });
+
+  it('takes the LAST decision, not a rehearsal of the format', () => {
+    // A model that explains the shape before using it must not have its
+    // explanation mistaken for its verdict.
+    const output = [
+      'I will reply with DECISION: change',
+      'if it asks for a change. Here goes.',
+      'DECISION: answer',
+      '---',
+      'Le score vient de scoring.ts.',
+    ].join('\n');
+    expect(parseRouterReport(output)?.decision).toBe('answer');
+  });
+
+  it('is case-insensitive about the decision', () => {
+    expect(parseRouterReport('decision: ANSWER\n---\nbonjour')?.decision).toBe('answer');
+  });
+
+  it('refuses a report with no decision', () => {
+    expect(parseRouterReport('je pense que oui\n---\nvoilà')).toBeNull();
+  });
+
+  it('refuses an unknown decision rather than guessing', () => {
+    // Rule 12: an unparseable report runs nothing at all.
+    expect(parseRouterReport('DECISION: maybe\n---\nbonjour')).toBeNull();
+  });
+
+  it('refuses a report with no separator', () => {
+    expect(parseRouterReport('DECISION: answer\nLes points viennent de là')).toBeNull();
+  });
+
+  it('refuses an empty body', () => {
+    expect(parseRouterReport('DECISION: answer\n---\n   \n')).toBeNull();
+    expect(parseRouterReport('DECISION: change\n---\n')).toBeNull();
+  });
+
+  it('ignores a separator that precedes the decision', () => {
+    expect(parseRouterReport('---\nDECISION: answer')).toBeNull();
   });
 });

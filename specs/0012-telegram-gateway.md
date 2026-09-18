@@ -65,9 +65,12 @@ phone) belong here and are shared by both.
    | `/deploy` | `app-exec.sh deploy` | the deploy's outcome |
    | `/help` | — | the list above, and how to ask for a change |
 
-9. Anything else is a **change request** and runs the spec-driven pipeline:
-   `pipeline.sh "<the text>"`. That is the point of the gateway — «ajoute un
-   mur de photos» has to reach the same loop a human would run.
+9. Anything else goes to the router of **spec 0013**, which decides whether it
+   is a question about the app or a request to change it. A change request runs
+   the spec-driven pipeline, `pipeline.sh "<the request>"` — that is the point
+   of the gateway, «ajoute un mur de photos» has to reach the same loop a human
+   would run. *(Superseded: this rule originally treated every non-command
+   message as a change request, so asking a question launched the spec agent.)*
 10. One job at a time, tailnet-wide. A second request while one is running is
     refused with what is running and since when, not queued: two concurrent
     `pipeline.sh` runs would fight over the same checkout.
@@ -161,3 +164,4 @@ already exercises.
 | Date | Change | Why |
 |---|---|---|
 | 2026-09-18 | Created | The gateway binary never existed; tagging the bot produced silence |
+| 2026-09-18 | Rule 9 defers to spec 0013 | Treating every message as a change request meant a question launched the spec agent |

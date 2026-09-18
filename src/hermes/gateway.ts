@@ -14,7 +14,14 @@
 import { resolve } from 'node:path';
 
 import { Runner, since } from './jobs';
-import { directedAtBot, isAuthorised, parseAllowlist, route, type Command } from './parse';
+import {
+  directedAtBot,
+  isAuthorised,
+  parseAllowlist,
+  parseRouterReport,
+  route,
+  type Command,
+} from './parse';
 import { Telegram } from './telegram';
 
 const REPO_ROOT = resolve(import.meta.dirname, '../..');
@@ -27,9 +34,15 @@ const HELP = `Tague-moi avec :
 /logs     les dernières lignes de l'app
 /deploy   redéployer la dernière image
 
-Ou écris simplement ce que tu veux changer, par exemple
-« ajoute un mur de photos » : j'écris la spec, je fais coder,
-je fais relire, et j'ouvre une PR qui se fusionne si la CI passe.`;
+Ou parle-moi normalement :
+
+• une question — « comment le score est calculé ? » — et je réponds
+• une demande — « corrige les marges du classement sur iPhone SE » —
+  et j'écris la spec, je fais coder, relire, et j'ouvre une PR qui se
+  fusionne si la CI passe
+
+Si ta demande est trop vague pour être spécifiée, je te pose une
+question plutôt que de deviner.`;
 
 /** Each command is one script. Nothing here builds a shell string. */
 const SCRIPTS: Record<Command, { what: string; command: string; args: string[] } | null> = {
@@ -122,10 +135,17 @@ async function handle(
     return;
   }
 
-  const job =
-    decision.kind === 'command'
-      ? SCRIPTS[decision.command]
-      : { what: 'pipeline', command: `${AGENT}/pipeline.sh`, args: [decision.request] };
+  // Free text goes through the router first (spec 0013): the bot decides
+  // whether it was asked a question or asked to change something. Commands
+  // bypass it — they already say what they want.
+  let job: { what: string; command: string; args: string[] } | null;
+  if (decision.kind === 'command') {
+    job = SCRIPTS[decision.command];
+  } else {
+    const routed = await routeMessage(tg, runner, directed, decision.request);
+    if (!routed) return;
+    job = { what: 'pipeline', command: `${AGENT}/pipeline.sh`, args: [routed] };
+  }
   if (!job) return;
 
   const busy = runner.running();
@@ -140,7 +160,10 @@ async function handle(
 
   // Rule 11: acknowledge BEFORE the work. A phone with no reply is
   // indistinguishable from a broken bot.
-  const heading = decision.kind === 'command' ? `${job.what}…` : `« ${decision.request} »\n\nJe m’en occupe…`;
+  const heading =
+    decision.kind === 'command'
+      ? `${job.what}…`
+      : `« ${job.args[0]} »\n\nJe m’en occupe…`;
   const ackId = await tg.send(directed.chatId, heading, directed.messageId);
   console.log(`hermes: ${directed.fromLabel} → ${job.what}`);
 
@@ -157,6 +180,67 @@ async function handle(
 
   const verdict = result.ok ? '✅' : '❌';
   await tg.edit(directed.chatId, ackId, `${heading}\n\n${verdict}\n${result.output}`);
+}
+
+
+/**
+ * Asks the router what the message wants, and answers it there and then when
+ * it is a question (spec 0013).
+ *
+ * Returns the request to hand the pipeline, or `null` when there is nothing
+ * more to do — an answer was posted, a clarification was asked for, or the
+ * router failed.
+ *
+ * On failure it runs NOTHING (rule 12). There is deliberately no fallback to
+ * the pipeline: "we could not tell what you meant, so we changed the app" is
+ * not a failure mode worth having.
+ */
+async function routeMessage(
+  tg: Telegram,
+  runner: Runner,
+  directed: { chatId: number; messageId: number; fromLabel: string },
+  message: string,
+): Promise<string | null> {
+  const thinking = await tg.send(directed.chatId, 'Je regarde…', directed.messageId);
+
+  // Not through the Runner's lock: routing is not a job, so a question can be
+  // answered while a pipeline runs (rule 11).
+  const router = new Runner(REPO_ROOT);
+  const result = await router.run('route', `${AGENT}/route.sh`, [message]);
+  const routed = result ? parseRouterReport(result.output) : null;
+
+  if (!routed) {
+    await tg.edit(
+      directed.chatId,
+      thinking,
+      'Je n’ai pas réussi à interpréter ta demande, donc je n’ai rien lancé.\n\n' +
+        (result?.output
+          ? `Sortie du routeur :\n${result.output}`
+          : 'Le routeur n’a rien renvoyé.'),
+    );
+    return null;
+  }
+
+  if (routed.decision === 'answer' || routed.decision === 'unclear') {
+    await tg.edit(directed.chatId, thinking, routed.body);
+    console.log(`hermes: ${directed.fromLabel} → ${routed.decision}`);
+    return null;
+  }
+
+  // A change, and the pipeline is about to run. Check the lock before the
+  // acknowledgement so a refusal does not read like a start.
+  const busy = runner.running();
+  if (busy) {
+    await tg.edit(
+      directed.chatId,
+      thinking,
+      `Déjà occupé : ${busy.what}, ${since(busy.startedAt)}. Réessaie après.`,
+    );
+    return null;
+  }
+
+  await tg.edit(directed.chatId, thinking, `Compris : « ${routed.body} »`);
+  return routed.body;
 }
 
 main().catch((error) => {
