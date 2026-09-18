@@ -89,7 +89,26 @@ services:
     # Expires overdue invitations once a minute (spec 0004, rule 13). A single
     # instance regardless of colour: two sweepers would race for the SQLite
     # write lock for no benefit.
-    command: ['sh', '-c', 'while true; do npm run --silent sweep || true; sleep 60; done']
+    #
+    # Each completed pass stamps a file; the healthcheck below asks whether
+    # that stamp is recent.
+    command:
+      [
+        'sh',
+        '-c',
+        'while true; do npm run --silent sweep && touch /tmp/last-sweep || true; sleep 60; done',
+      ]
+    # The image's own HEALTHCHECK curls localhost:3000, which this container
+    # never serves — it runs a loop, not the app. So it reported `unhealthy`
+    # permanently while saying nothing about whether sweeping worked. This one
+    # fails when no pass has completed in three minutes, which is the thing
+    # worth knowing: a wedged sweeper stops expiring invitations.
+    healthcheck:
+      test: ['CMD-SHELL', 'find /tmp/last-sweep -newermt "-180 seconds" | grep -q .']
+      interval: 60s
+      timeout: 5s
+      start_period: 90s
+      retries: 2
     restart: unless-stopped
 
 volumes:
