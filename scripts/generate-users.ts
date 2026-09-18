@@ -40,7 +40,7 @@ const users = readFileSync(inputPath, 'utf8')
   .filter(({ line }) => line && !line.startsWith('#'))
   .map(({ line, number }) => {
     const fields = line.split(',').map((field) => field.trim());
-    if (fields.length !== 3 || !fields[0] || !/^\d{6}$/.test(fields[1])) {
+    if (fields.length !== 3 || !fields[0] || !/^\d{6}$/.test(fields[1] ?? '')) {
       throw new Error(`line ${number}: expected Name,6-digit-pin,role`);
     }
 
@@ -55,7 +55,7 @@ const users = readFileSync(inputPath, 'utf8')
       name,
       role,
       avatar: EMOJIS[Math.floor(Math.random() * EMOJIS.length)],
-      pinHash: bcrypt.hashSync(pin, 12),
+      pinHash: bcrypt.hashSync(pin ?? '', 12),
     };
   });
 
