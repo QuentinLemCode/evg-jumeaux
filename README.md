@@ -373,6 +373,13 @@ The browser binary is cached by Playwright version, the small checks share one
 
 ## Before the party
 
+> **Hermes itself is not in this repository.** `hermes-gateway.service` runs
+> `/home/hermes/.local/bin/hermes gateway`, and nothing installs that binary —
+> so no bot answers on Discord or Telegram until you put one there. The
+> pipeline does not need it: `scripts/agent/pipeline.sh` is the same contract,
+> driven from a shell. See [hermes/README.md](hermes/README.md).
+
+
 1. **Put the real guests in `src/db/seed/users.ts`** — id, name, role, avatar.
    At least one must be an `admin`. An id is permanent: matches and points
    reference it forever.
