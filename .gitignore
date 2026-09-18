@@ -50,3 +50,6 @@ coverage/
 user-seed.txt
 # generated PIN hashes — set as the SEED_PIN_HASHES secret, never commit
 .secrets/
+
+# conversation memory, local to each gateway
+data/hermes/

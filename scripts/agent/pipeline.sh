@@ -48,13 +48,28 @@ printf '%s\n' "$SPEC_OUT"
 SPEC_FILE="$(report_field SPEC_FILE "$SPEC_OUT" || true)"
 
 if [[ $SPEC_RC -ne 0 ]]; then
+  # The reason comes from the agent, never from here. This used to assert "the
+  # spec has open questions" for EVERY non-zero exit — including a failure that
+  # never reached the model at all — which sent a human looking for questions in
+  # a spec that did not exist.
+  SPEC_QUESTIONS="$(report_field QUESTIONS "$SPEC_OUT" || true)"
+  SPEC_NOTES="$(report_field NOTES "$SPEC_OUT" || true)"
+  if [[ -n "$SPEC_QUESTIONS" ]]; then
+    SPEC_REASON="$SPEC_QUESTIONS"
+  elif [[ -n "$SPEC_NOTES" ]]; then
+    SPEC_REASON="$SPEC_NOTES"
+  elif [[ -z "${SPEC_OUT//[[:space:]]/}" ]]; then
+    SPEC_REASON="the spec agent produced no report at all (exit $SPEC_RC) — it probably never reached the model; see the log above"
+  else
+    SPEC_REASON="the spec agent exited $SPEC_RC without saying why; see its output above"
+  fi
   cat <<REPORT
 
 PIPELINE: needs-human
 STAGE: spec
 SPEC_FILE: ${SPEC_FILE:-none}
-REASON: the spec has open questions that would change the implementation
-NEXT: answer the open questions in ${SPEC_FILE:-the spec}, then run: scripts/agent/code.sh ${SPEC_FILE:-<spec>}
+REASON: $SPEC_REASON
+NEXT: ${SPEC_FILE:+answer the open questions in $SPEC_FILE, then run: scripts/agent/code.sh $SPEC_FILE}${SPEC_FILE:-fix the failure above and re-run the request}
 REPORT
   exit 2
 fi

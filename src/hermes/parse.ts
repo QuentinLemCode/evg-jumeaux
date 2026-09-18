@@ -97,7 +97,7 @@ export function parseAllowlist(raw: string | undefined): number[] {
     .map(Number);
 }
 
-export type Command = 'status' | 'errors' | 'logs' | 'deploy' | 'help';
+export type Command = 'status' | 'errors' | 'logs' | 'deploy' | 'help' | 'reset';
 
 export type Route =
   | { kind: 'command'; command: Command }
@@ -111,6 +111,8 @@ const COMMANDS: Record<string, Command> = {
   '/deploy': 'deploy',
   '/help': 'help',
   '/start': 'help',
+  // Spec 0014 rule 13: forget this chat's history and pending question.
+  '/reset': 'reset',
 };
 
 /**
@@ -195,4 +197,44 @@ export function parseRouterReport(output: string): Routed | null {
   if (body === '') return null;
 
   return { decision, body };
+}
+
+export type PipelineOutcome = {
+  /** `ok`, `needs-human`, or whatever the script said. */
+  status: string;
+  /** The agent's own words about what is blocking. Never fabricated here. */
+  reason: string | null;
+  pr: string | null;
+};
+
+/**
+ * Reads what `pipeline.sh` reported (spec 0014, rule 7).
+ *
+ * `reason` is whatever the script said and nothing else. The bot has to be able
+ * to post the real blocker in the chat, and the failure this exists to prevent
+ * is announcing «the spec has open questions» when the truth was a permission
+ * error that never reached the model.
+ */
+export function parsePipelineReport(output: string): PipelineOutcome | null {
+  const field = (key: string): string | null => {
+    // Last match wins: the pipeline prints each stage's report as it goes, so
+    // the final block is the verdict.
+    let found: string | null = null;
+    for (const line of output.split('\n')) {
+      const match = new RegExp(`^\\s*${key}:\\s*(.+?)\\s*$`).exec(line);
+      if (match?.[1]) found = match[1];
+    }
+    return found;
+  };
+
+  const status = field('PIPELINE');
+  if (status === null) return null;
+
+  const reason = field('REASON');
+  const pr = field('PR');
+  return {
+    status,
+    reason: reason && reason !== 'none' ? reason : null,
+    pr: pr && pr !== 'none' ? pr : null,
+  };
 }
