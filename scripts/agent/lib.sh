@@ -12,6 +12,19 @@ export REPO_ROOT
 
 # opencode | claude
 AGENT_RUNTIME="${AGENT_RUNTIME:-opencode}"
+
+# The installers put these outside the PATH a non-interactive shell inherits:
+# opencode lands in ~/.opencode/bin, which nothing but an interactive login
+# shell knows about. So the systemd gateway, and every pipeline it starts,
+# found no agent at all — `command -v opencode` failed while the binary sat
+# on disk. Resolve it here, once, rather than per caller.
+for candidate in "$HOME/.opencode/bin" "$HOME/.local/bin"; do
+  case ":$PATH:" in
+    *":$candidate:"*) ;;
+    *) [ -d "$candidate" ] && PATH="$candidate:$PATH" ;;
+  esac
+done
+export PATH
 LOG_DIR="${AGENT_LOG_DIR:-$REPO_ROOT/.agent-logs}"
 mkdir -p "$LOG_DIR"
 
