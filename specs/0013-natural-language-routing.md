@@ -33,6 +33,7 @@ Commands keep working. They are the shortcut, not the interface.
    |---|---|---|
    | `answer` | the message asks about the app as it is | the answer is posted, nothing is written |
    | `change` | the message asks for the app to behave differently | `pipeline.sh` runs with the request |
+   | `fix` | something in the project's own machinery is broken | `fix.sh` repairs it and opens a pull request a human must approve |
    | `unclear` | it could be either, or the request is too vague to specify | the bot replies with the one question that would settle it |
 
 2. The router is **read-only**. It may read the repository — specs, code,
@@ -56,6 +57,23 @@ Commands keep working. They are the shortcut, not the interface.
    c'est 10 points» is not.
 7. Answers are in French, like everything the guests see.
 8. An answer is one Telegram message, truncated per 0012 rule 14.
+
+### Repairing
+
+11b. `fix` is for the machinery, not the product: an agent that crashes, a
+    workflow that fails, a service that will not start. These get no numbered
+    spec — `specs/` is the product contract — and run `scripts/agent/fix.sh`.
+11c. The line between `change` and `fix` is whether the leaderboard behaves
+    differently afterwards. «les marges sont fausses» is a change; «l'agent de
+    specs plante» is a fix.
+11d. A `fix` pull request touching infrastructure, workflows or agent tooling
+    **cannot merge until a human adds the `infra-ok` label**, enforced by the
+    `Guarded paths` check. Those files decide what the agent is allowed to do;
+    an agent able to merge changes to them could weaken the gate that is about
+    to judge its own pull request, and auto-merge would honour the weakened
+    one.
+11e. The agent may therefore propose any repair and merge none of them
+    unattended. That is the whole of its new authority.
 
 ### Changing
 
@@ -125,4 +143,5 @@ router's judgement is a model's and is exercised by hand.
 
 | Date | Change | Why |
 |---|---|---|
+| 2026-09-19 | Fourth decision `fix`, for repairing the machinery | A broken agent is not a product change and had no door; the bot could diagnose it and not act |
 | 2026-09-18 | Created | 0012 treated every non-command message as a change request, so asking a question launched the spec agent |

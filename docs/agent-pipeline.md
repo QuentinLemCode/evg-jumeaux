@@ -1,5 +1,35 @@
 # The agent pipeline
 
+## Two doors, not one
+
+A change to the party's leaderboard and a repair of the machinery that builds
+it are different things, and conflating them put a broken agent out of reach.
+
+| | product change | repair |
+|---|---|---|
+| entry | `pipeline.sh "<request>"` | `fix.sh "<what is broken>"` |
+| spec | a numbered spec, first | none — `specs/` is the product contract |
+| example | «corrige les marges du classement» | «l'agent de specs plante» |
+| merges | when the required checks pass | only after a human adds `infra-ok`, if it touches the machinery |
+
+The router (spec 0013) picks the door. The test it applies: does the
+leaderboard behave differently afterwards?
+
+### The guarded paths
+
+`terraform/`, `.github/workflows/`, `scripts/agent/`, `.opencode/`, `skills/`
+and `AGENTS.md`. A pull request touching any of them fails `Guarded paths`
+until a human adds the `infra-ok` label.
+
+This is not distrust of the agent's judgement — it is that these files define
+the judgement. An agent able to merge a change to `ci.yml` could weaken the
+gate in the very pull request the gate is about to judge, and auto-merge would
+honour the weakened one. The rule would be enforcing its own removal, which is
+not a rule.
+
+Adding the label is one click, and the check re-runs on it.
+
+
 How a sentence typed into Discord becomes a deployed change.
 
 ## The chain

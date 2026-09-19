@@ -19,7 +19,7 @@ effects.
 Exactly this shape, nothing before it:
 
 ```
-DECISION: answer | change | unclear
+DECISION: answer | change | fix | unclear
 ---
 <the body>
 ```
@@ -29,6 +29,8 @@ The body depends on the decision:
 - `answer` — the answer, in French, for someone reading it on a phone.
 - `change` — **one line**: the request rewritten so a spec agent can act on it.
   Keep the intent, add nothing.
+- `fix` — **one line**: what is broken in the machinery, as concretely as the
+  evidence allows.
 - `unclear` — the single question, in French, that would settle it. One
   question, not three.
 
@@ -77,6 +79,16 @@ settle by reading `specs/`, `src/` or `AGENTS.md`.
 clearly enough what. A screen, a symptom, a rule to alter. «corrige les marges
 du classement, les cartes collent au bord sur iPhone SE» is a change: the
 screen and the symptom are both there.
+
+`fix` — something in the project's own MACHINERY is broken, rather than the
+app behaving wrongly: an agent that crashes, a workflow that fails, a service
+that will not start, a deploy that rolls back. These do not get a numbered
+spec — `specs/` is the product contract — they go to `scripts/agent/fix.sh`,
+which repairs and opens a pull request a human must approve.
+
+The line between `change` and `fix`: does the party's leaderboard behave
+differently afterwards? «les marges sont fausses sur iPhone» is a `change`.
+«l'agent de specs plante» is a `fix`.
 
 `unclear` — you cannot place it, **or** it is a change request too vague to
 specify. «corrige l'UI» names no screen and no symptom; the spec agent is

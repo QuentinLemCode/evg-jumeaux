@@ -316,3 +316,21 @@ describe('parsePipelineReport', () => {
     expect(parsePipelineReport('tee: permission denied\n')).toBeNull();
   });
 });
+
+describe('the fix decision', () => {
+  it('is read like the others', () => {
+    expect(parseRouterReport('DECISION: fix\n---\nle service ne démarre pas')).toEqual({
+      decision: 'fix',
+      body: 'le service ne démarre pas',
+    });
+  });
+
+  it('is still refused when the body is empty', () => {
+    // A repair with nothing to repair must not reach fix.sh.
+    expect(parseRouterReport('DECISION: fix\n---\n  ')).toBeNull();
+  });
+
+  it('does not match a word that merely contains it', () => {
+    expect(parseRouterReport('DECISION: prefix\n---\nnon')).toBeNull();
+  });
+});

@@ -158,7 +158,7 @@ export function truncateForTelegram(text: string, limit = TELEGRAM_LIMIT): strin
 }
 
 /** What the router decided about one message (spec 0013, rule 1). */
-export type RouterDecision = 'answer' | 'change' | 'unclear';
+export type RouterDecision = 'answer' | 'change' | 'fix' | 'unclear';
 
 export type Routed = { decision: RouterDecision; body: string };
 
@@ -180,7 +180,7 @@ export function parseRouterReport(output: string): Routed | null {
   let at = -1;
   let decision: RouterDecision | null = null;
   for (const [index, line] of lines.entries()) {
-    const match = /^\s*DECISION:\s*(answer|change|unclear)\s*$/i.exec(line);
+    const match = /^\s*DECISION:\s*(answer|change|fix|unclear)\s*$/i.exec(line);
     if (match?.[1]) {
       at = index;
       decision = match[1].toLowerCase() as RouterDecision;
