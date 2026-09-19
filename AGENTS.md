@@ -379,6 +379,22 @@ If anything fails before the reload, the old colour is still serving and the
 only trace is a backup file. After the reload, the script reverts the upstream
 and reloads again.
 
+### Repairing the machinery
+
+`specs/` is the product contract, so a broken systemd unit gets no numbered
+spec. It gets `scripts/agent/fix.sh`, which diagnoses, repairs, runs the gate
+and opens a pull request — no spec, no product change.
+
+**The limit, and why it is where it is.** A pull request touching
+`terraform/`, `.github/workflows/`, `scripts/agent/`, `.opencode/`, `skills/`
+or this file fails the `Guarded paths` check until a human adds the `infra-ok`
+label. Those are the files that decide what the agent may do. Without that
+check, an agent could weaken the gate in the same pull request the gate is
+about to judge, and auto-merge would honour the weakened one — the rule would
+be enforcing its own removal.
+
+So: the agent may propose any repair, and merge none of them unattended.
+
 ### Infrastructure is documented, not specified
 
 `specs/` is the **product** contract. Terraform, the compose stack, the CI
@@ -386,6 +402,9 @@ pipeline and the deploy scripts are not product behaviour: they change under
 `docs/deployment.md`, not under a numbered spec. Do not create a spec for an
 infrastructure change, and do not change infrastructure to satisfy a product
 spec without saying so.
+
+An infrastructure change is not forbidden — it goes through `fix.sh` and waits
+for a human label, as above.
 
 ## 9. Every specified feature is covered end to end
 

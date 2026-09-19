@@ -176,8 +176,14 @@ async function handle(
   } else {
     const routed = await routeMessage(tg, runner, memory, directed, decision.request);
     if (!routed) return;
-    requestForPipeline = routed;
-    job = { what: 'pipeline', command: `${AGENT}/pipeline.sh`, args: [routed] };
+    requestForPipeline = routed.request;
+    job =
+      routed.kind === 'fix'
+        ? // A repair of the machinery, not a product change: no numbered spec,
+          // and the pull request it opens cannot merge until a human adds the
+          // `infra-ok` label. See scripts/agent/fix.sh.
+          { what: 'fix', command: `${AGENT}/fix.sh`, args: [routed.request] }
+        : { what: 'pipeline', command: `${AGENT}/pipeline.sh`, args: [routed.request] };
   }
   if (!job) return;
 
@@ -256,7 +262,7 @@ async function routeMessage(
   memory: Memory,
   directed: { chatId: number; messageId: number; fromLabel: string },
   message: string,
-): Promise<string | null> {
+): Promise<{ kind: 'change' | 'fix'; request: string } | null> {
   const thinking = await tg.send(directed.chatId, 'Je regarde…', directed.messageId);
 
   // Not through the Runner's lock: routing is not a job, so a question can be
@@ -303,12 +309,15 @@ async function routeMessage(
     return null;
   }
 
-  const understood = `Compris : « ${routed.body} »`;
+  const understood =
+    routed.decision === 'fix'
+      ? `Réparation : « ${routed.body} »\n\nJe corrige la machinerie — la PR demandera ton feu vert.`
+      : `Compris : « ${routed.body} »`;
   await tg.edit(directed.chatId, thinking, understood);
   memory.record(directed.chatId, 'bot', understood);
   // The request carried the answer, so nothing is pending any more.
   memory.resolve(directed.chatId);
-  return routed.body;
+  return { kind: routed.decision === 'fix' ? 'fix' : 'change', request: routed.body };
 }
 
 /**

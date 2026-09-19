@@ -19,6 +19,9 @@ name: CI
 
 on:
   pull_request:
+    # `labeled` matters: the guarded-paths check below is unlocked by a label,
+    # and without this event the unlock would never be re-evaluated.
+    types: [opened, synchronize, reopened, labeled, unlabeled]
   workflow_dispatch:
   workflow_call:
     inputs:
@@ -259,13 +262,62 @@ jobs:
           terraform init -backend=false
           terraform validate
 
+  # The agent may now propose changes to the machinery (scripts/agent/fix.sh).
+  # These are the files that define what it is allowed to do, so a human says
+  # yes to them — otherwise an agent could weaken the very gate that is about
+  # to judge its own pull request, and auto-merge would honour the weakened
+  # one.
+  guarded:
+    name: Guarded paths
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Require a human for infrastructure, workflows and agent tooling
+        env:
+          LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if [ -z "${BASE}" ]; then
+            echo "not a pull request; nothing to guard"
+            exit 0
+          fi
+
+          CHANGED="$(git diff --name-only "${BASE}" "${HEAD}" \
+            -- '.github/workflows/**' 'terraform/**' 'scripts/agent/**' \
+               '.opencode/**' 'skills/**' 'AGENTS.md' || true)"
+
+          if [ -z "$CHANGED" ]; then
+            echo "no guarded path touched"
+            exit 0
+          fi
+
+          echo "guarded paths in this PR:"
+          echo "$CHANGED" | sed 's/^/  /'
+
+          case ",${LABELS}," in
+            *,infra-ok,*)
+              echo "infra-ok is present — a human said yes"
+              exit 0
+              ;;
+          esac
+
+          echo "::error::This pull request changes the machinery that decides what the agent may do."
+          echo "::error::A human has to say yes: add the 'infra-ok' label, and this check will re-run."
+          echo "::error::Touched: $(echo "$CHANGED" | tr '\n' ' ')"
+          exit 1
+
   verdict:
     name: Verdict
     # The single check branch protection requires. `always()` so it reports
     # even when a needed job was skipped — a skipped job is a pass here, which
     # is exactly what makes auto-merge work on a docs-only PR.
     if: always()
-    needs: [scope, quick, tests, e2e, infra]
+    needs: [scope, quick, tests, e2e, infra, guarded]
     runs-on: ubuntu-latest
     timeout-minutes: 3
     steps:
