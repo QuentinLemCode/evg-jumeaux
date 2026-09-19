@@ -329,6 +329,11 @@ jobs:
             [tests]="${{ needs.tests.result }}"
             [e2e]="${{ needs.e2e.result }}"
             [infra]="${{ needs.infra.result }}"
+            # Listing a job in `needs` is not the same as judging it:
+            # without this line Verdict passed while Guarded paths
+            # failed — a required check saying yes to the one pull
+            # request the guard exists to stop.
+            [guarded]="${{ needs.guarded.result }}"
           )
           failed=0
           for job in "${!results[@]}"; do
