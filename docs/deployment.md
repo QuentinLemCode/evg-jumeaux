@@ -383,6 +383,33 @@ curl -s -H 'Metadata-Flavor: Google' \
   http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/email
 ```
 
+#### No credentials file is needed on GCE
+
+OpenCode's documentation for Google Vertex AI mentions
+`GOOGLE_APPLICATION_CREDENTIALS` and `gcloud auth application-default login`.
+Neither applies here, and setting the variable to a path that does not exist
+would *break* what currently works.
+
+On a GCE instance with a service account attached, the metadata server is part
+of the Application Default Credentials chain: the provider asks it for a token
+and gets one. Verified on the VM with the variable unset — the router answered
+normally. The credentials file is for machines outside GCE, where there is no
+metadata server to ask.
+
+#### One place decides the model
+
+`.opencode/opencode.json` in the repository does **not** set a model, and must
+not. OpenCode loads the machine's global config first and the repository's
+second, so a `model` there silently overrides the machine — which is exactly
+what happened: the VM's global config said `google-vertex/gemini-3.8-flash`,
+the repository said `{env:LLM_MODEL}`, `.env` still said `google/...`, and
+every agent went to the blocked endpoint while the global config sat there
+being correct.
+
+Which model to use is a property of the machine — of which provider it can
+authenticate to — so it lives in the machine's config, written by Terraform.
+See `.opencode/README.md`.
+
 #### Why not an API key
 
 Because it did not work, and the way it failed is worth knowing.
