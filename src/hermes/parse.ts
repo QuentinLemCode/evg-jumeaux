@@ -188,10 +188,18 @@ export function parseRouterReport(output: string): Routed | null {
   }
   if (decision === null || at === -1) return null;
 
+  // The `---` is OPTIONAL, and that is a correction. The router is a language
+  // model asked to emit a separator, and one run in three forgets it —
+  // producing `DECISION: change` followed straight by the request. Refusing
+  // that meant answering «je n'ai pas réussi à interpréter ta demande» to a
+  // decision the model had in fact made, and got right.
+  //
+  // Nothing is lost by dropping the requirement: everything after the
+  // DECISION line is the body either way.
   const separator = lines.findIndex((line, index) => index > at && line.trim() === '---');
-  if (separator === -1) return null;
+  const start = separator === -1 ? at + 1 : separator + 1;
 
-  const body = lines.slice(separator + 1).join('\n').trim();
+  const body = lines.slice(start).join('\n').trim();
   // An empty body is useless whatever the decision: an answer nobody can read,
   // a clarifying question that asks nothing, a request with no request in it.
   if (body === '') return null;
@@ -200,11 +208,13 @@ export function parseRouterReport(output: string): Routed | null {
 }
 
 export type PipelineOutcome = {
-  /** `ok`, `needs-human`, or whatever the script said. */
+  /** `ok`, `needs-human`, `spec-ready`, or whatever the script said. */
   status: string;
   /** The agent's own words about what is blocking. Never fabricated here. */
   reason: string | null;
   pr: string | null;
+  /** The specification the run produced or worked from (spec 0015, rule 1). */
+  spec: string | null;
 };
 
 /**
@@ -232,9 +242,11 @@ export function parsePipelineReport(output: string): PipelineOutcome | null {
 
   const reason = field('REASON');
   const pr = field('PR');
+  const spec = field('SPEC_FILE');
   return {
     status,
     reason: reason && reason !== 'none' ? reason : null,
     pr: pr && pr !== 'none' ? pr : null,
+    spec: spec && spec !== 'none' ? spec : null,
   };
 }

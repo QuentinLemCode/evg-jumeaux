@@ -178,8 +178,11 @@ A deliberate exception is annotated in place and scoped to the rule
 
 ## 6. Spec-driven workflow
 
-The pipeline is: **request → spec → code → pull request → CI → deploy**. Each
-step has one owner, and the last two owners are not agents.
+The pipeline is: **request → spec → A HUMAN APPROVES → code → pull request →
+CI → deploy**. Each step has one owner, and three of those owners are not
+agents. The approval is spec 0015: `specs/` is the contract everything else is
+built on, and writing it and acting on it in one breath skipped the one moment
+where a misunderstanding is cheap to fix.
 
 ```
 human (Discord/Telegram)
@@ -189,6 +192,11 @@ Hermes            orchestrator. Talks to the human, never writes app code.
    │  scripts/agent/spec.sh "<request>"
    ▼
 spec agent        owns specs/. Writes/updates the spec, updates the index.
+   │
+   ▼
+THE HUMAN         reads the specification in the chat and approves it.
+   │              Nothing is coded before this (spec 0015). A reply that is
+   │              not an approval is a correction, and the spec is rewritten.
    │  scripts/agent/code.sh <spec-id>
    ▼
 code agent        owns src/ and e2e/. Implements exactly the spec, runs the gate.

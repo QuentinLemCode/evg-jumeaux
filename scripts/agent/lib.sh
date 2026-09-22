@@ -22,9 +22,18 @@ LOG_DIR="${AGENT_LOG_DIR:-$REPO_ROOT/.agent-logs}"
 # stop the agent from running at all.
 mkdir -p "$LOG_DIR" 2>/dev/null || true
 
-log()  { printf '\033[36m[%s]\033[0m %s\n' "$(date -u +%H:%M:%S)" "$*" >&2; }
-warn() { printf '\033[33m[%s] WARN\033[0m %s\n' "$(date -u +%H:%M:%S)" "$*" >&2; }
-die()  { printf '\033[31m[%s] FATAL\033[0m %s\n' "$(date -u +%H:%M:%S)" "$*" >&2; exit 1; }
+# Colour only for a human at a terminal (spec 0015, rule 7). Hermes captures
+# this stream and posts it to Telegram, where an escape sequence renders as
+# literal `ESC[36m` — the bot proving it does not know who it is talking to.
+if [[ -t 2 ]]; then
+  C_INFO=$'\033[36m'; C_WARN=$'\033[33m'; C_ERR=$'\033[31m'; C_OFF=$'\033[0m'
+else
+  C_INFO=''; C_WARN=''; C_ERR=''; C_OFF=''
+fi
+
+log()  { printf '%s[%s]%s %s\n' "$C_INFO" "$(date -u +%H:%M:%S)" "$C_OFF" "$*" >&2; }
+warn() { printf '%s[%s] WARN%s %s\n' "$C_WARN" "$(date -u +%H:%M:%S)" "$C_OFF" "$*" >&2; }
+die()  { printf '%s[%s] FATAL%s %s\n' "$C_ERR" "$(date -u +%H:%M:%S)" "$C_OFF" "$*" >&2; exit 1; }
 
 # Antigravity's execution mode.
 #

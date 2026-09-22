@@ -21,6 +21,7 @@ No code change lands without a spec change first — see `AGENTS.md` §6.
 | `0012` | [Telegram gateway](0012-telegram-gateway.md) | implemented | Mention-gated bot: commands and change requests reach `scripts/agent/`, one job at a time |
 | `0013` | [Natural-language routing](0013-natural-language-routing.md) | implemented | The bot decides: a question is answered, a change request runs the pipeline, a vague one gets a question back |
 | `0014` | [Conversational memory](0014-conversational-memory.md) | implemented | Remembers the thread, asks blocking questions in the chat, resumes from the answer |
+| `0015` | [A staged pipeline the chat can follow](0015-staged-pipeline.md) | implemented | Stage-by-stage progress in the chat, and the spec is approved by a human before any code is written |
 
 Status values: `draft` → `ready-for-code` → `implemented` → `superseded`.
 
