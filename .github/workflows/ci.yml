@@ -337,32 +337,31 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 3
     steps:
-      - name: Assert nothing failed
-        run: |
-          declare -A results=(
-            [scope]="${{ needs.scope.result }}"
-            [quick]="${{ needs.quick.result }}"
-            [tests]="${{ needs.tests.result }}"
-            [e2e]="${{ needs.e2e.result }}"
-            [infra]="${{ needs.infra.result }}"
-            # Listing a job in `needs` is not the same as judging it:
-            # without this line Verdict passed while Guarded paths
-            # failed — a required check saying yes to the one pull
-            # request the guard exists to stop.
-            [guarded]="${{ needs.guarded.result }}"
-          )
-          failed=0
-          for job in "${!results[@]}"; do
-            printf '  %-10s %s\n' "$job" "${results[$job]}"
-            case "${results[$job]}" in
-              success|skipped) ;;
-              *) failed=1 ;;
-            esac
-          done
-          echo
-          echo "scope: ${{ needs.scope.outputs.summary }}"
-          if [ "$failed" -ne 0 ]; then
-            echo "::error::a required job did not pass"
-            exit 1
-          fi
-          echo "all green"
+        - name: Assert nothing failed
+          env:
+            # Derived from `needs`, not listed by hand. The hand-written table
+            # this replaces drifted the moment a job left `needs` and its line
+            # stayed behind: the expression resolved to an empty string, which
+            # is neither success nor skipped, so main's CI failed with "a
+            # required job did not pass" while naming no job — because none
+            # had.
+            NEEDS: ${{ toJSON(needs) }}
+            SUMMARY: ${{ needs.scope.outputs.summary }}
+          run: |
+            printf '%s' "$NEEDS" | jq -r 'to_entries[] | "  \(.key)\t\(.value.result)"'
+            echo
+            echo "scope: ${SUMMARY:-(not run)}"
+
+            # `skipped` counts as passed, deliberately: that is what lets
+            # auto-merge work on a pull request whose heavy jobs were
+            # legitimately skipped.
+            BAD="$(printf '%s' "$NEEDS" | jq -r '
+              [to_entries[]
+               | select(.value.result != "success" and .value.result != "skipped")
+               | .key] | join(", ")')"
+
+            if [ -n "$BAD" ]; then
+              echo "::error::did not pass: $BAD"
+              exit 1
+            fi
+            echo "all green"
