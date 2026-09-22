@@ -212,8 +212,8 @@ so they stay readable in the logs when something goes wrong.
 | `INGRESS_MODE` | `tunnel` | `tunnel` (no inbound port) or `public_ip` (80/443 open to Cloudflare only) |
 | `APP_VM_HOSTNAME` | `evg-app` | the tailnet name CI deploys to. **Must equal Terraform's `app_instance_name`** — two places, and only this one is checked. Unset, the deploy falls back to `evg-app`; set to something the tailnet does not have, it fails naming the machines it does have. |
 | `AGENTS_VM_HOSTNAME` | `evg-site-agent` | the tailnet name *Deploy infra* refreshes when run with `refresh_agents`. Same rule as above: it must equal Terraform's `instance_name`, and unset falls back to `evg-site-agent`. |
-| `LLM_MODEL` | `google-vertex/gemini-3.8-flash` | The agents and the router. |
-| `LLM_PROVIDER` | `google-vertex` | Vertex AI through the VM's service account — **no API key on the machine**. The `google` provider (Gemini API) is the alternative and needs `LLM_BASE_URL`; it breaks on long agent runs, see [docs/deployment.md](docs/deployment.md). |
+| `LLM_MODEL` | `gemini-3.8-flash` | The agents, on Antigravity CLI at `--effort high`. Bare slug, no provider prefix. |
+| `LLM_PROVIDER` | `antigravity` | The agent runtime. `agy` needs **one interactive sign-in on the VM** — it cannot use the service account, and the API-key path is blocked by a Google-managed policy. See [docs/deployment.md](docs/deployment.md). |
 | `AGENTS_SERVICE_ACCOUNT` | `evg-agents@PROJECT.iam.gserviceaccount.com` | Attached to the agents VM, giving it Vertex AI with no key. Created by hand — Terraform attaches it but must not be able to mint identities. Commands in [docs/deployment.md](docs/deployment.md). |
 | `LLM_API_KEY_ENV_NAME` | `GEMINI_API_KEY` | the env var the SDK reads; the wrong name fails silently as "no key" |
 | `VAPID_SUBJECT` | `mailto:you@example.com` | |

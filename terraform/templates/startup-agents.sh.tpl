@@ -83,8 +83,14 @@ echo "=== [6/8] Agents ==="
 # plus bas). lib.sh sait aussi piloter Claude Code, pour un humain en local,
 # mais la VM n'en a pas besoin : un outil installé de plus est une surface de
 # plus a maintenir et a mettre a jour.
+# Antigravity CLI (agy) : le runtime des agents. Go, pas de Node.
+su - hermes -c "curl -fsSL https://antigravity.google/cli/install.sh | bash" \
+  || echo "WARN: installation d Antigravity echouee — les agents ne pourront pas tourner"
+
+# OpenCode reste installe : lib.sh sait piloter les deux, et avoir un second
+# runtime sous la main a deja servi a isoler un bug de client.
 su - hermes -c "curl -fsSL https://opencode.ai/install | bash" \
-  || echo "WARN: installation d OpenCode echouee — les agents ne pourront pas tourner"
+  || echo "WARN: installation d OpenCode echouee (secondaire)"
 
 # La clé Agent Platform, exposée sous LES DEUX noms attendus par les SDK
 # Google : le nom exact dépend de la version du SDK, et se tromper ne produit
@@ -96,7 +102,7 @@ GEMINI_API_KEY=${llm_api_key}
 GOOGLE_GENERATIVE_AI_API_KEY=${llm_api_key}
 LLM_MODEL=${llm_model}
 LLM_PROVIDER=${llm_provider}
-AGENT_RUNTIME=opencode
+AGENT_RUNTIME=antigravity
 %{ if llm_base_url != "" ~}
 LLM_BASE_URL=${llm_base_url}
 %{ endif ~}
@@ -178,7 +184,7 @@ set -a
 export PATH="$HOME/.opencode/bin:$HOME/.local/bin:$PATH"
 [ -f /home/hermes/.hermes/.env ] && . /home/hermes/.hermes/.env
 set +a
-export AGENT_RUNTIME=opencode
+export AGENT_RUNTIME=antigravity
 BASHRC
 chown hermes:hermes /home/hermes/.bashrc
 
@@ -224,13 +230,19 @@ echo "=== [7/8] Pas de site_repo_url : dépôt non cloné ==="
 # les services démarrent, le bot écoute, et chaque demande échoue plus tard sur
 # une erreur d'API que personne ne relie au boot. Un appel trivial ici, et le
 # journal de démarrage porte la réponse.
-echo "=== [7b/8] Le modèle répond-il ? ==="
-if su - hermes -c "cd $SITE_DIR && . ~/.hermes/.env && export PATH=\$HOME/.opencode/bin:\$PATH && timeout 90 opencode run --agent diagnose --auto 'Réponds exactement: PRET' 2>&1 | tail -3" | grep -qi "pret"; then
-  echo "OK: le modèle répond"
+echo "=== [7b/8] Le runtime des agents est-il utilisable ? ==="
+# agy ne s'authentifie PAS avec le compte de service de la VM : sa seule voie
+# non interactive documentée est une cle GEMINI_API_KEY vers
+# generativelanguage, que la policy Google par defaut de ce projet bloque. Il
+# faut donc une connexion OAuth, une fois, faite par un humain.
+if su - hermes -c "export PATH=\$HOME/.local/bin:\$PATH && timeout 60 agy -p 'Réponds exactement: PRET' --model gemini-3.8-flash --effort low 2>&1 | tail -3" | grep -qi "pret"; then
+  echo "OK: agy est authentifie et le modele repond"
 else
-  echo "WARN: le modèle NE RÉPOND PAS. Les agents échoueront à chaque demande."
-  echo "WARN: vérifier LLM_PROVIDER / LLM_MODEL dans ~/.hermes/.env et"
-  echo "WARN:   ~/.config/opencode/opencode.json, puis: journalctl -u hermes-gateway"
+  echo "WARN: agy N EST PAS authentifie. Aucun agent ne pourra tourner."
+  echo "WARN: une seule fois, depuis un poste avec navigateur :"
+  echo "WARN:   tailscale ssh hermes@${instance_name}"
+  echo "WARN:   agy            # colle l URL dans ton navigateur, reporte le code"
+  echo "WARN: puis: systemctl restart hermes-gateway"
 fi
 
 echo "=== [8/8] Services systemd ==="

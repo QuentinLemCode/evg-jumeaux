@@ -10,8 +10,8 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 export REPO_ROOT
 
-# opencode | claude
-AGENT_RUNTIME="${AGENT_RUNTIME:-opencode}"
+# antigravity | opencode | claude
+AGENT_RUNTIME="${AGENT_RUNTIME:-antigravity}"
 
 # PATH for opencode, which no non-interactive shell inherits. See path.sh.
 # shellcheck source=scripts/agent/path.sh
@@ -40,6 +40,36 @@ die()  { printf '\033[31m[%s] FATAL\033[0m %s\n' "$(date -u +%H:%M:%S)" "$*" >&2
 #
 # We cannot fix that from here. What we can stop doing is surfacing it to
 # someone on a phone as «je n'ai pas réussi à interpréter ta demande».
+# Antigravity's execution mode, per role.
+#
+# `plan` for every read-only role, `accept-edits` for the one that writes. Both
+# run without ever asking a human — which is the requirement — and `plan` keeps
+# the read-only roles read-only, which is what spec 0013 rule 2 promises about
+# the router: answering a question must not change anything.
+#
+# NOTE the open question on `spec`: our spec agent's job is to WRITE a spec
+# file, and `plan` mode may well refuse to. Overridable per role precisely so
+# that is a one-word change once a real run has settled it.
+agent_mode() {
+  case "$1" in
+    code) echo "${AGENT_MODE_CODE:-accept-edits}" ;;
+    *)    echo "${AGENT_MODE_READONLY:-plan}" ;;
+  esac
+}
+
+# The role manual, inlined into the prompt.
+#
+# Antigravity discovers agents from somewhere its documentation does not say,
+# so depending on `--agent` would mean depending on a guess. The manuals are a
+# few kilobytes and they are the same files OpenCode loads, so there is exactly
+# one source of truth either way.
+agent_manual() {
+  local role="$1" f="$REPO_ROOT/.opencode/agent/$1.md"
+  [[ -r "$f" ]] || { warn "no role manual for '$role' at $f"; return 0; }
+  # Strip the YAML frontmatter: it configures OpenCode and means nothing here.
+  awk 'BEGIN{n=0} /^---$/{n++; next} n>=2 || n==0' "$f"
+}
+
 AGENT_RETRYABLE='model turn are not supported|Function call is missing a thought_signature'
 AGENT_ATTEMPTS="${AGENT_ATTEMPTS:-3}"
 
@@ -64,6 +94,26 @@ run_agent() {
     log "running '$role' agent via $AGENT_RUNTIME (attempt $attempt/$AGENT_ATTEMPTS, transcript: $transcript)"
 
     case "$AGENT_RUNTIME" in
+      antigravity)
+        command -v agy >/dev/null || die "agy not found in PATH (see docs/deployment.md)"
+        local mode; mode="$(agent_mode "$role")"
+        # --dangerously-skip-permissions: nothing may wait for a human. A
+        # pipeline that stops on a prompt nobody will ever see is worse than
+        # one that fails, because it fails silently and holds the lock.
+        ( cd "$REPO_ROOT" && agy \
+            --print \
+            --model "${AGENT_MODEL:-gemini-3.8-flash}" \
+            --effort "${AGENT_EFFORT:-high}" \
+            --mode "$mode" \
+            --output-format text \
+            --print-timeout 0 \
+            --dangerously-skip-permissions \
+            "$(agent_manual "$role")
+
+---
+
+$prompt" ) 2>&1 | tee "$transcript"
+        ;;
       opencode)
         command -v opencode >/dev/null || die "opencode not found in PATH"
         ( cd "$REPO_ROOT" && opencode run \
@@ -81,7 +131,7 @@ run_agent() {
           ) 2>&1 | tee "$transcript"
         ;;
       *)
-        die "unknown AGENT_RUNTIME '$AGENT_RUNTIME' (expected: opencode | claude)"
+        die "unknown AGENT_RUNTIME '$AGENT_RUNTIME' (expected: antigravity | opencode | claude)"
         ;;
     esac
 
