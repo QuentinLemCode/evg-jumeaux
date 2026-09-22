@@ -33,6 +33,13 @@ jobs:
       # request (branch protection requires the branch to be up to date), and
       # the image is smoke-tested below. Re-running 52 browser tests on the
       # same code doubles the bill and proves nothing new.
+      #
+      # This rests entirely on "just passed" being true, and it was false
+      # once: PR #31 merged with End-to-end CANCELLED, so skipping it here
+      # meant no browser test ran on that commit anywhere. What makes the
+      # assumption safe is that `Verdict` treats `cancelled` as a failure AND
+      # that no later run can supersede it — which is why the guard has its
+      # own workflow. See guard.yml.
       skip_e2e: 'true'
 
   build:

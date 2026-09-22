@@ -1,0 +1,80 @@
+name: Guard
+
+# `Guarded paths` lives ALONE, in its own workflow, and the reason is a
+# pull request that merged with no end-to-end result at all.
+#
+# It used to be a job in CI, which therefore had to run on `labeled` so that
+# adding `infra-ok` could re-evaluate the unlock. Two things followed, and
+# neither was visible in the file:
+#
+#   1. Both events shared one concurrency group, so the label run CANCELLED
+#      the code run. PR #31 was labelled at 14:51:05 while the suite had been
+#      running since 14:48; End-to-end was cancelled at 14:52:29.
+#   2. CI skipped every heavy job on a label event — Verdict included, so that
+#      it could not overwrite a failure with a pass. But a skipped required
+#      check satisfies the rule just as a passing one does, and it is the
+#      NEWEST run that counts. So `Verdict: skipped` from the label run
+#      superseded `Verdict: failure` from the code run, and auto-merge landed
+#      it at 14:53:06.
+#
+# Separating the workflows removes the cause rather than the symptom: a label
+# event no longer starts the workflow that owns `Verdict`, so there is no run
+# to supersede anything and nothing to cancel. It also still costs seconds,
+# which is why the guard was made re-runnable on a label in the first place.
+
+on:
+  pull_request:
+    # `opened`/`synchronize`/`reopened` so the check exists on every pull
+    # request — a required check that never reports blocks a PR forever.
+    # `labeled`/`unlabeled` so a human adding `infra-ok` unlocks it.
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+
+concurrency:
+  # Its own group. Sharing CI's is the bug this file exists to fix.
+  group: guard-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  guarded:
+    name: Guarded paths
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Require a human for infrastructure, workflows and agent tooling
+        env:
+          LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if [ -z "${BASE}" ]; then
+            echo "not a pull request; nothing to guard"
+            exit 0
+          fi
+
+          CHANGED="$(git diff --name-only "${BASE}" "${HEAD}" \
+            -- '.github/workflows/**' 'terraform/**' 'scripts/agent/**' \
+               '.opencode/**' 'skills/**' 'AGENTS.md' || true)"
+
+          if [ -z "$CHANGED" ]; then
+            echo "no guarded path touched"
+            exit 0
+          fi
+
+          echo "guarded paths in this PR:"
+          echo "$CHANGED" | sed 's/^/  /'
+
+          case ",${LABELS}," in
+            *,infra-ok,*)
+              echo "infra-ok is present — a human said yes"
+              exit 0
+              ;;
+          esac
+
+          echo "::error::This pull request changes the machinery that decides what the agent may do."
+          echo "::error::A human has to say yes: add the 'infra-ok' label, and this check will re-run."
+          echo "::error::Touched: $(echo "$CHANGED" | tr '\n' ' ')"
+          exit 1

@@ -29,6 +29,15 @@ not a rule.
 
 Adding the label is one click, and the check re-runs on it.
 
+The guard lives in its own workflow, `.github/workflows/guard.yml`, and not as
+a job in CI. It was a job in CI once, which meant CI had to run on the
+`labeled` event, and that cost PR #31 its end-to-end result twice over: the
+label run cancelled the code run they shared a concurrency group with, and
+then reported `Verdict: skipped` on a commit whose `Verdict` had FAILED —
+newest run wins, and a skipped required check satisfies the rule. The pull
+request merged two minutes later. Keeping the two workflows apart is what
+stops a label from ever answering for the code.
+
 
 How a sentence typed into Discord becomes a deployed change.
 
