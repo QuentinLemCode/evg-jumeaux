@@ -184,7 +184,7 @@ so they stay readable in the logs when something goes wrong.
 | `SEED_PIN_HASHES` | infra | `npm run generate-users -- <roster-file>`, then `gh secret set SEED_PIN_HASHES < .secrets/seed-pin-hashes.b64`. Base64-encoded JSON of id → bcrypt hash. **No PIN hash goes in the repository**: a 6-digit PIN behind bcrypt falls to a GPU in minutes. |
 | `VAPID_PUBLIC_KEY` | infra | `npm run vapid:generate` |
 | `VAPID_PRIVATE_KEY` | infra | same run — never commit it |
-| `LLM_API_KEY` | infra | *Only for `LLM_PROVIDER=google`.* Unused with `google-vertex`, which authenticates through the VM's service account. |
+| `GEMINI_API_KEY` | infra | The key `agy` authenticates with. Must be one the **Gemini API** accepts — a key restricted to `aiplatform.googleapis.com` authenticates and is then refused at the endpoint. One name end to end: secret, Terraform variable, the VM's `.env` and the variable `agy` reads. |
 | `AGENT_GITHUB_TOKEN` | infra | a **fine-grained** PAT on this repo for the code agent: *Contents: read/write*, *Pull requests: read/write*, *Workflows: read*. Deliberately **no** admin scope — the agent must not be able to lift the branch protection that constrains it. |
 | `GHCR_PULL_TOKEN` | infra | a GitHub PAT with **`read:packages` only** — it lives on the VM, so it must not be able to write |
 | `TS_OAUTH_CLIENT_ID` | deploy | Tailscale admin → Settings → OAuth clients, **`auth_keys` write** scope, with **`tag:ci` selected on the client**. The console offers that tag only if it already exists in `tagOwners`, and a client cannot be re-tagged later — one made too early has to be recreated. |
@@ -213,9 +213,8 @@ so they stay readable in the logs when something goes wrong.
 | `APP_VM_HOSTNAME` | `evg-app` | the tailnet name CI deploys to. **Must equal Terraform's `app_instance_name`** — two places, and only this one is checked. Unset, the deploy falls back to `evg-app`; set to something the tailnet does not have, it fails naming the machines it does have. |
 | `AGENTS_VM_HOSTNAME` | `evg-site-agent` | the tailnet name *Deploy infra* refreshes when run with `refresh_agents`. Same rule as above: it must equal Terraform's `instance_name`, and unset falls back to `evg-site-agent`. |
 | `LLM_MODEL` | `gemini-3.8-flash` | The agents, on Antigravity CLI at `--effort high`. Bare slug, no provider prefix. |
-| `LLM_PROVIDER` | `antigravity` | The agent runtime. `agy` needs **one interactive sign-in on the VM** — it cannot use the service account, and the API-key path is blocked by a Google-managed policy. See [docs/deployment.md](docs/deployment.md). |
+| `LLM_PROVIDER` | `antigravity` | The agent runtime: `antigravity`, `opencode` or `claude`. Terraform validates the value. |
 | `AGENTS_SERVICE_ACCOUNT` | `evg-agents@PROJECT.iam.gserviceaccount.com` | Attached to the agents VM, giving it Vertex AI with no key. Created by hand — Terraform attaches it but must not be able to mint identities. Commands in [docs/deployment.md](docs/deployment.md). |
-| `LLM_API_KEY_ENV_NAME` | `GEMINI_API_KEY` | the env var the SDK reads; the wrong name fails silently as "no key" |
 | `VAPID_SUBJECT` | `mailto:you@example.com` | |
 | `IMAGE_TAG` | `main` | the bootstrap tag; deploys pin a sha afterwards |
 

@@ -362,46 +362,46 @@ The role manual is **inlined into the prompt** rather than passed with
 and depending on a guess is worse than passing a few kilobytes. The manuals in
 `.opencode/agent/` stay the single source of truth for both runtimes.
 
-#### It needs one interactive sign-in, and there is no way round it
+#### Authentication: the `GEMINI_API_KEY` secret
 
-This is the operational catch, so it is worth being plain about.
+`agy` reads `GEMINI_API_KEY`, and `~/.gemini/antigravity-cli/settings.json`
+declares `"modelProvider": "gemini"`. Both are written by the startup script.
+Nothing interactive, nothing cached, nothing that expires with a session.
 
-`agy` does **not** authenticate with the service account attached to the VM.
-Its only documented non-interactive path is `GEMINI_API_KEY` against
-`generativelanguage.googleapis.com` — and on this project that endpoint is
-blocked:
+**One name, end to end.** The GitHub secret, the Terraform variable, the line
+in the VM's `.env` and the variable `agy` reads are all `GEMINI_API_KEY`. The
+version before this copied one key into three differently-named variables, and
+the question "which one is authoritative" cost an afternoon. Terraform refuses
+the plan if it is empty.
+
+The key must be one the Gemini API accepts. A key restricted to
+`aiplatform.googleapis.com` — which is what the Agent Platform hands out, and
+what `constraints/iam.managed.disableServiceAccountApiKeyCreation` forces on a
+project with no parent organisation — authenticates and is then refused at the
+endpoint:
 
 ```
 Error 403: Requests to this API generativelanguage.googleapis.com ... are blocked.
 ```
 
-The 403 is worth reading carefully: the key **authenticated**. What was refused
-was the endpoint, by `constraints/iam.managed.disableServiceAccountApiKeyCreation`
-— a policy Google applies by default, and which cannot be relaxed here because
-**this project has no parent organisation**. Redirecting with
-`GOOGLE_GEMINI_BASE_URL` to the Vertex endpoint returns 404: the path shapes
-differ.
+Read that 403 carefully if you ever see it again: the key was fine, the
+endpoint was not. `GOOGLE_GEMINI_BASE_URL` pointed at Vertex does not rescue
+it — 404, the path shapes differ.
 
-So, once, from a machine with a browser:
+#### Execution mode
 
-```bash
-tailscale ssh hermes@evg-site-agent
-agy                     # prints a URL; open it, paste the code back
-sudo systemctl restart hermes-gateway
-```
+`--mode accept-edits` for every role, including the read-only ones.
 
-The boot checks this and says so in the startup log rather than letting every
-later request fail on its own.
+`plan` looks right for spec, review, diagnose and route — until you notice the
+spec agent's entire job is to **write** `specs/NNNN-*.md`, which is what plan
+mode exists to prevent. So the read-only roles are read-only by what their
+manuals forbid and by what they are asked to do, not by the runtime.
 
-**Two things to watch**, because neither is settled:
-
-1. Whether the cached session survives for the **systemd** units, which run as
-   hermes with no desktop keyring. If it does not, the sign-in has to be redone
-   somewhere the daemon can see it.
-2. Whether `--mode plan` lets the **spec** agent write its spec file. Its job is
-   to create `specs/NNNN-*.md`, and plan mode exists to prevent edits. The mode
-   is overridable per role (`AGENT_MODE_READONLY`) so that is one word to
-   change once a real run has answered it.
+That is genuinely weaker than what OpenCode gave us, and worth stating: there,
+`route` could not write a file because its tool list contained no writer. Here
+it could. Spec 0013 rule 2 — «answering a question must not change anything» —
+is now a promise the prompt makes rather than one the runtime enforces.
+`AGENT_MODE` overrides it per run if that ever matters.
 
 ### Vertex AI, through a service account rather than a key
 

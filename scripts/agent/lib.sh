@@ -1,60 +1,17 @@
 #!/usr/bin/env bash
-# Shared helpers for the agent pipeline. Sourced, never executed directly.
+# Antigravity's execution mode.
 #
-# The pipeline deliberately talks to the coding agents through this one file so
-# that Hermes only ever depends on a stable shell contract, not on a particular
-# agent CLI. Swapping OpenCode for Claude Code is one env var.
-
-set -euo pipefail
-
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-export REPO_ROOT
-
-# antigravity | opencode | claude
-AGENT_RUNTIME="${AGENT_RUNTIME:-antigravity}"
-
-# PATH for opencode, which no non-interactive shell inherits. See path.sh.
-# shellcheck source=scripts/agent/path.sh
-source "$(dirname "${BASH_SOURCE[0]}")/path.sh"
-LOG_DIR="${AGENT_LOG_DIR:-$REPO_ROOT/.agent-logs}"
-# `|| true`: a directory we cannot create is handled per-run below, and must not
-# stop the agent from running at all.
-mkdir -p "$LOG_DIR" 2>/dev/null || true
-
-log()  { printf '\033[36m[%s]\033[0m %s\n' "$(date -u +%H:%M:%S)" "$*" >&2; }
-warn() { printf '\033[33m[%s] WARN\033[0m %s\n' "$(date -u +%H:%M:%S)" "$*" >&2; }
-die()  { printf '\033[31m[%s] FATAL\033[0m %s\n' "$(date -u +%H:%M:%S)" "$*" >&2; exit 1; }
-
-# run_agent <role: spec|code|review> <prompt>
+# `accept-edits` for every role, the read-only ones included. `plan` was the
+# obvious choice for those — until the spec agent, whose entire job is to WRITE
+# `specs/NNNN-*.md`, which is exactly what plan mode exists to prevent.
 #
-# Prints the agent's final message on stdout (that is the machine-readable
-# report the callers parse) and tees the full transcript to .agent-logs/.
-# Errors that are the CLIENT's, not ours, and that come and go.
-#
-# Gemini 3 requires the thought signature of every function call to be echoed
-# back on the next turn (see docs/deployment.md). OpenCode drops it sometimes —
-# not always, and more often the longer the conversation — and the API then
-# rejects a conversation whose last entry is a model turn:
-#
-#   Error: Requests ending with a model turn are not supported.
-#
-# We cannot fix that from here. What we can stop doing is surfacing it to
-# someone on a phone as «je n'ai pas réussi à interpréter ta demande».
-# Antigravity's execution mode, per role.
-#
-# `plan` for every read-only role, `accept-edits` for the one that writes. Both
-# run without ever asking a human — which is the requirement — and `plan` keeps
-# the read-only roles read-only, which is what spec 0013 rule 2 promises about
-# the router: answering a question must not change anything.
-#
-# NOTE the open question on `spec`: our spec agent's job is to WRITE a spec
-# file, and `plan` mode may well refuse to. Overridable per role precisely so
-# that is a one-word change once a real run has settled it.
+# So the read-only roles stay read-only by what their manuals forbid and by
+# what they are asked to do, not by the CLI's mode. That is weaker, and worth
+# saying out loud: under OpenCode, `route` could not write a file because its
+# tool list did not include one. Here it could. Spec 0013 rule 2 is now a
+# promise the prompt makes rather than one the runtime enforces.
 agent_mode() {
-  case "$1" in
-    code) echo "${AGENT_MODE_CODE:-accept-edits}" ;;
-    *)    echo "${AGENT_MODE_READONLY:-plan}" ;;
-  esac
+  echo "${AGENT_MODE:-accept-edits}"
 }
 
 # The role manual, inlined into the prompt.
@@ -96,7 +53,7 @@ run_agent() {
     case "$AGENT_RUNTIME" in
       antigravity)
         command -v agy >/dev/null || die "agy not found in PATH (see docs/deployment.md)"
-        local mode; mode="$(agent_mode "$role")"
+        local mode; mode="$(agent_mode)"
         # --dangerously-skip-permissions: nothing may wait for a human. A
         # pipeline that stops on a prompt nobody will ever see is worse than
         # one that fails, because it fails silently and holds the lock.

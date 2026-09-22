@@ -243,18 +243,15 @@ echo "=== [7/8] Pas de site_repo_url : dépôt non cloné ==="
 # une erreur d'API que personne ne relie au boot. Un appel trivial ici, et le
 # journal de démarrage porte la réponse.
 echo "=== [7b/8] Le runtime des agents est-il utilisable ? ==="
-# agy ne s'authentifie PAS avec le compte de service de la VM : sa seule voie
-# non interactive documentée est une cle GEMINI_API_KEY vers
-# generativelanguage, que la policy Google par defaut de ce projet bloque. Il
-# faut donc une connexion OAuth, une fois, faite par un humain.
-if su - hermes -c "export PATH=\$HOME/.local/bin:\$PATH && timeout 60 agy -p 'Réponds exactement: PRET' --model gemini-3.8-flash --effort low 2>&1 | tail -3" | grep -qi "pret"; then
-  echo "OK: agy est authentifie et le modele repond"
+# agy s'authentifie par GEMINI_API_KEY, écrite dans .env plus haut et déclarée
+# dans ~/.gemini/antigravity-cli/settings.json. Un runtime muet ne se voit pas :
+# les services démarrent, le bot écoute, et chaque demande échoue plus tard.
+if su - hermes -c "export PATH=\$HOME/.local/bin:\$PATH && . ~/.hermes/.env && timeout 90 agy -p 'Réponds exactement: PRET' --model ${llm_model} --effort low --dangerously-skip-permissions 2>&1 | tail -3" | grep -qi "pret"; then
+  echo "OK: agy répond avec ${llm_model}"
 else
-  echo "WARN: agy N EST PAS authentifie. Aucun agent ne pourra tourner."
-  echo "WARN: une seule fois, depuis un poste avec navigateur :"
-  echo "WARN:   tailscale ssh hermes@${instance_name}"
-  echo "WARN:   agy            # colle l URL dans ton navigateur, reporte le code"
-  echo "WARN: puis: systemctl restart hermes-gateway"
+  echo "WARN: agy NE RÉPOND PAS. Aucun agent ne pourra tourner."
+  echo "WARN: vérifier le secret GEMINI_API_KEY, puis sur la VM :"
+  echo "WARN:   . ~/.hermes/.env && agy -p 'test' --model ${llm_model}"
 fi
 
 echo "=== [8/8] Services systemd ==="
