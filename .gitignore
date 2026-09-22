@@ -53,3 +53,9 @@ user-seed.txt
 
 # conversation memory, local to each gateway
 data/hermes/
+
+# Terraform override files: local scaffolding for a plan against a local
+# backend. One of these on main would force that backend and break every
+# deploy — and `git add -A` picked one up once.
+*_override.tf
+*_override.tf.json

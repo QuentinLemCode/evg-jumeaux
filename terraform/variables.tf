@@ -101,49 +101,44 @@ variable "agents_service_account" {
   default     = ""
 }
 
-variable "llm_api_key" {
-  description = "Clé API Agent Platform, partagée par Hermes et par les agents OpenCode"
+variable "gemini_api_key" {
+  description = <<-EOT
+    Clé d'API Gemini lue par Antigravity CLI (secret GEMINI_API_KEY).
+
+    Un seul nom, de bout en bout : le secret GitHub, cette variable, la ligne
+    du .env et la variable d'environnement qu'`agy` lit s'appellent tous
+    GEMINI_API_KEY. La version précédente la recopiait sous trois noms depuis
+    une variable appelée autrement, et personne ne savait plus laquelle faisait
+    foi.
+  EOT
   type        = string
   sensitive   = true
 
   validation {
-    condition     = length(var.llm_api_key) > 0
-    error_message = "llm_api_key est obligatoire (secret LLM_API_KEY)."
-  }
-}
-
-variable "llm_api_key_env_name" {
-  description = <<-EOT
-    Nom de la variable d'environnement attendue par le SDK du provider.
-    Pour Google/Gemini : GEMINI_API_KEY (ou GOOGLE_GENERATIVE_AI_API_KEY selon
-    le SDK). C'est une variable et pas une constante parce que le nom dépend du
-    provider, et se tromper produit un échec silencieux « pas de clé ».
-  EOT
-  type        = string
-  default     = "GEMINI_API_KEY"
-
-  validation {
-    condition     = can(regex("^[A-Z][A-Z0-9_]*$", var.llm_api_key_env_name))
-    error_message = "llm_api_key_env_name doit etre un nom de variable d environnement, ex. GEMINI_API_KEY (variable LLM_API_KEY_ENV_NAME)."
+    condition     = length(var.gemini_api_key) > 0
+    error_message = "gemini_api_key est obligatoire (secret GEMINI_API_KEY). Sans elle, aucun agent ne peut tourner."
   }
 }
 
 variable "llm_provider" {
-  description = "Identifiant du provider côté OpenCode (ex: google)"
+  description = <<-EOT
+    Runtime des agents : antigravity | opencode | claude. Écrit dans
+    AGENT_RUNTIME, que lib.sh lit.
+  EOT
   type        = string
-  default     = "google"
+  default     = "antigravity"
 
   validation {
-    condition     = length(var.llm_provider) > 0
-    error_message = "llm_provider est obligatoire (variable LLM_PROVIDER)."
+    condition     = contains(["antigravity", "opencode", "claude"], var.llm_provider)
+    error_message = "llm_provider doit valoir antigravity, opencode ou claude (variable LLM_PROVIDER)."
   }
 }
 
 variable "llm_base_url" {
   description = <<-EOT
-    URL de base du provider, si la clé Agent Platform passe par un endpoint
-    dédié plutôt que par l'API publique. Laisser vide pour l'endpoint par
-    défaut du SDK.
+    Endpoint alternatif, uniquement pour le runtime opencode conservé en
+    secours. Inutile avec antigravity, qui prend son endpoint de sa propre
+    configuration.
   EOT
   type        = string
   default     = ""

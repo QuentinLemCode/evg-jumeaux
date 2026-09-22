@@ -341,129 +341,73 @@ the tailnet policy were wrong, because from the runner's point of view there is
 no tailnet at all. The deploy's own preflight checks `BackendState` first for
 exactly this reason, and says so.
 
+### The agent runtime: Antigravity CLI
+
+`agy`, Google's own CLI, installed by the startup script. It is what the agents
+run on, at `gemini-3.8-flash` with `--effort high`.
+
+Flags that matter, all verified against `agy --help` on the VM:
+
+| flag | why |
+|---|---|
+| `--print` | one prompt, non-interactive, exit |
+| `--model` / `--effort high` | as chosen |
+| `--mode plan` | every read-only role: spec, review, diagnose, route |
+| `--mode accept-edits` | the one role that writes: code |
+| `--dangerously-skip-permissions` | **nothing may wait for a human.** A pipeline that stops on a prompt nobody will ever see is worse than one that fails: it fails silently, holding the lock |
+| `--print-timeout 0` | wait for the turn; the caller already has its own timeout |
+
+The role manual is **inlined into the prompt** rather than passed with
+`--agent`. Antigravity's documentation does not say where it discovers agents,
+and depending on a guess is worse than passing a few kilobytes. The manuals in
+`.opencode/agent/` stay the single source of truth for both runtimes.
+
+#### Authentication: the `GEMINI_API_KEY` secret
+
+`agy` reads `GEMINI_API_KEY`, and `~/.gemini/antigravity-cli/settings.json`
+declares `"modelProvider": "gemini"`. Both are written by the startup script.
+Nothing interactive, nothing cached, nothing that expires with a session.
+
+**One name, end to end.** The GitHub secret, the Terraform variable, the line
+in the VM's `.env` and the variable `agy` reads are all `GEMINI_API_KEY`. The
+version before this copied one key into three differently-named variables, and
+the question "which one is authoritative" cost an afternoon. Terraform refuses
+the plan if it is empty.
+
+The key must be one the Gemini API accepts. A key restricted to
+`aiplatform.googleapis.com` — which is what the Agent Platform hands out, and
+what `constraints/iam.managed.disableServiceAccountApiKeyCreation` forces on a
+project with no parent organisation — authenticates and is then refused at the
+endpoint:
+
+```
+Error 403: Requests to this API generativelanguage.googleapis.com ... are blocked.
+```
+
+Read that 403 carefully if you ever see it again: the key was fine, the
+endpoint was not. `GOOGLE_GEMINI_BASE_URL` pointed at Vertex does not rescue
+it — 404, the path shapes differ.
+
+#### Execution mode
+
+`--mode accept-edits` for every role, including the read-only ones.
+
+`plan` looks right for spec, review, diagnose and route — until you notice the
+spec agent's entire job is to **write** `specs/NNNN-*.md`, which is what plan
+mode exists to prevent. So the read-only roles are read-only by what their
+manuals forbid and by what they are asked to do, not by the runtime.
+
+That is genuinely weaker than what OpenCode gave us, and worth stating: there,
+`route` could not write a file because its tool list contained no writer. Here
+it could. Spec 0013 rule 2 — «answering a question must not change anything» —
+is now a promise the prompt makes rather than one the runtime enforces.
+`AGENT_MODE` overrides it per run if that ever matters.
+
 ### Vertex AI, through a service account rather than a key
 
-The agents reach Gemini through **Vertex AI, authenticated by the service
-account attached to their VM**. There is no API key on that machine: OpenCode
-asks the metadata server for a token. Nothing to rotate, nothing to leak, and
-revoking access is detaching one account.
-
-`location` is **`global`**. The regional endpoints return 404 for
-`gemini-3.8-flash` on this project — measured, not assumed.
-
-Terraform attaches the account but does not create it, and that split is
-deliberate: creating identities and granting them roles needs
-`serviceAccountAdmin` and `projectIamAdmin`, and a workflow that can mint
-identities is a workflow that can grant itself anything. Three commands, once:
-
-```bash
-PROJECT=YOUR_GCP_PROJECT
-SA=evg-agents@$PROJECT.iam.gserviceaccount.com
-CI=<the service account from step 2>
-
-gcloud iam service-accounts create evg-agents --project="$PROJECT" \
-  --display-name="Agents VM (Vertex AI)"
-
-# The only role it needs. Not editor, not aiplatform.admin.
-gcloud projects add-iam-policy-binding "$PROJECT" \
-  --member="serviceAccount:$SA" --role=roles/aiplatform.user
-
-# Let CI attach it to the VM — on this account only, not project-wide.
-gcloud iam service-accounts add-iam-policy-binding "$SA" --project="$PROJECT" \
-  --member="serviceAccount:$CI" --role=roles/iam.serviceAccountUser
-```
-
-Then set the `AGENTS_SERVICE_ACCOUNT` variable to that email, and
-`LLM_PROVIDER=google-vertex`, `LLM_MODEL=google-vertex/gemini-3.8-flash`.
-
-Verify from the VM itself — this is what the agent does:
-
-```bash
-curl -s -H 'Metadata-Flavor: Google' \
-  http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/email
-```
-
-#### The client loses thought signatures, intermittently
-
-Switching to the `google-vertex` provider did not end this:
-
-```
-Error: Requests ending with a model turn are not supported.
-```
-
-It is **intermittent** and gets likelier the longer the conversation. The same
-prompt that failed once succeeded four times in a row after upgrading OpenCode
-from 1.18.31 to 1.18.32 — which is evidence, not proof, and not something we
-control either way.
-
-So two defences, neither of them a fix:
-
-- `run_agent` **retries** that specific error, three attempts. Someone on a
-  phone should not be told «je n'ai pas réussi à interpréter ta demande»
-  because a client dropped a field. Any other failure is still reported.
-- *Deploy infra*'s refresh runs `opencode upgrade`. The bug lives in releases
-  we do not own, so staying current is cheaper than diagnosing it twice.
-
-And the agents are told to read as little as they can: fewer turns is less
-exposure, and it is faster for the person waiting.
-
-#### No credentials file is needed on GCE
-
-OpenCode's documentation for Google Vertex AI mentions
-`GOOGLE_APPLICATION_CREDENTIALS` and `gcloud auth application-default login`.
-Neither applies here, and setting the variable to a path that does not exist
-would *break* what currently works.
-
-On a GCE instance with a service account attached, the metadata server is part
-of the Application Default Credentials chain: the provider asks it for a token
-and gets one. Verified on the VM with the variable unset — the router answered
-normally. The credentials file is for machines outside GCE, where there is no
-metadata server to ask.
-
-#### One place decides the model
-
-`.opencode/opencode.json` in the repository does **not** set a model, and must
-not. OpenCode loads the machine's global config first and the repository's
-second, so a `model` there silently overrides the machine — which is exactly
-what happened: the VM's global config said `google-vertex/gemini-3.8-flash`,
-the repository said `{env:LLM_MODEL}`, `.env` still said `google/...`, and
-every agent went to the blocked endpoint while the global config sat there
-being correct.
-
-Which model to use is a property of the machine — of which provider it can
-authenticate to — so it lives in the machine's config, written by Terraform.
-See `.opencode/README.md`.
-
-#### Why not an API key
-
-Because it did not work, and the way it failed is worth knowing.
-
-An Agent Platform key is restricted by org policy to
-`aiplatform.googleapis.com`, so OpenCode's `google` provider — which speaks the
-Gemini API and calls `generativelanguage.googleapis.com` — has to be pointed at
-the Vertex endpoint with `baseURL`. That *looks* like it works: short prompts
-answer fine. It then dies partway through a real agent run:
-
-```
-Error: Requests ending with a model turn are not supported.
-```
-
-The cause, established by replaying the API by hand:
-
-| | `thoughtSignature` echoed back | omitted |
-|---|---|---|
-| `gemini-3.8-flash` | works | **`Function call is missing a thought_signature`** |
-| `gemini-2.5-pro` | works | works |
-
-**Gemini 3 requires the thought signature of every `functionCall` to be sent
-back on the following turn.** Gemini 2.5 does not. The two endpoints are not
-the same protocol, and the mismatch only surfaces once a conversation is long
-enough to carry tool calls forward — which is every real agent run and no
-smoke test.
-
-The `google-vertex` provider handles it, because it is the one written for that
-endpoint. Verified end to end: the spec agent completed a full run on
-`gemini-3.8-flash` and amended a spec.
+Still how the *application* side and any `curl` probing reach Vertex, and still
+how OpenCode is configured — `lib.sh` can drive either runtime, and having a
+second one available is what isolated the thought-signature bug.
 
 ### 5. The application secrets
 

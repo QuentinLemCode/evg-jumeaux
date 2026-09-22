@@ -83,20 +83,26 @@ echo "=== [6/8] Agents ==="
 # plus bas). lib.sh sait aussi piloter Claude Code, pour un humain en local,
 # mais la VM n'en a pas besoin : un outil installé de plus est une surface de
 # plus a maintenir et a mettre a jour.
+# Antigravity CLI (agy) : le runtime des agents. Go, pas de Node.
+su - hermes -c "curl -fsSL https://antigravity.google/cli/install.sh | bash" \
+  || echo "WARN: installation d Antigravity echouee — les agents ne pourront pas tourner"
+
+# OpenCode reste installe : lib.sh sait piloter les deux, et avoir un second
+# runtime sous la main a deja servi a isoler un bug de client.
 su - hermes -c "curl -fsSL https://opencode.ai/install | bash" \
-  || echo "WARN: installation d OpenCode echouee — les agents ne pourront pas tourner"
+  || echo "WARN: installation d OpenCode echouee (secondaire)"
 
 # La clé Agent Platform, exposée sous LES DEUX noms attendus par les SDK
 # Google : le nom exact dépend de la version du SDK, et se tromper ne produit
 # qu'un « pas de clé » silencieux.
 mkdir -p /home/hermes/.hermes
 cat > /home/hermes/.hermes/.env <<ENVFILE
-${llm_api_key_env_name}=${llm_api_key}
-GEMINI_API_KEY=${llm_api_key}
-GOOGLE_GENERATIVE_AI_API_KEY=${llm_api_key}
+# Le seul nom de la chaîne : secret GitHub, variable Terraform, ligne de .env
+# et variable lue par agy portent tous celui-ci.
+GEMINI_API_KEY=${gemini_api_key}
 LLM_MODEL=${llm_model}
 LLM_PROVIDER=${llm_provider}
-AGENT_RUNTIME=opencode
+AGENT_RUNTIME=antigravity
 %{ if llm_base_url != "" ~}
 LLM_BASE_URL=${llm_base_url}
 %{ endif ~}
@@ -128,6 +134,18 @@ chmod 600 /home/hermes/.hermes/.env
 
 # Config OpenCode globale : le modèle et, si la clé passe par un endpoint
 # dédié, son URL de base.
+# Antigravity : authentification par clé d'API, la seule voie non interactive
+# qui marche ici. Le compte de service de la VM ne lui sert à rien, et la voie
+# OAuth demanderait un navigateur qu'une VM n'a pas.
+mkdir -p /home/hermes/.gemini/antigravity-cli
+cat > /home/hermes/.gemini/antigravity-cli/settings.json <<'AGYJSON'
+{
+  "modelProvider": "gemini"
+}
+AGYJSON
+chown -R hermes:hermes /home/hermes/.gemini
+chmod 700 /home/hermes/.gemini/antigravity-cli
+
 mkdir -p /home/hermes/.config/opencode
 %{ if llm_provider == "google-vertex" ~}
 # Vertex AI par le compte de service attaché à la VM : pas de clé sur la
@@ -158,7 +176,7 @@ cat > /home/hermes/.config/opencode/opencode.json <<OCJSON
   "provider": {
     "${llm_provider}": {
       "options": {
-        "apiKey": "{env:${llm_api_key_env_name}}"
+        "apiKey": "{env:GEMINI_API_KEY}"
 %{ if llm_base_url != "" ~}
         , "baseURL": "${llm_base_url}"
 %{ endif ~}
@@ -178,7 +196,7 @@ set -a
 export PATH="$HOME/.opencode/bin:$HOME/.local/bin:$PATH"
 [ -f /home/hermes/.hermes/.env ] && . /home/hermes/.hermes/.env
 set +a
-export AGENT_RUNTIME=opencode
+export AGENT_RUNTIME=antigravity
 BASHRC
 chown hermes:hermes /home/hermes/.bashrc
 
@@ -224,13 +242,16 @@ echo "=== [7/8] Pas de site_repo_url : dépôt non cloné ==="
 # les services démarrent, le bot écoute, et chaque demande échoue plus tard sur
 # une erreur d'API que personne ne relie au boot. Un appel trivial ici, et le
 # journal de démarrage porte la réponse.
-echo "=== [7b/8] Le modèle répond-il ? ==="
-if su - hermes -c "cd $SITE_DIR && . ~/.hermes/.env && export PATH=\$HOME/.opencode/bin:\$PATH && timeout 90 opencode run --agent diagnose --auto 'Réponds exactement: PRET' 2>&1 | tail -3" | grep -qi "pret"; then
-  echo "OK: le modèle répond"
+echo "=== [7b/8] Le runtime des agents est-il utilisable ? ==="
+# agy s'authentifie par GEMINI_API_KEY, écrite dans .env plus haut et déclarée
+# dans ~/.gemini/antigravity-cli/settings.json. Un runtime muet ne se voit pas :
+# les services démarrent, le bot écoute, et chaque demande échoue plus tard.
+if su - hermes -c "export PATH=\$HOME/.local/bin:\$PATH && . ~/.hermes/.env && timeout 90 agy -p 'Réponds exactement: PRET' --model ${llm_model} --effort low --dangerously-skip-permissions 2>&1 | tail -3" | grep -qi "pret"; then
+  echo "OK: agy répond avec ${llm_model}"
 else
-  echo "WARN: le modèle NE RÉPOND PAS. Les agents échoueront à chaque demande."
-  echo "WARN: vérifier LLM_PROVIDER / LLM_MODEL dans ~/.hermes/.env et"
-  echo "WARN:   ~/.config/opencode/opencode.json, puis: journalctl -u hermes-gateway"
+  echo "WARN: agy NE RÉPOND PAS. Aucun agent ne pourra tourner."
+  echo "WARN: vérifier le secret GEMINI_API_KEY, puis sur la VM :"
+  echo "WARN:   . ~/.hermes/.env && agy -p 'test' --model ${llm_model}"
 fi
 
 echo "=== [8/8] Services systemd ==="
