@@ -220,6 +220,19 @@ fi
 echo "=== [7/8] Pas de site_repo_url : dépôt non cloné ==="
 %{ endif ~}
 
+# Le modèle répond-il vraiment ? Un provider mal configuré ne se voit pas :
+# les services démarrent, le bot écoute, et chaque demande échoue plus tard sur
+# une erreur d'API que personne ne relie au boot. Un appel trivial ici, et le
+# journal de démarrage porte la réponse.
+echo "=== [7b/8] Le modèle répond-il ? ==="
+if su - hermes -c "cd $SITE_DIR && . ~/.hermes/.env && export PATH=\$HOME/.opencode/bin:\$PATH && timeout 90 opencode run --agent diagnose --auto 'Réponds exactement: PRET' 2>&1 | tail -3" | grep -qi "pret"; then
+  echo "OK: le modèle répond"
+else
+  echo "WARN: le modèle NE RÉPOND PAS. Les agents échoueront à chaque demande."
+  echo "WARN: vérifier LLM_PROVIDER / LLM_MODEL dans ~/.hermes/.env et"
+  echo "WARN:   ~/.config/opencode/opencode.json, puis: journalctl -u hermes-gateway"
+fi
+
 echo "=== [8/8] Services systemd ==="
 cat > /etc/systemd/system/hermes-gateway.service <<'UNIT'
 [Unit]

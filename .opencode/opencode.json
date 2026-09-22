@@ -9,7 +9,6 @@
     "skills/confetti-ui/SKILL.md",
     "skills/deploy-production/SKILL.md"
   ],
-  "model": "{env:LLM_MODEL}",
   "agent": {
     "spec": {
       "description": "Owns specs/. Turns a human request into a numbered, testable specification. Never writes application code."
