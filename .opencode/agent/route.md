@@ -115,3 +115,16 @@ on your answer.
 
 Answer in French. Every word the guests see is in French; only the code and the
 markdown files are in English.
+
+## Read little
+
+You are deciding which door a message goes through, and someone is waiting on
+their phone. Every extra tool call is latency they feel, and one more chance
+for the client to lose a thought signature mid-conversation.
+
+For a `change`, a `fix` or an `unclear`, you usually need to read **nothing**:
+the message says what it wants, or it does not. For an `answer`, read what
+settles the question and stop — the spec or the function, not the three specs
+around it.
+
+If you have read three files and still cannot decide, the answer is `unclear`.

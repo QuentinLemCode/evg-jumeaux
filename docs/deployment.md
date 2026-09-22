@@ -383,6 +383,30 @@ curl -s -H 'Metadata-Flavor: Google' \
   http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/email
 ```
 
+#### The client loses thought signatures, intermittently
+
+Switching to the `google-vertex` provider did not end this:
+
+```
+Error: Requests ending with a model turn are not supported.
+```
+
+It is **intermittent** and gets likelier the longer the conversation. The same
+prompt that failed once succeeded four times in a row after upgrading OpenCode
+from 1.18.31 to 1.18.32 — which is evidence, not proof, and not something we
+control either way.
+
+So two defences, neither of them a fix:
+
+- `run_agent` **retries** that specific error, three attempts. Someone on a
+  phone should not be told «je n'ai pas réussi à interpréter ta demande»
+  because a client dropped a field. Any other failure is still reported.
+- *Deploy infra*'s refresh runs `opencode upgrade`. The bug lives in releases
+  we do not own, so staying current is cheaper than diagnosing it twice.
+
+And the agents are told to read as little as they can: fewer turns is less
+exposure, and it is faster for the person waiting.
+
 #### No credentials file is needed on GCE
 
 OpenCode's documentation for Google Vertex AI mentions
