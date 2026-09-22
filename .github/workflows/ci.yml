@@ -12,7 +12,17 @@ name: CI
 #                     → e2e    (Playwright, browser cached)
 #   terraform changed → infra  (fmt + validate)
 #
-# `Verdict` is the ONE job branch protection should require. It passes when
+# TWO required checks now: `Verdict` and `Guarded paths`.
+#
+# Not one, and the reason is subtle. Adding the `infra-ok` label has to be able
+# to unblock a pull request, so the guard must re-run on a label event. But if
+# VERDICT also re-ran then, it would judge a run in which every heavy job was
+# skipped — and skipped counts as passed — so labelling a pull request whose
+# tests had FAILED would report success and overwrite the failure. Verdict
+# therefore does not run on a label event at all, keeps whatever it concluded
+# about the code, and the guard answers for itself.
+#
+# `Verdict` is the ONE job that judges the code. It passes when
 # nothing failed, skipped included — which is what lets auto-merge work on a
 # PR where the heavy jobs were legitimately skipped. Requiring the heavy jobs
 # directly would wedge auto-merge forever on a docs-only PR.
@@ -43,6 +53,8 @@ env:
 jobs:
   scope:
     name: What changed
+    # Nothing downstream of it runs on a label event either.
+    if: github.event.action != 'labeled' && github.event.action != 'unlabeled'
     runs-on: ubuntu-latest
     timeout-minutes: 3
     outputs:
@@ -90,8 +102,12 @@ jobs:
           echo "terraform=$TF" >> "$GITHUB_OUTPUT"
           echo "summary=code=$CODE terraform=$TF" >> "$GITHUB_OUTPUT"
 
+  # Everything below is skipped when the event is just a label being added or
+  # removed: the only thing a label can change is the guard's answer, and
+  # re-running the browser suite to learn that costs four minutes for nothing.
   quick:
     name: Quick checks
+    if: github.event.action != 'labeled' && github.event.action != 'unlabeled'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -156,7 +172,7 @@ jobs:
   tests:
     name: Tests and build
     needs: [scope]
-    if: needs.scope.outputs.code == 'true'
+    if: needs.scope.outputs.code == 'true' && github.event.action != 'labeled' && github.event.action != 'unlabeled'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -183,7 +199,7 @@ jobs:
   e2e:
     name: End-to-end
     needs: [scope]
-    if: needs.scope.outputs.code == 'true' && inputs.skip_e2e != 'true'
+    if: needs.scope.outputs.code == 'true' && inputs.skip_e2e != 'true' && github.event.action != 'labeled' && github.event.action != 'unlabeled'
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -238,7 +254,7 @@ jobs:
   infra:
     name: Terraform
     needs: [scope]
-    if: needs.scope.outputs.terraform == 'true'
+    if: needs.scope.outputs.terraform == 'true' && github.event.action != 'labeled' && github.event.action != 'unlabeled'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     defaults:
@@ -316,8 +332,8 @@ jobs:
     # The single check branch protection requires. `always()` so it reports
     # even when a needed job was skipped — a skipped job is a pass here, which
     # is exactly what makes auto-merge work on a docs-only PR.
-    if: always()
-    needs: [scope, quick, tests, e2e, infra, guarded]
+    if: always() && github.event.action != 'labeled' && github.event.action != 'unlabeled'
+    needs: [scope, quick, tests, e2e, infra]
     runs-on: ubuntu-latest
     timeout-minutes: 3
     steps:

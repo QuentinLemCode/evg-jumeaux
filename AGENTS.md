@@ -388,7 +388,8 @@ and opens a pull request — no spec, no product change.
 **The limit, and why it is where it is.** A pull request touching
 `terraform/`, `.github/workflows/`, `scripts/agent/`, `.opencode/`, `skills/`
 or this file fails the `Guarded paths` check until a human adds the `infra-ok`
-label. Those are the files that decide what the agent may do. Without that
+label. Adding it re-runs the guard and nothing else — a label cannot change
+what the tests said, so nothing else needs to run. Those are the files that decide what the agent may do. Without that
 check, an agent could weaken the gate in the same pull request the gate is
 about to judge, and auto-merge would honour the weakened one — the rule would
 be enforcing its own removal.

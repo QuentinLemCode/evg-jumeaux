@@ -226,16 +226,29 @@ so they stay readable in the logs when something goes wrong.
 2. **Settings → Rules → Rulesets**, on `main`:
    - *Require a pull request before merging* — this is what stops the agent
      pushing to main;
-   - *Require status checks to pass* → add **`Verdict`**, and only that one;
+   - *Require status checks to pass* → add **`Verdict`** and
+     **`Guarded paths`**, and only those two;
    - *Require branches to be up to date before merging*.
 3. **Allow squash merging**, and nothing else, so `main` stays linear and one
    PR is one commit.
 
-**Require `Verdict` and nothing else.** It is an aggregator that passes when
-no job failed, *skipped included* — which is what lets auto-merge work on a
-docs-only PR where the browser suite was legitimately skipped. Requiring
-`End-to-end` directly would wedge every such PR forever, waiting for a check
-that will never report.
+**Two checks, and no more.** `Verdict` is an aggregator that passes when no
+job failed, *skipped included* — which is what lets auto-merge work on a
+docs-only pull request where the browser suite was legitimately skipped.
+Requiring `End-to-end` directly would wedge every such pull request forever,
+waiting for a check that will never report.
+
+`Guarded paths` is the second because it answers a different question, and
+because of a trap. Adding the `infra-ok` label must be able to unblock a pull
+request, so the guard re-runs on a label event. If `Verdict` re-ran then too,
+it would judge a run in which every heavy job was skipped — and skipped counts
+as passed — so labelling a pull request whose **tests had failed** would report
+success and overwrite the failure. So `Verdict` does not run on a label event
+at all: it keeps whatever it concluded about the code, and the guard answers
+for itself.
+
+That is also why a label costs seconds of CI instead of five minutes: nothing
+but the guard re-runs.
 
 ### Two things Terraform cannot do for you
 
