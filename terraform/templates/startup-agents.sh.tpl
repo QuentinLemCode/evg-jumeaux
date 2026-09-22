@@ -100,9 +100,13 @@ cat > /home/hermes/.hermes/.env <<ENVFILE
 # Le seul nom de la chaîne : secret GitHub, variable Terraform, ligne de .env
 # et variable lue par agy portent tous celui-ci.
 GEMINI_API_KEY=${gemini_api_key}
-LLM_MODEL=${llm_model}
-LLM_PROVIDER=${llm_provider}
-AGENT_RUNTIME=antigravity
+
+# The only two variables lib.sh reads to choose a runtime and a model. They
+# used to be written under OpenCode's names (LLM_PROVIDER, LLM_MODEL), which
+# lib.sh does not read, while AGENT_RUNTIME was hardcoded just below — so the
+# Terraform variable decided nothing at all. One name per concept.
+AGENT_RUNTIME=${llm_provider}
+AGENT_MODEL=${llm_model}
 %{ if llm_base_url != "" ~}
 LLM_BASE_URL=${llm_base_url}
 %{ endif ~}

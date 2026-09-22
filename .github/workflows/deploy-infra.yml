@@ -157,11 +157,20 @@ jobs:
       - name: Pull main and restart the gateway
         env:
           HOST: ${{ vars.AGENTS_VM_HOSTNAME || 'evg-site-agent' }}
+          RUNTIME: ${{ vars.LLM_PROVIDER || 'antigravity' }}
+          MODEL: ${{ vars.LLM_MODEL || 'gemini-3.8-flash' }}
         run: |
           # Piped over stdin, not quoted onto the ssh command line: nesting
           # quotes through two shells is how a working script quietly becomes a
           # no-op, and there is no way to tell by reading it.
-          cat > /tmp/refresh-agents.sh <<'REMOTE'
+          # The two values the remote script needs, written as literal
+          # assignments so the body below stays a QUOTED heredoc. Nesting
+          # quotes through two shells is what the note above warns about.
+          {
+            printf 'RUNTIME=%q\n' "$RUNTIME"
+            printf 'MODEL=%q\n' "$MODEL"
+          } > /tmp/refresh-agents.sh
+          cat >> /tmp/refresh-agents.sh <<'REMOTE'
           set -euo pipefail
           cd ~/site
           BEFORE="$(git rev-parse HEAD)"
@@ -179,11 +188,43 @@ jobs:
             npm ci
           fi
 
-          # The client is where the Gemini 3 thought-signature bug lives, and
-          # it is fixed in releases we do not control. Keeping it current is
-          # cheaper than diagnosing the same intermittent failure twice.
-          export PATH="$HOME/.opencode/bin:$PATH"
-          opencode upgrade 2>&1 | tail -2 || echo "opencode upgrade failed, continuing"
+          # Reconcile the two lines that choose a runtime.
+          #
+          # The .env is written by the startup script, which runs ONLY at boot.
+          # So a VM booted before the switch to Antigravity kept
+          # AGENT_RUNTIME=opencode for as long as it stayed up, and every agent
+          # ran on the wrong runtime while the repository said otherwise. That
+          # is not a stale cache, it is a second source of truth, and this step
+          # exists to collapse it without a shell prompt.
+          #
+          # Only these two keys, and no secret: the key is already on the VM,
+          # and sending one through an ssh heredoc is how it reaches a log.
+          env_set() {
+            local key="$1" value="$2" f=~/.hermes/.env
+            # EVERY occurrence, not the first: a hand-appended duplicate makes
+            # the file's last line win, which is not the line anyone read.
+            #
+            # `grep -v` into a temp file and `cat` it back, rather than
+            # `sed -i`: `cat >` keeps the inode and the 0600 mode, and the
+            # whole thing is testable on a machine whose sed is not GNU's —
+            # deploy.sh learned the same lesson the expensive way. `|| true`
+            # because grep exits 1 when it filters everything out.
+            grep -v "^$key=" "$f" > "$f.next" || true
+            printf '%s=%s\n' "$key" "$value" >> "$f.next"
+            cat "$f.next" > "$f" && rm -f "$f.next"
+            echo "  .env: $key=$value"
+          }
+          env_set AGENT_RUNTIME "$RUNTIME"
+          env_set AGENT_MODEL "$MODEL"
+
+          # Keep the runtime current. `agy` has no self-update, and its
+          # installer is idempotent, so re-running it IS the upgrade. OpenCode
+          # is the standby runtime and follows along.
+          export PATH="$HOME/.local/bin:$HOME/.opencode/bin:$PATH"
+          curl -fsSL https://antigravity.google/cli/install.sh | bash 2>&1 | tail -2 \
+            || echo "agy install failed, continuing with the version already there"
+          echo "agy: $(agy --version 2>&1 | head -1)"
+          opencode upgrade 2>&1 | tail -1 || echo "opencode upgrade failed, continuing"
 
           sudo systemctl restart hermes-gateway
           REMOTE
