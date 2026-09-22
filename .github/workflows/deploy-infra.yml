@@ -62,8 +62,7 @@ jobs:
           TF_VAR_ingress_mode: ${{ vars.INGRESS_MODE }}
 
           # --- Agent Platform key, shared by Hermes and the OpenCode agents -
-          TF_VAR_llm_api_key: ${{ secrets.LLM_API_KEY }}
-          TF_VAR_llm_api_key_env_name: ${{ vars.LLM_API_KEY_ENV_NAME }}
+          TF_VAR_gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
           TF_VAR_llm_provider: ${{ vars.LLM_PROVIDER }}
           TF_VAR_agents_service_account: ${{ vars.AGENTS_SERVICE_ACCOUNT }}
           TF_VAR_llm_base_url: ${{ vars.LLM_BASE_URL }}

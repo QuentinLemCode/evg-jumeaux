@@ -97,9 +97,9 @@ su - hermes -c "curl -fsSL https://opencode.ai/install | bash" \
 # qu'un « pas de clé » silencieux.
 mkdir -p /home/hermes/.hermes
 cat > /home/hermes/.hermes/.env <<ENVFILE
-${llm_api_key_env_name}=${llm_api_key}
-GEMINI_API_KEY=${llm_api_key}
-GOOGLE_GENERATIVE_AI_API_KEY=${llm_api_key}
+# Le seul nom de la chaîne : secret GitHub, variable Terraform, ligne de .env
+# et variable lue par agy portent tous celui-ci.
+GEMINI_API_KEY=${gemini_api_key}
 LLM_MODEL=${llm_model}
 LLM_PROVIDER=${llm_provider}
 AGENT_RUNTIME=antigravity
@@ -134,6 +134,18 @@ chmod 600 /home/hermes/.hermes/.env
 
 # Config OpenCode globale : le modèle et, si la clé passe par un endpoint
 # dédié, son URL de base.
+# Antigravity : authentification par clé d'API, la seule voie non interactive
+# qui marche ici. Le compte de service de la VM ne lui sert à rien, et la voie
+# OAuth demanderait un navigateur qu'une VM n'a pas.
+mkdir -p /home/hermes/.gemini/antigravity-cli
+cat > /home/hermes/.gemini/antigravity-cli/settings.json <<'AGYJSON'
+{
+  "modelProvider": "gemini"
+}
+AGYJSON
+chown -R hermes:hermes /home/hermes/.gemini
+chmod 700 /home/hermes/.gemini/antigravity-cli
+
 mkdir -p /home/hermes/.config/opencode
 %{ if llm_provider == "google-vertex" ~}
 # Vertex AI par le compte de service attaché à la VM : pas de clé sur la
@@ -164,7 +176,7 @@ cat > /home/hermes/.config/opencode/opencode.json <<OCJSON
   "provider": {
     "${llm_provider}": {
       "options": {
-        "apiKey": "{env:${llm_api_key_env_name}}"
+        "apiKey": "{env:GEMINI_API_KEY}"
 %{ if llm_base_url != "" ~}
         , "baseURL": "${llm_base_url}"
 %{ endif ~}

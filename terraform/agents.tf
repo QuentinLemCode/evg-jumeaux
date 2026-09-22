@@ -51,8 +51,7 @@ resource "google_compute_instance" "agents" {
       app_instance_name      = var.app_instance_name
       tailscale_authkey      = var.tailscale_authkey
       llm_provider           = var.llm_provider
-      llm_api_key            = var.llm_api_key
-      llm_api_key_env_name   = var.llm_api_key_env_name
+      gemini_api_key         = var.gemini_api_key
       llm_base_url           = var.llm_base_url
       llm_model              = var.llm_model
       github_token           = var.github_token
