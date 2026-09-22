@@ -29,43 +29,74 @@ die()  { printf '\033[31m[%s] FATAL\033[0m %s\n' "$(date -u +%H:%M:%S)" "$*" >&2
 #
 # Prints the agent's final message on stdout (that is the machine-readable
 # report the callers parse) and tees the full transcript to .agent-logs/.
+# Errors that are the CLIENT's, not ours, and that come and go.
+#
+# Gemini 3 requires the thought signature of every function call to be echoed
+# back on the next turn (see docs/deployment.md). OpenCode drops it sometimes —
+# not always, and more often the longer the conversation — and the API then
+# rejects a conversation whose last entry is a model turn:
+#
+#   Error: Requests ending with a model turn are not supported.
+#
+# We cannot fix that from here. What we can stop doing is surfacing it to
+# someone on a phone as «je n'ai pas réussi à interpréter ta demande».
+AGENT_RETRYABLE='model turn are not supported|Function call is missing a thought_signature'
+AGENT_ATTEMPTS="${AGENT_ATTEMPTS:-3}"
+
 run_agent() {
   local role="$1" prompt="$2"
-  local stamp; stamp="$(date -u +%Y%m%dT%H%M%SZ)"
-  local transcript="$LOG_DIR/${stamp}-${role}.log"
+  local attempt=1
 
-  # The transcript is best-effort. It used to be `| tee "$transcript"`, and when
-  # the directory turned out to be root-owned — one `sudo ./status.sh` is enough
-  # — tee died, took the agent's ENTIRE OUTPUT with it, and the caller saw an
-  # empty report. Losing a log is a nuisance; losing the report is a lie.
-  if ! ( : >> "$transcript" ) 2>/dev/null; then
-    warn "cannot write $transcript ($(stat -c '%U owns %n' "$LOG_DIR" 2>/dev/null || echo "$LOG_DIR missing")) — continuing without a transcript"
-    transcript=/dev/null
-  fi
+  while :; do
+    local stamp; stamp="$(date -u +%Y%m%dT%H%M%SZ)"
+    local transcript="$LOG_DIR/${stamp}-${role}.log"
 
-  log "running '$role' agent via $AGENT_RUNTIME (transcript: $transcript)"
+    # The transcript is best-effort. It used to be `| tee "$transcript"`, and
+    # when the directory turned out to be root-owned — one `sudo ./status.sh`
+    # is enough — tee died, took the agent's ENTIRE OUTPUT with it, and the
+    # caller saw an empty report. Losing a log is a nuisance; losing the
+    # report is a lie.
+    if ! ( : >> "$transcript" ) 2>/dev/null; then
+      warn "cannot write $transcript ($(stat -c '%U owns %n' "$LOG_DIR" 2>/dev/null || echo "$LOG_DIR missing")) — continuing without a transcript"
+      transcript=/dev/null
+    fi
 
-  case "$AGENT_RUNTIME" in
-    opencode)
-      command -v opencode >/dev/null || die "opencode not found in PATH"
-      ( cd "$REPO_ROOT" && opencode run \
-          --agent "$role" \
-          --auto \
-          --title "${role}: ${prompt:0:60}" \
-          "$prompt" ) 2>&1 | tee "$transcript"
-      ;;
-    claude)
-      command -v claude >/dev/null || die "claude not found in PATH"
-      local subagent="${role}-agent"
-      ( cd "$REPO_ROOT" && claude -p \
-          --permission-mode acceptEdits \
-          "Delegate this to the ${subagent} subagent and return its report verbatim: ${prompt}" \
-        ) 2>&1 | tee "$transcript"
-      ;;
-    *)
-      die "unknown AGENT_RUNTIME '$AGENT_RUNTIME' (expected: opencode | claude)"
-      ;;
-  esac
+    log "running '$role' agent via $AGENT_RUNTIME (attempt $attempt/$AGENT_ATTEMPTS, transcript: $transcript)"
+
+    case "$AGENT_RUNTIME" in
+      opencode)
+        command -v opencode >/dev/null || die "opencode not found in PATH"
+        ( cd "$REPO_ROOT" && opencode run \
+            --agent "$role" \
+            --auto \
+            --title "${role}: ${prompt:0:60}" \
+            "$prompt" ) 2>&1 | tee "$transcript"
+        ;;
+      claude)
+        command -v claude >/dev/null || die "claude not found in PATH"
+        local subagent="${role}-agent"
+        ( cd "$REPO_ROOT" && claude -p \
+            --permission-mode acceptEdits \
+            "Delegate this to the ${subagent} subagent and return its report verbatim: ${prompt}" \
+          ) 2>&1 | tee "$transcript"
+        ;;
+      *)
+        die "unknown AGENT_RUNTIME '$AGENT_RUNTIME' (expected: opencode | claude)"
+        ;;
+    esac
+
+    # Retry only the client bug above, and only while attempts remain. Any
+    # other failure is ours and must be reported, not papered over.
+    if [[ "$transcript" != /dev/null ]] \
+      && grep -qE "$AGENT_RETRYABLE" "$transcript" 2>/dev/null \
+      && (( attempt < AGENT_ATTEMPTS )); then
+      warn "the client lost a thought signature (attempt $attempt) — retrying"
+      attempt=$(( attempt + 1 ))
+      sleep 3
+      continue
+    fi
+    return 0
+  done
 }
 
 # report_field <key> <text> — pull "KEY: value" out of an agent report

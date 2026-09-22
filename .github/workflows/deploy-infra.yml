@@ -180,6 +180,12 @@ jobs:
             npm ci
           fi
 
+          # The client is where the Gemini 3 thought-signature bug lives, and
+          # it is fixed in releases we do not control. Keeping it current is
+          # cheaper than diagnosing the same intermittent failure twice.
+          export PATH="$HOME/.opencode/bin:$PATH"
+          opencode upgrade 2>&1 | tail -2 || echo "opencode upgrade failed, continuing"
+
           sudo systemctl restart hermes-gateway
           REMOTE
           ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=20 \
