@@ -18,6 +18,20 @@ source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 [[ $# -ge 1 ]] || die "usage: $0 \"<what is broken>\""
 PROBLEM="$1"
 
+# One repair at a time. The watcher can call this, and so can a human through
+# the gateway; two of them in the same checkout would fight over the branch.
+LOCK="${TMPDIR:-/tmp}/evg-fix.lock"
+exec 9>"$LOCK"
+if ! flock -n 9; then
+  cat <<REPORT
+
+FIX: busy
+REASON: another repair is already running
+NEXT: wait for it to finish
+REPORT
+  exit 3
+fi
+
 log "STEP 0/3 — starting from origin/main"
 git fetch --quiet origin main || die "cannot reach origin"
 git checkout --quiet main || die "cannot check out main"

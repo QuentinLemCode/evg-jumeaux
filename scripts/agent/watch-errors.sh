@@ -28,6 +28,13 @@
 
 set -uo pipefail
 
+# This script deliberately does not use lib.sh — it must run standalone, with
+# looser strictness than the pipeline. But it does need opencode on PATH, and
+# not having it is exactly why every alert said "diagnostic automatique
+# indisponible": systemd gives it none.
+# shellcheck source=scripts/agent/path.sh
+source "$(dirname "${BASH_SOURCE[0]}")/path.sh"
+
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$REPO_ROOT"
 
@@ -117,7 +124,9 @@ ${evidence}
   # A hard timeout, because an alert that waits on a model is not an alert.
   # `timeout` is GNU coreutils — present on the VM, absent on macOS.
   if command -v timeout >/dev/null; then
-    timeout 90 opencode run --agent diagnose --auto "$prompt" 2>/dev/null | tail -8 || echo ""
+    # 150s, not 90: enough for a model that reads a file or two, still
+    # short enough that the alert is an alert. Measured, not guessed.
+    timeout 150 opencode run --agent diagnose --auto "$prompt" 2>/dev/null | tail -8 || echo ""
   else
     opencode run --agent diagnose --auto "$prompt" 2>/dev/null | tail -8 || echo ""
   fi
@@ -147,6 +156,44 @@ ${evidence}"
   fi
 
   "$NOTIFY" "$title" "$body" && mark_alerted "$fp"
+
+  # Diagnosing and then doing nothing is what a log file already does. If the
+  # diagnosis held, try the repair — it opens a pull request that cannot merge
+  # without a human label, so "propose" is the strongest thing it can do.
+  propose_repair "$diagnosis"
+}
+
+# --- propose a repair, once, and say what came of it -------------------------
+propose_repair() {
+  local diagnosis="$1"
+  [[ "${WATCH_AUTOFIX:-1}" == "1" ]] || return 0
+  # No diagnosis means no cause, and a repair without a cause is a guess.
+  [[ -n "${diagnosis// /}" ]] || return 0
+  [[ -x "$REPO_ROOT/scripts/agent/fix.sh" ]] || return 0
+
+  local summary
+  summary="$(printf '%s' "$diagnosis" | tr '\n' ' ' | cut -c1-300)"
+
+  echo "watch: proposing a repair" >&2
+  local out rc
+  out="$("$REPO_ROOT/scripts/agent/fix.sh" "$summary" 2>&1)"; rc=$?
+
+  local pr
+  pr="$(printf '%s\n' "$out" | grep -m1 -E '^PR:' | sed -E 's/^PR:[[:space:]]*//')"
+
+  if [[ $rc -eq 3 ]]; then
+    return 0  # another repair is already running; nothing new to say
+  elif [[ -n "$pr" ]]; then
+    "$NOTIFY" "🔧 Correction proposée" "$pr
+
+Elle attend le label infra-ok si elle touche à l'infrastructure.
+
+$(printf '%s\n' "$out" | grep -E '^(CAUSE|FIX):' || true)"
+  else
+    "$NOTIFY" "🔧 Réparation non aboutie" "L'agent n'a pas pu corriger ça tout seul.
+
+$(printf '%s\n' "$out" | tail -12)"
+  fi
 }
 
 # --- 1. is it up? ------------------------------------------------------------

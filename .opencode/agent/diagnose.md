@@ -48,3 +48,16 @@ Answer **in French, in three lines, with no preamble**:
 | `Cannot pull`, `unauthorized` on ghcr.io | The GHCR token on the VM expired. |
 | `no such file or directory` on `evg.db` | The data volume is not mounted. |
 | A 5xx burst right after a deploy | The new colour started but is failing; check whether Caddy is still pointed at the old one. |
+
+## Answer from the evidence, do not go exploring
+
+You are called by the error watcher, which is waiting to send an alert. An
+alert that arrives three minutes late is not an alert.
+
+So: read the evidence and answer. You may open **at most two files**, and only
+when the evidence names one. Do not grep the repository looking for context —
+the first run of this agent spent its whole budget reading `terraform/` and
+`scripts/` and never answered.
+
+Three lines. If the evidence does not support a cause, say that instead of
+finding one.
