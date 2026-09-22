@@ -159,6 +159,7 @@ jobs:
           HOST: ${{ vars.AGENTS_VM_HOSTNAME || 'evg-site-agent' }}
           RUNTIME: ${{ vars.LLM_PROVIDER || 'antigravity' }}
           MODEL: ${{ vars.LLM_MODEL || 'gemini-3.8-flash' }}
+          KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
           # Piped over stdin, not quoted onto the ssh command line: nesting
           # quotes through two shells is how a working script quietly becomes a
@@ -169,6 +170,7 @@ jobs:
           {
             printf 'RUNTIME=%q\n' "$RUNTIME"
             printf 'MODEL=%q\n' "$MODEL"
+            printf 'KEY=%q\n' "$KEY"
           } > /tmp/refresh-agents.sh
           cat >> /tmp/refresh-agents.sh <<'REMOTE'
           set -euo pipefail
@@ -197,8 +199,16 @@ jobs:
           # is not a stale cache, it is a second source of truth, and this step
           # exists to collapse it without a shell prompt.
           #
-          # Only these two keys, and no secret: the key is already on the VM,
-          # and sending one through an ssh heredoc is how it reaches a log.
+          # The API key is reconciled too, and the first version of this step
+          # deliberately did NOT do that, on the grounds that "the key is
+          # already on the VM". True, and useless: the key already on the VM
+          # was written at the last BOOT, which was four days before the one
+          # that works existed. agy failed with API_KEY_SERVICE_BLOCKED on
+          # generativelanguage.googleapis.com and nothing said why.
+          #
+          # It is passed as a literal assignment into a file, never on a
+          # command line and never echoed, and Actions masks it in logs. The
+          # alternative was a key that can only be rotated by rebooting a VM.
           env_set() {
             local key="$1" value="$2" f=~/.hermes/.env
             # EVERY occurrence, not the first: a hand-appended duplicate makes
@@ -216,6 +226,12 @@ jobs:
           }
           env_set AGENT_RUNTIME "$RUNTIME"
           env_set AGENT_MODEL "$MODEL"
+          # Never echoed by env_set: it prints the key NAME and the value, so
+          # the secret gets its own silent path.
+          grep -v '^GEMINI_API_KEY=' ~/.hermes/.env > ~/.hermes/.env.next || true
+          printf 'GEMINI_API_KEY=%s\n' "$KEY" >> ~/.hermes/.env.next
+          cat ~/.hermes/.env.next > ~/.hermes/.env && rm -f ~/.hermes/.env.next
+          echo "  .env: GEMINI_API_KEY set from the repository secret"
 
           # Keep the runtime current. `agy` has no self-update, and its
           # installer is idempotent, so re-running it IS the upgrade. OpenCode
@@ -245,3 +261,49 @@ jobs:
             exit 1
           fi
           ssh "hermes@${HOST}" 'journalctl -u hermes-gateway -n 5 --no-pager -o cat'
+      - name: Prove the agent runtime answers
+        env:
+          HOST: ${{ vars.AGENTS_VM_HOSTNAME || 'evg-site-agent' }}
+        run: |
+          # A gateway that is `active` proves only that Node started. Whether
+          # the runtime behind it can reach a model is a separate question,
+          # and the answer was NO for four days with nothing going red: the
+          # VM carried an API key from an earlier boot, restricted to
+          # aiplatform.googleapis.com by a Google-managed policy, while agy
+          # calls generativelanguage.googleapis.com. Every request failed at
+          # the moment a human asked for something — the worst moment to find
+          # out.
+          #
+          # So: one trivial call, in an empty directory so an agent running in
+          # accept-edits mode has nothing to touch, and a red job when it
+          # fails.
+          cat > /tmp/prove-runtime.sh <<'REMOTE'
+          set -uo pipefail
+          export PATH="$HOME/.local/bin:$HOME/.opencode/bin:$PATH"
+          # `set -a`: a .env holds plain assignments, so sourcing it without
+          # this makes shell variables that no child process ever sees.
+          set -a; . ~/.hermes/.env; set +a
+          D="$(mktemp -d)"; cd "$D"
+          # The prompt is ATTACHED to --print. The flag takes an optional
+          # value, so `--print --model x 'prompt'` makes agy read "--model" as
+          # the prompt and ignore the real one, with exit code 2.
+          OUT="$(timeout 150 agy \
+            --print='Answer with exactly one word: READY' \
+            --model "${AGENT_MODEL:-gemini-3.8-flash}" \
+            --effort low \
+            --output-format text \
+            --print-timeout 0 \
+            --dangerously-skip-permissions 2>&1 | tail -5)"
+          cd /; rm -rf "$D"
+          printf '%s\n' "$OUT"
+          printf '%s' "$OUT" | grep -qi 'ready' || exit 1
+          REMOTE
+          if ! ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=20 \
+            "hermes@${HOST}" 'bash -s' < /tmp/prove-runtime.sh; then
+            echo "::error::the agents VM cannot reach the model. No agent can run."
+            echo "::error::A key created in THIS GCP project cannot work: a Google-managed"
+            echo "::error::policy restricts its keys to aiplatform.googleapis.com, while agy"
+            echo "::error::calls generativelanguage.googleapis.com. Use an AI Studio key as"
+            echo "::error::the GEMINI_API_KEY secret."
+            exit 1
+          fi

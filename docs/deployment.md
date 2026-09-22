@@ -388,6 +388,19 @@ Read that 403 carefully if you ever see it again: the key was fine, the
 endpoint was not. `GOOGLE_GEMINI_BASE_URL` pointed at Vertex does not rescue
 it — 404, the path shapes differ.
 
+**Rotating it takes a deploy, not just a secret.** The `.env` is written by the
+startup script, which runs only at boot, so updating the GitHub secret changes
+nothing on a VM that is already up. That gap cost a working afternoon: the
+secret held a good key from 14:16 while the VM served requests with one written
+four days earlier, restricted to `aiplatform.googleapis.com`, failing with the
+403 above at the moment a human asked the bot for something.
+
+So *Deploy infra* with `refresh_agents` reconciles `GEMINI_API_KEY`,
+`AGENT_RUNTIME` and `AGENT_MODEL` over SSH, and then **proves the runtime
+answers** with one trivial `agy` call, failing the job when it does not. A
+gateway reporting `active` only proves Node started; whether it can reach a
+model is a different question, and it used to have no check at all.
+
 #### Execution mode
 
 `--mode accept-edits` for every role, including the read-only ones.

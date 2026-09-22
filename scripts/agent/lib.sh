@@ -84,19 +84,27 @@ run_agent() {
         # --dangerously-skip-permissions: nothing may wait for a human. A
         # pipeline that stops on a prompt nobody will ever see is worse than
         # one that fails, because it fails silently and holds the lock.
+        # The prompt is ATTACHED to --print, and that is not a style choice.
+        # `--print` takes an optional value, so `--print --model x "$prompt"`
+        # makes agy read "--model" as the prompt and silently ignore the real
+        # one — it says so itself, with exit code 2:
+        #
+        #   Error: --print took "--model" as its prompt, so the intended
+        #   prompt was left as an argument and ignored.
+        local instructions
+        instructions="$(agent_manual "$role")
+
+---
+
+$prompt"
         ( cd "$REPO_ROOT" && agy \
-            --print \
+            --print="$instructions" \
             --model "${AGENT_MODEL:-gemini-3.8-flash}" \
             --effort "${AGENT_EFFORT:-high}" \
             --mode "$mode" \
             --output-format text \
             --print-timeout 0 \
-            --dangerously-skip-permissions \
-            "$(agent_manual "$role")
-
----
-
-$prompt" ) 2>&1 | tee "$transcript"
+            --dangerously-skip-permissions ) 2>&1 | tee "$transcript"
         ;;
       opencode)
         command -v opencode >/dev/null || die "opencode not found in PATH"
