@@ -11,7 +11,7 @@
  * It holds no conversation — a model driving `hermes/tools.json` sits on top of
  * this transport and is a separate spec.
  */
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
@@ -26,6 +26,7 @@ import {
   route,
   type Command,
 } from './parse';
+import { isApproval, readSpecDigest, renderStages, stripAnsi } from './progress';
 import { Telegram } from './telegram';
 
 const REPO_ROOT = resolve(import.meta.dirname, '../..');
@@ -44,11 +45,14 @@ Ou parle-moi normalement :
 
 • une question — « comment le score est calculé ? » — et je réponds
 • une demande — « corrige les marges du classement sur iPhone SE » —
-  et j'écris la spec, je fais coder, relire, et j'ouvre une PR qui se
-  fusionne si la CI passe
+  et j'écris la spécification, je te la soumets, et je ne code
+  qu'une fois que tu as répondu « oui ». Ensuite je fais coder,
+  relire, et j'ouvre une PR qui se fusionne si la CI passe.
 
 Si ta demande est trop vague pour être spécifiée, je te pose une
-question plutôt que de deviner.`;
+question plutôt que de deviner. Et si la spécification ne te va pas,
+réponds-moi ce qu'il faut changer : je la réécris sans que tu aies à
+tout retaper.`;
 
 /** Each command is one script. Nothing here builds a shell string. */
 const SCRIPTS: Record<Command, { what: string; command: string; args: string[] } | null> = {
@@ -174,16 +178,59 @@ async function handle(
   if (decision.kind === 'command') {
     job = SCRIPTS[decision.command];
   } else {
-    const routed = await routeMessage(tg, runner, memory, directed, decision.request);
-    if (!routed) return;
-    requestForPipeline = routed.request;
-    job =
-      routed.kind === 'fix'
-        ? // A repair of the machinery, not a product change: no numbered spec,
-          // and the pull request it opens cannot merge until a human adds the
-          // `infra-ok` label. See scripts/agent/fix.sh.
-          { what: 'fix', command: `${AGENT}/fix.sh`, args: [routed.request] }
-        : { what: 'pipeline', command: `${AGENT}/pipeline.sh`, args: [routed.request] };
+    // A specification waiting on a human short-circuits the router entirely
+    // (spec 0015). Asking a model whether «oui» means yes would cost a round
+    // trip to learn what a Set already knows.
+    const waiting = memory.pending(directed.chatId);
+    const approving = waiting?.kind === 'approval' ? waiting : null;
+
+    if (approving?.spec !== undefined && isApproval(decision.request)) {
+      // Rule 9. Cleared before the run, so a second «oui» cannot start it
+      // twice.
+      requestForPipeline = approving.request;
+      job = {
+        what: 'code',
+        command: `${AGENT}/pipeline.sh`,
+        args: ['--from-spec', approving.spec],
+      };
+      memory.resolve(directed.chatId);
+    } else if (approving !== null) {
+      // Rule 10. Anything that is not an approval is a correction to the
+      // specification, and the human must not have to repeat the whole
+      // request for it — the spec agent never sees this conversation.
+      requestForPipeline = `${approving.request}\n\nPrécision demandée ensuite : ${decision.request}`;
+      job = {
+        what: 'spec',
+        command: `${AGENT}/pipeline.sh`,
+        args: ['--spec-only', requestForPipeline],
+      };
+      memory.resolve(directed.chatId);
+    } else if (isApproval(decision.request)) {
+      // Rule 12. «oui» on its own must never start a pipeline.
+      await tg.send(
+        directed.chatId,
+        'Il n’y a rien à valider pour l’instant.',
+        directed.messageId,
+      );
+      return;
+    } else {
+      const routed = await routeMessage(tg, runner, memory, directed, decision.request);
+      if (!routed) return;
+      requestForPipeline = routed.request;
+      job =
+        routed.kind === 'fix'
+          ? // A repair of the machinery, not a product change: no numbered spec,
+            // and the pull request it opens cannot merge until a human adds the
+            // `infra-ok` label. See scripts/agent/fix.sh.
+            { what: 'fix', command: `${AGENT}/fix.sh`, args: [routed.request] }
+          : // The SPECIFICATION only. Nothing is coded until a human has read
+            // it and said yes (spec 0015, rule 8).
+            {
+              what: 'spec',
+              command: `${AGENT}/pipeline.sh`,
+              args: ['--spec-only', routed.request],
+            };
+    }
   }
   if (!job) return;
 
@@ -199,16 +246,15 @@ async function handle(
 
   // Rule 11: acknowledge BEFORE the work. A phone with no reply is
   // indistinguishable from a broken bot.
-  const heading =
-    decision.kind === 'command'
-      ? `${job.what}…`
-      : `« ${job.args[0]} »\n\nJe m’en occupe…`;
+  const heading = headingFor(job, decision.kind === 'command', requestForPipeline);
   const ackId = await tg.send(directed.chatId, heading, directed.messageId);
   console.log(`hermes: ${directed.fromLabel} → ${job.what}`);
 
   const result = await runner.run(job.what, job.command, job.args, (tail) => {
-    // Rule 12: one message that changes, not nine notifications.
-    void tg.edit(directed.chatId, ackId, `${heading}\n\n${tail}`);
+    // Rule 12 of 0012: one message that changes, not nine notifications.
+    // Rules 5-7 of 0015: stages, not a wall of an agent's stream, and never
+    // a terminal escape.
+    void tg.edit(directed.chatId, ackId, `${heading}\n\n${progress(tail)}`);
   });
 
   if (!result) {
@@ -236,11 +282,98 @@ async function handle(
     return;
   }
 
+  // A specification is written and NOTHING has been coded (spec 0015, rule
+  // 8). The human reads it and decides; that is the whole point of splitting
+  // the run here.
+  if (outcome?.status === 'spec-ready' && outcome.spec) {
+    const presented = presentSpec(outcome.spec);
+    await tg.edit(
+      directed.chatId,
+      ackId,
+      `${heading}\n\n${progress(result.output, { finished: true, ok: true })}\n\n${presented}`,
+    );
+    memory.record(directed.chatId, 'bot', presented);
+    memory.awaitApproval(
+      directed.chatId,
+      requestForPipeline ?? job.what,
+      outcome.spec,
+      'Spécification à valider',
+    );
+    console.log(`hermes: ${directed.fromLabel} → spec-ready (${outcome.spec})`);
+    return;
+  }
+
   const verdict = result.ok ? '✅' : '❌';
-  const tail = outcome?.pr ? `${outcome.pr}\n\n${result.output}` : result.output;
-  await tg.edit(directed.chatId, ackId, `${heading}\n\n${verdict}\n${tail}`);
+  const tail = outcome?.pr ? `${outcome.pr}\n\n${stripAnsi(result.output)}` : stripAnsi(result.output);
+  const stages = progress(result.output, { finished: true, ok: result.ok });
+  await tg.edit(
+    directed.chatId,
+    ackId,
+    `${heading}\n\n${stages}${stages === '' ? '' : '\n\n'}${verdict}\n${tail}`,
+  );
   memory.record(directed.chatId, 'bot', `${verdict} ${outcome?.pr ?? outcome?.status ?? ''}`.trim());
   if (result.ok) memory.resolve(directed.chatId);
+}
+
+/** The first line of the one message a request gets (0012 rule 12). */
+function headingFor(
+  job: { what: string; args: string[] },
+  isCommand: boolean,
+  request: string | null,
+): string {
+  if (isCommand) return `${job.what}…`;
+  if (job.what === 'code') return '▶️ Spécification validée. Je code.';
+  return `« ${request ?? job.args[job.args.length - 1] ?? ''} »`;
+}
+
+/**
+ * What a running job looks like on a phone: the stages, and the tail of the
+ * stream only when there are no stages to show yet.
+ */
+function progress(output: string, state: { finished?: boolean; ok?: boolean } = {}): string {
+  const stages = renderStages(output, state);
+  if (stages !== '') return stages;
+  // No STEP line yet — a short script, or one that has not reached its first
+  // stage. The raw tail is better than nothing, with the escapes taken out.
+  const clean = stripAnsi(output).trim();
+  return clean.slice(-500);
+}
+
+/**
+ * The specification, as a human reads it before approving (rule 8).
+ *
+ * Read from the file on disk: it is the contract, and the agent's own summary
+ * of it is one more thing that can drift from what was actually written.
+ */
+function presentSpec(spec: string): string {
+  let digest;
+  try {
+    digest = readSpecDigest(readFileSync(resolve(REPO_ROOT, spec), 'utf8'));
+  } catch {
+    return (
+      `La spécification est écrite dans ${spec}, mais je n’arrive pas à la relire.\n\n` +
+      'Réponds « oui » pour lancer le code quand même, ou dis-moi quoi changer.'
+    );
+  }
+
+  const criteria = digest.criteria.slice(0, 12).map((line) => `• ${line}`);
+  const more =
+    digest.criteria.length > criteria.length
+      ? `\n• … et ${digest.criteria.length - criteria.length} autre(s)`
+      : '';
+
+  return [
+    `📄 ${digest.title ?? spec}`,
+    `\`${spec}\``,
+    '',
+    digest.intent ?? '(pas de section Intent)',
+    '',
+    criteria.length > 0 ? `Ce que ça promet :\n${criteria.join('\n')}${more}` : '',
+    '',
+    '👉 Réponds « oui » pour que je lance le code, ou dis-moi ce qu’il faut changer.',
+  ]
+    .filter((part, index, all) => !(part === '' && all[index - 1] === ''))
+    .join('\n');
 }
 
 
@@ -312,7 +445,10 @@ async function routeMessage(
   const understood =
     routed.decision === 'fix'
       ? `Réparation : « ${routed.body} »\n\nJe corrige la machinerie — la PR demandera ton feu vert.`
-      : `Compris : « ${routed.body} »`;
+      : // Says what happens next, because what happens next is a pause: the
+        // specification comes back for approval and no code is written until
+        // then (spec 0015, rule 8).
+        `Compris : « ${routed.body} »\n\nJ’écris la spécification et je te la soumets avant de coder.`;
   await tg.edit(directed.chatId, thinking, understood);
   memory.record(directed.chatId, 'bot', understood);
   // The request carried the answer, so nothing is pending any more.

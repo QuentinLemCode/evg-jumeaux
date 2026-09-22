@@ -194,6 +194,32 @@ describe('truncateForTelegram', () => {
 describe('parseRouterReport', () => {
   const report = (decision: string, body: string) => `DECISION: ${decision}\n---\n${body}`;
 
+  it('accepts a report with NO separator, because the model often omits it', () => {
+    // Observed: the router answered `DECISION: change` followed straight by
+    // the request, and the bot replied «je n'ai pas réussi à interpréter ta
+    // demande» to a decision it had in fact made, and got right.
+    const output = [
+      '[18:29:16] running the route agent',
+      'DECISION: change',
+      'ajouter une remise à zéro dans l’admin, derrière une confirmation tapée',
+    ].join('\n');
+    expect(parseRouterReport(output)).toEqual({
+      decision: 'change',
+      body: 'ajouter une remise à zéro dans l’admin, derrière une confirmation tapée',
+    });
+  });
+
+  it('keeps a multi-line body when the separator is missing', () => {
+    expect(parseRouterReport('DECISION: answer\nDix points.\nVoir scoring.ts.')?.body).toBe(
+      'Dix points.\nVoir scoring.ts.',
+    );
+  });
+
+  it('still refuses a decision with nothing after it', () => {
+    expect(parseRouterReport('DECISION: change')).toBeNull();
+    expect(parseRouterReport('DECISION: change\n---\n   ')).toBeNull();
+  });
+
   it('reads the three decisions', () => {
     expect(parseRouterReport(report('answer', 'Dix points.'))).toEqual({
       decision: 'answer',
@@ -254,8 +280,13 @@ describe('parseRouterReport', () => {
     expect(parseRouterReport('DECISION: maybe\n---\nbonjour')).toBeNull();
   });
 
-  it('refuses a report with no separator', () => {
-    expect(parseRouterReport('DECISION: answer\nLes points viennent de là')).toBeNull();
+  it('no longer refuses a report with no separator (spec 0015)', () => {
+    // This used to expect null. It cost a real request: the router answered
+    // correctly, the bot said it had not understood, and nothing ran.
+    expect(parseRouterReport('DECISION: answer\nLes points viennent de là')).toEqual({
+      decision: 'answer',
+      body: 'Les points viennent de là',
+    });
   });
 
   it('refuses an empty body', () => {
@@ -281,6 +312,7 @@ describe('parsePipelineReport', () => {
       status: 'ok',
       reason: null,
       pr: 'https://github.com/x/y/pull/42',
+      spec: null,
     });
   });
 
@@ -297,6 +329,26 @@ describe('parsePipelineReport', () => {
     expect(outcome?.reason).toBe('the spec agent produced no report at all (exit 1)');
   });
 
+  it('reads the specification a spec-only run produced', () => {
+    const output = [
+      'STEP 2/2 — specification',
+      '',
+      'PIPELINE: spec-ready',
+      'STAGE: spec',
+      'SPEC_FILE: specs/0042-photo-wall.md',
+      'BRANCH: agent/0042-photo-wall',
+    ].join('\n');
+    const outcome = parsePipelineReport(output);
+    expect(outcome?.status).toBe('spec-ready');
+    expect(outcome?.spec).toBe('specs/0042-photo-wall.md');
+    expect(outcome?.pr).toBeNull();
+  });
+
+  it('reports no specification rather than the literal "none"', () => {
+    const output = 'PIPELINE: needs-human\nSPEC_FILE: none';
+    expect(parsePipelineReport(output)?.spec).toBeNull();
+  });
+
   it('takes the LAST report when stages printed their own', () => {
     const output = ['PIPELINE: ok', 'REASON: none', 'PIPELINE: needs-human', 'REASON: la vraie'].join(
       '\n',
@@ -309,6 +361,7 @@ describe('parsePipelineReport', () => {
       status: 'ok',
       reason: null,
       pr: null,
+      spec: null,
     });
   });
 

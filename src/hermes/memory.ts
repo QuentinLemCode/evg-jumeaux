@@ -14,8 +14,21 @@ import { dirname } from 'node:path';
 
 export type Turn = { at: number; who: 'human' | 'bot'; text: string };
 
-/** A question the bot asked and is waiting on, with the request behind it. */
-export type Pending = { request: string; question: string; at: number };
+/**
+ * What the bot is waiting on, with the request behind it.
+ *
+ * `question` is 0014's: the pipeline stopped and asked something. `approval`
+ * is 0015's: a specification is written and nothing will be coded until a
+ * human says yes, so it also carries the spec that approval would release.
+ */
+export type Pending = {
+  kind: 'question' | 'approval';
+  request: string;
+  question: string;
+  /** Only for `approval`: the spec file the code agent would implement. */
+  spec?: string;
+  at: number;
+};
 
 export type Conversation = { turns: Turn[]; pending: Pending | null };
 
@@ -68,7 +81,15 @@ export function parseStore(raw: string): { store: Store; recovered: boolean } {
       typeof raw_pending === 'object' &&
       typeof raw_pending.request === 'string' &&
       typeof raw_pending.question === 'string'
-        ? { request: raw_pending.request, question: raw_pending.question, at: raw_pending.at ?? 0 }
+        ? {
+            // A store written before 0015 has no `kind`, and every pending
+            // entry in it was a question — that is what the field meant then.
+            kind: raw_pending.kind === 'approval' ? ('approval' as const) : ('question' as const),
+            request: raw_pending.request,
+            question: raw_pending.question,
+            ...(typeof raw_pending.spec === 'string' ? { spec: raw_pending.spec } : {}),
+            at: raw_pending.at ?? 0,
+          }
         : null;
     store[chat] = { turns: turns.slice(-MAX_TURNS), pending };
   }
@@ -121,9 +142,28 @@ export class Memory {
     this.persist();
   }
 
-  /** Records that the bot is waiting on an answer (rule 6). */
+  /** Records that the bot is waiting on an answer (0014 rule 6). */
   await_(id: number, request: string, question: string, now = Date.now()): void {
-    this.chat(id).pending = { request, question, at: now };
+    this.chat(id).pending = { kind: 'question', request, question, at: now };
+    this.persist();
+  }
+
+  /**
+   * Records that a specification is written and waiting on a human
+   * (0015 rule 11).
+   *
+   * Persisted like everything else, because the gateway is restarted by every
+   * deploy and a specification nobody can approve any more is worse than one
+   * that was never written.
+   */
+  awaitApproval(
+    id: number,
+    request: string,
+    spec: string,
+    question: string,
+    now = Date.now(),
+  ): void {
+    this.chat(id).pending = { kind: 'approval', request, question, spec, at: now };
     this.persist();
   }
 
