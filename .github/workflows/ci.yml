@@ -12,6 +12,9 @@ name: CI
 #                     → e2e    (Playwright, browser cached)
 #   terraform changed → infra  (fmt + validate)
 #
+# "code" includes these workflows, because they are the gate: a change here
+# must be judged by the thing it changes.
+#
 # TWO required checks: `Verdict`, here, and `Guarded paths`, which lives in
 # guard.yml and is triggered by a label. They are in SEPARATE workflows, and
 # that separation is load-bearing — read guard.yml before merging them back.
@@ -55,7 +58,6 @@ env:
 jobs:
   scope:
     name: What changed
-    # Nothing downstream of it runs on a label event either.
     runs-on: ubuntu-latest
     timeout-minutes: 3
     outputs:
@@ -90,9 +92,17 @@ jobs:
           FILES="$(git diff --name-only "$BASE" "${{ github.sha }}")"
           echo "changed files:"; echo "$FILES" | sed 's/^/  /'
 
-          # `scripts/` and the config files count as code: they are what the
-          # gate itself runs.
-          if echo "$FILES" | grep -qE '^(src/|e2e/|scripts/|public/|package(-lock)?\.json|tsconfig\.json|next\.config\.mjs|playwright\.config\.ts|vitest.*\.ts|postcss\.config\.mjs|drizzle\.config\.ts|Dockerfile|docker-compose.*\.yml|Caddyfile|caddy/|\.nvmrc)'; then
+          # `scripts/`, the config files AND `.github/workflows/` count as
+          # code: they are what the gate itself runs.
+          #
+          # The workflows were missing from this list, and the omission cost
+          # exactly what it was going to cost. PR #32 rewrote when CI
+          # triggers and moved a required check into a new workflow; it
+          # touched no `src/`, so the suite was skipped, so the change to the
+          # gate was merged without the gate ever running under it. A
+          # workflow change is the one time you most want four minutes of
+          # browser tests, not the one time you save them.
+          if echo "$FILES" | grep -qE '^(src/|e2e/|scripts/|public/|\.github/workflows/|package(-lock)?\.json|tsconfig\.json|next\.config\.mjs|playwright\.config\.ts|vitest.*\.ts|postcss\.config\.mjs|drizzle\.config\.ts|Dockerfile|docker-compose.*\.yml|Caddyfile|caddy/|\.nvmrc)'; then
             CODE=true
           else
             CODE=false
@@ -103,9 +113,6 @@ jobs:
           echo "terraform=$TF" >> "$GITHUB_OUTPUT"
           echo "summary=code=$CODE terraform=$TF" >> "$GITHUB_OUTPUT"
 
-  # Everything below is skipped when the event is just a label being added or
-  # removed: the only thing a label can change is the guard's answer, and
-  # re-running the browser suite to learn that costs four minutes for nothing.
   quick:
     name: Quick checks
     runs-on: ubuntu-latest
