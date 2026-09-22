@@ -1,4 +1,31 @@
 #!/usr/bin/env bash
+# Shared helpers for the agent pipeline. Sourced, never executed directly.
+#
+# The pipeline deliberately talks to the coding agents through this one file so
+# that Hermes only ever depends on a stable shell contract, not on a particular
+# agent CLI. Swapping one runtime for another is one env var.
+
+set -euo pipefail
+
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+export REPO_ROOT
+
+# antigravity | opencode | claude
+AGENT_RUNTIME="${AGENT_RUNTIME:-antigravity}"
+
+# PATH for agy and opencode, which no non-interactive shell inherits. See
+# path.sh.
+# shellcheck source=scripts/agent/path.sh
+source "$(dirname "${BASH_SOURCE[0]}")/path.sh"
+LOG_DIR="${AGENT_LOG_DIR:-$REPO_ROOT/.agent-logs}"
+# `|| true`: a directory we cannot create is handled per-run below, and must not
+# stop the agent from running at all.
+mkdir -p "$LOG_DIR" 2>/dev/null || true
+
+log()  { printf '\033[36m[%s]\033[0m %s\n' "$(date -u +%H:%M:%S)" "$*" >&2; }
+warn() { printf '\033[33m[%s] WARN\033[0m %s\n' "$(date -u +%H:%M:%S)" "$*" >&2; }
+die()  { printf '\033[31m[%s] FATAL\033[0m %s\n' "$(date -u +%H:%M:%S)" "$*" >&2; exit 1; }
+
 # Antigravity's execution mode.
 #
 # `accept-edits` for every role, the read-only ones included. `plan` was the

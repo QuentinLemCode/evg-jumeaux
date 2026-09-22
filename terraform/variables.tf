@@ -146,16 +146,24 @@ variable "llm_base_url" {
 
 variable "llm_model" {
   description = <<-EOT
-    Modèle utilisé par Hermes ET par les agents de spec/code, au format
-    provider/modèle. Vérifie l'identifiant exact avec `opencode models` : une
-    faute de frappe ici ne se voit qu'au premier appel.
+    Modèle des agents de spec/code. Écrit dans AGENT_MODEL, que lib.sh lit et
+    passe à `agy --model`, donc un identifiant NU : `gemini-3.8-flash`, pas
+    `google/gemini-3.8-flash`. Le préfixe de provider est une convention
+    d'OpenCode, et agy le refuse.
   EOT
   type        = string
-  default     = "google/gemini-3.8-flash"
+  default     = "gemini-3.8-flash"
 
   validation {
     condition     = length(var.llm_model) > 0
     error_message = "llm_model est obligatoire (variable LLM_MODEL)."
+  }
+
+  validation {
+    # Une faute ici ne se voit qu'au premier appel d'agent, des heures plus
+    # tard et dans un journal que personne ne lit.
+    condition     = !strcontains(var.llm_model, "/")
+    error_message = "llm_model doit être un identifiant nu (gemini-3.8-flash), sans préfixe de provider : agy refuse `google/...`."
   }
 }
 
