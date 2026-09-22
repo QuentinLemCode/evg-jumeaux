@@ -247,15 +247,30 @@ echo "=== [7/8] Pas de site_repo_url : dépôt non cloné ==="
 # une erreur d'API que personne ne relie au boot. Un appel trivial ici, et le
 # journal de démarrage porte la réponse.
 echo "=== [7b/8] Le runtime des agents est-il utilisable ? ==="
-# agy s'authentifie par GEMINI_API_KEY, écrite dans .env plus haut et déclarée
-# dans ~/.gemini/antigravity-cli/settings.json. Un runtime muet ne se voit pas :
-# les services démarrent, le bot écoute, et chaque demande échoue plus tard.
-if su - hermes -c "export PATH=\$HOME/.local/bin:\$PATH && . ~/.hermes/.env && timeout 90 agy -p 'Réponds exactement: PRET' --model ${llm_model} --effort low --dangerously-skip-permissions 2>&1 | tail -3" | grep -qi "pret"; then
+# agy authenticates with GEMINI_API_KEY, written to .env above and declared in
+# ~/.gemini/antigravity-cli/settings.json. A mute runtime is invisible: the
+# services start, the bot listens, and every request fails later.
+#
+# `set -a` around the source, and it is not decoration. A .env is a list of
+# plain `KEY=value` assignments, so sourcing it creates SHELL variables, not
+# environment ones — and a child process sees none of them. systemd's
+# EnvironmentFile does export them, so the gateway worked while this check
+# said "agy NE RÉPOND PAS" at every single boot, for a reason that had
+# nothing to do with agy.
+#
+# The prompt is attached to --print/-p: the flag takes an optional value, so
+# `-p --model x 'prompt'` makes agy read "--model" as the prompt.
+if su - hermes -c "export PATH=\$HOME/.local/bin:\$PATH && set -a && . ~/.hermes/.env && set +a && timeout 90 agy --print='Réponds exactement: PRET' --model ${llm_model} --effort low --dangerously-skip-permissions 2>&1 | tail -3" | grep -qi "pret"; then
   echo "OK: agy répond avec ${llm_model}"
 else
-  echo "WARN: agy NE RÉPOND PAS. Aucun agent ne pourra tourner."
-  echo "WARN: vérifier le secret GEMINI_API_KEY, puis sur la VM :"
-  echo "WARN:   . ~/.hermes/.env && agy -p 'test' --model ${llm_model}"
+  echo "WARN: agy is not answering. No agent can run."
+  echo "WARN: check the GEMINI_API_KEY secret. A key created in THIS GCP"
+  echo "WARN: project cannot work: a Google-managed policy restricts keys to"
+  echo "WARN: aiplatform.googleapis.com, and agy calls"
+  echo "WARN: generativelanguage.googleapis.com. Use an AI Studio key."
+  echo "WARN: to reproduce on the VM:"
+  echo "WARN:   set -a && . ~/.hermes/.env && set +a"
+  echo "WARN:   agy --print='test' --model ${llm_model}"
 fi
 
 echo "=== [8/8] Services systemd ==="
