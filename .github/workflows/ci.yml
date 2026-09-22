@@ -12,26 +12,28 @@ name: CI
 #                     → e2e    (Playwright, browser cached)
 #   terraform changed → infra  (fmt + validate)
 #
-# TWO required checks now: `Verdict` and `Guarded paths`.
+# TWO required checks: `Verdict`, here, and `Guarded paths`, which lives in
+# guard.yml and is triggered by a label. They are in SEPARATE workflows, and
+# that separation is load-bearing — read guard.yml before merging them back.
 #
-# Not one, and the reason is subtle. Adding the `infra-ok` label has to be able
-# to unblock a pull request, so the guard must re-run on a label event. But if
-# VERDICT also re-ran then, it would judge a run in which every heavy job was
-# skipped — and skipped counts as passed — so labelling a pull request whose
-# tests had FAILED would report success and overwrite the failure. Verdict
-# therefore does not run on a label event at all, keeps whatever it concluded
-# about the code, and the guard answers for itself.
+# `Verdict` is the ONE job that judges the code. It passes when nothing
+# failed, skipped included — which is what lets auto-merge work on a PR where
+# the heavy jobs were legitimately skipped. Requiring the heavy jobs directly
+# would wedge auto-merge forever on a docs-only PR.
 #
-# `Verdict` is the ONE job that judges the code. It passes when
-# nothing failed, skipped included — which is what lets auto-merge work on a
-# PR where the heavy jobs were legitimately skipped. Requiring the heavy jobs
-# directly would wedge auto-merge forever on a docs-only PR.
+# That tolerance of `skipped` is exactly why this workflow must never run on a
+# label event: a run where everything was skipped reports a verdict that
+# satisfies the rule, on the newest run, overwriting whatever the code run
+# concluded. Keeping the label out means there is no such run.
 
 on:
   pull_request:
-    # `labeled` matters: the guarded-paths check below is unlocked by a label,
-    # and without this event the unlock would never be re-evaluated.
-    types: [opened, synchronize, reopened, labeled, unlabeled]
+    # NOT `labeled`/`unlabeled`. This workflow owns `Verdict`, the one check
+    # that judges the code, and a run triggered by a label would conclude
+    # `skipped` on a commit whose tests had already FAILED — superseding the
+    # failure, because the newest run is the one that counts. The guard that
+    # a label unlocks lives in guard.yml, on its own. See that file.
+    types: [opened, synchronize, reopened]
   workflow_dispatch:
   workflow_call:
     inputs:
@@ -54,7 +56,6 @@ jobs:
   scope:
     name: What changed
     # Nothing downstream of it runs on a label event either.
-    if: github.event.action != 'labeled' && github.event.action != 'unlabeled'
     runs-on: ubuntu-latest
     timeout-minutes: 3
     outputs:
@@ -107,7 +108,6 @@ jobs:
   # re-running the browser suite to learn that costs four minutes for nothing.
   quick:
     name: Quick checks
-    if: github.event.action != 'labeled' && github.event.action != 'unlabeled'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -172,7 +172,7 @@ jobs:
   tests:
     name: Tests and build
     needs: [scope]
-    if: needs.scope.outputs.code == 'true' && github.event.action != 'labeled' && github.event.action != 'unlabeled'
+    if: needs.scope.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -199,7 +199,7 @@ jobs:
   e2e:
     name: End-to-end
     needs: [scope]
-    if: needs.scope.outputs.code == 'true' && inputs.skip_e2e != 'true' && github.event.action != 'labeled' && github.event.action != 'unlabeled'
+    if: needs.scope.outputs.code == 'true' && inputs.skip_e2e != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -254,7 +254,7 @@ jobs:
   infra:
     name: Terraform
     needs: [scope]
-    if: needs.scope.outputs.terraform == 'true' && github.event.action != 'labeled' && github.event.action != 'unlabeled'
+    if: needs.scope.outputs.terraform == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     defaults:
@@ -283,56 +283,12 @@ jobs:
   # yes to them — otherwise an agent could weaken the very gate that is about
   # to judge its own pull request, and auto-merge would honour the weakened
   # one.
-  guarded:
-    name: Guarded paths
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Require a human for infrastructure, workflows and agent tooling
-        env:
-          LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
-          BASE: ${{ github.event.pull_request.base.sha }}
-          HEAD: ${{ github.event.pull_request.head.sha }}
-        run: |
-          if [ -z "${BASE}" ]; then
-            echo "not a pull request; nothing to guard"
-            exit 0
-          fi
-
-          CHANGED="$(git diff --name-only "${BASE}" "${HEAD}" \
-            -- '.github/workflows/**' 'terraform/**' 'scripts/agent/**' \
-               '.opencode/**' 'skills/**' 'AGENTS.md' || true)"
-
-          if [ -z "$CHANGED" ]; then
-            echo "no guarded path touched"
-            exit 0
-          fi
-
-          echo "guarded paths in this PR:"
-          echo "$CHANGED" | sed 's/^/  /'
-
-          case ",${LABELS}," in
-            *,infra-ok,*)
-              echo "infra-ok is present — a human said yes"
-              exit 0
-              ;;
-          esac
-
-          echo "::error::This pull request changes the machinery that decides what the agent may do."
-          echo "::error::A human has to say yes: add the 'infra-ok' label, and this check will re-run."
-          echo "::error::Touched: $(echo "$CHANGED" | tr '\n' ' ')"
-          exit 1
-
   verdict:
     name: Verdict
     # The single check branch protection requires. `always()` so it reports
     # even when a needed job was skipped — a skipped job is a pass here, which
     # is exactly what makes auto-merge work on a docs-only PR.
-    if: always() && github.event.action != 'labeled' && github.event.action != 'unlabeled'
+    if: always()
     needs: [scope, quick, tests, e2e, infra]
     runs-on: ubuntu-latest
     timeout-minutes: 3

@@ -556,8 +556,11 @@ An agent (or a human) opens a pull request; the required check merges it; the
 merge deploys it.
 
 **On the pull request**, the gate is sized to what changed — a specs-only PR
-costs about a minute, a code PR runs the browser suite. The one required check
-is `Verdict`, an aggregator that passes when nothing failed, skipped included.
+costs about a minute, a code PR runs the browser suite. Two required checks:
+`Verdict`, an aggregator in `ci.yml` that passes when nothing failed — skipped
+included — and `Guarded paths`, which lives alone in `guard.yml` because it is
+the only one a label may re-run. Merging them back into one workflow
+reintroduces a hole that let PR #31 land with its end-to-end run cancelled.
 That is what lets auto-merge work on a PR where the heavy jobs were legitimately
 skipped; requiring `End-to-end` directly would wedge such a PR forever.
 
