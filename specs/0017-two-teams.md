@@ -218,7 +218,7 @@ team's button is presentation, not authorisation.
 | A captain opens the choice screen | Their team is stated, no choice offered | « Tu es le capitaine de {équipe}. » |
 | A match opposing no two teams settles | Player points as usual, no team row | « Pas de points d'équipe : ce match n'oppose pas les deux équipes. » |
 | A `clash` whose sides are not the two full teams | Refused at creation | « Un match d'équipes oppose les deux équipes au complet. » |
-| A `clash` when someone is already in a match | Refused, naming them | « {joueur} est déjà en match. » |
+| A `clash` when someone is already in a match | Refused, naming them | « {joueur} est déjà en partie » (the app's existing wording) |
 | Every player of one side declines a `clash` | The match is cancelled | « Match annulé : plus personne dans un camp. » |
 | An admin adjusts a player's points | The team total does not move | « Les ajustements manuels ne comptent que pour le joueur. » |
 | `db:seed` before the secret has the new players | Seeder exits non-zero, naming them | — (operator, not guest) |
@@ -292,28 +292,13 @@ database and would fail a CI retry, so `e2e/helpers/db.ts` gains a scoped
    standings order and ties, a clash surviving a decline, a clash cancelled
    when a side empties, and a clash's lapsed invitations at the deadline.
 
-2. **Spec 0004 rule 2 says the creator plays in camp 1; rule 3 here says a
-   clash's sides are the two teams.** Those cannot both hold when the admin
-   starting the clash belongs to the second team. The reading taken: for a
-   `clash` the creator must be a member of one of the two teams (so they are a
-   participant, which is what 0004 rule 2 is for), and the screen orders the
-   creator's own team as side 1 — so in practice the creator still sits in
-   camp 1, but the server does not *require* it, because for a clash the side
-   index is not a slot anybody picks. Spec 0004 was not amended for this.
-
-3. **Rule 5 changes the state machine, which rule 2 does not mention.** Rule 2
-   says the per-side count in `matches.ts` is the only check that blocks a
-   clash — true for *creating* one. Making a clash survive a decline (and a
-   lapsed invitation) contradicts spec 0004 rule 12 and rule 13, so
-   `transition()` had to become mode-aware and `MatchSnapshot` gained `mode`.
-   A player removed from their side is marked `declined`, and is therefore
-   paid nothing for the match — the spec says they are "removed", and paying
-   somebody who sat it out would be the odd reading.
-
-4. **The busy-player message is the app's existing one.** The failure table
-   says « {joueur} est déjà en match. »; the code says
-   « {joueur} est déjà en partie », which is what every other screen says and
-   what rule 4 ("spec 0004's busy rule, unchanged") asks for.
+2. **Two conflicts with spec 0004 were found during implementation and are
+   now settled there, not here.** Its rule 2 put the creator in camp 1, and
+   its rules 12 and 13 cancelled a match on the first decline or expiry —
+   neither can hold for a `clash`. 0004 now carves the mode out of all three,
+   with a Changelog row. `transition()` and `MatchSnapshot` became mode-aware
+   as a result; rule 2 above, which says the per-side count is the only check
+   that blocks a clash, was true of *creating* one and not of running it.
 
 ## Changelog
 

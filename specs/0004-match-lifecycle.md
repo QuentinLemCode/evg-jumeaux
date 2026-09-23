@@ -43,8 +43,12 @@ Terminal states: `completed`, `cancelled`, `expired`.
 
 1. Any authenticated player who is not **busy** creates a match by choosing an
    active game, then filling every side with players.
-2. The creator is always a participant, on side 1, and is automatically
-   accepted.
+2. The creator is always a participant, automatically accepted, and on side 1
+   — except in a `clash` (spec 0017), where the sides **are** the two teams
+   and the creator's own team decides which side they are on. The screen
+   orders their team first, so they normally still see themselves in camp 1;
+   the server does not require it, because there the side index is not a slot
+   anybody picks.
 3. The creator picks the other participants from the roster. Players who are
    busy are shown as unavailable and cannot be selected.
 4. For a team game, the creator assigns each participant to a side. The match
@@ -74,10 +78,20 @@ Terminal states: `completed`, `cancelled`, `expired`.
     and everyone is notified that it has started.
 12. If any invited player declines, the match becomes `cancelled` immediately.
     One refusal is enough — there is no partial re-forming.
+
+    **Except a `clash`** (spec 0017, rule 5), which invites everyone: one
+    guest going to bed cannot cancel the weekend's set piece. The player is
+    removed from their side and the match goes on; only an emptied side
+    cancels it. They are marked `declined` and paid nothing, having sat it
+    out.
 13. When the deadline passes with at least one invitation still pending, the
     match becomes `expired`. Expiry is evaluated both by a background sweep
     every minute and lazily whenever the match is read, so a stale `pending`
     match is never shown as joinable.
+
+    **Except a `clash`**, for the same reason as rule 12: at the deadline the
+    players who never answered are dropped from their side, and the match
+    starts with whoever accepted — unless a side is empty.
 
 ### Reporting the result
 
@@ -258,3 +272,4 @@ None.
 |---|---|---|
 | 2026-09-14 | Created | Initial harness and application bootstrap |
 | 2026-09-23 | A match's halves are «camps», not «équipes» (spec 0017) | «Équipe» now names one of the weekend's two teams, and both words were landing on the same screen |
+| 2026-09-23 | Rules 2, 12 and 13 carve out the `clash` mode (spec 0017) | A match that invites all fifteen guests cannot be cancelled by one refusal, and its sides are the teams rather than slots the creator fills |
