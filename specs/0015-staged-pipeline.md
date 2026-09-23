@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | Implemented |
+| Status | Superseded in part by [0016](0016-read-only-bot.md) |
 | Depends on | [0012](0012-telegram-gateway.md), [0013](0013-natural-language-routing.md), [0014](0014-conversational-memory.md) |
 
 ## Intent
@@ -158,6 +158,12 @@ The first request that reaches the model exercises all four at once.
 
 ## Changelog
 
+- **2026-09-23** — Superseded in part by 0016. The bot no longer writes, so
+  the approval gate and the staged progress rendering are gone: the only
+  scripts that emitted `STEP` lines were the ones the bot stopped running.
+  What survives is `pipeline.sh --spec-only` / `--from-spec`, which is how a
+  human — or an Antigravity session — wants to run it: write the
+  specification, read it, then implement.
 - **2026-09-22** — Created. Splits the pipeline at the specification, posts
   stage progress in the chat, and removes terminal escapes from what the bot
   sends.

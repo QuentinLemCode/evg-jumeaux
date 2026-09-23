@@ -243,6 +243,11 @@ jobs:
           opencode upgrade 2>&1 | tail -1 || echo "opencode upgrade failed, continuing"
 
           sudo systemctl restart hermes-gateway
+          # The remote-control daemon runs the agy binary we may have just
+          # replaced, so it has to come back on the new one. It is also the
+          # only remaining way to change the code from outside (spec 0016).
+          sudo systemctl restart agy-remote-control 2>&1 \
+            || echo "agy-remote-control could not restart"
           REMOTE
           ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=20 \
             "hermes@${HOST}" 'bash -s' < /tmp/refresh-agents.sh

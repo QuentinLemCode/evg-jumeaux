@@ -142,27 +142,37 @@ describe('route', () => {
     expect(route('')).toEqual({ kind: 'command', command: 'help' });
   });
 
-  it('maps the five commands', () => {
+  it('maps the commands that remain', () => {
     for (const [text, command] of [
       ['/status', 'status'],
       ['/errors', 'errors'],
       ['/logs', 'logs'],
-      ['/deploy', 'deploy'],
       ['/help', 'help'],
+      ['/reset', 'reset'],
     ] as const) {
       expect(route(text)).toEqual({ kind: 'command', command });
     }
+  });
+
+  it('no longer knows /deploy (spec 0016, rule 2)', () => {
+    // Deploying is a write, and the bot is read-only. It must land in the
+    // unknown-command branch, which lists what does exist.
+    expect(route('/deploy')).toEqual({ kind: 'unknown-command', typed: '/deploy' });
+    expect(route('/deploy@evg_bot')).toEqual({
+      kind: 'unknown-command',
+      typed: '/deploy@evg_bot',
+    });
   });
 
   it('accepts the @bot suffix Telegram adds in groups', () => {
     expect(route('/status@evg_bot')).toEqual({ kind: 'command', command: 'status' });
   });
 
-  it('reports an unknown command instead of running the pipeline', () => {
+  it('reports an unknown command instead of doing anything', () => {
     expect(route('/destroy')).toEqual({ kind: 'unknown-command', typed: '/destroy' });
   });
 
-  it('treats free text as a change request', () => {
+  it('treats free text as something for the router to decide', () => {
     expect(route('ajoute un mur de photos')).toEqual({
       kind: 'request',
       request: 'ajoute un mur de photos',
@@ -200,12 +210,12 @@ describe('parseRouterReport', () => {
     // demande» to a decision it had in fact made, and got right.
     const output = [
       '[18:29:16] running the route agent',
-      'DECISION: change',
-      'ajouter une remise à zéro dans l’admin, derrière une confirmation tapée',
+      'DECISION: bug',
+      'le classement colle au bord sur iPhone SE',
     ].join('\n');
     expect(parseRouterReport(output)).toEqual({
-      decision: 'change',
-      body: 'ajouter une remise à zéro dans l’admin, derrière une confirmation tapée',
+      decision: 'bug',
+      body: 'le classement colle au bord sur iPhone SE',
     });
   });
 
@@ -216,8 +226,8 @@ describe('parseRouterReport', () => {
   });
 
   it('still refuses a decision with nothing after it', () => {
-    expect(parseRouterReport('DECISION: change')).toBeNull();
-    expect(parseRouterReport('DECISION: change\n---\n   ')).toBeNull();
+    expect(parseRouterReport('DECISION: bug')).toBeNull();
+    expect(parseRouterReport('DECISION: bug\n---\n   ')).toBeNull();
   });
 
   it('reads the three decisions', () => {
@@ -225,9 +235,9 @@ describe('parseRouterReport', () => {
       decision: 'answer',
       body: 'Dix points.',
     });
-    expect(parseRouterReport(report('change', 'corrige les marges du classement'))).toEqual({
-      decision: 'change',
-      body: 'corrige les marges du classement',
+    expect(parseRouterReport(report('bug', 'les marges du classement collent au bord'))).toEqual({
+      decision: 'bug',
+      body: 'les marges du classement collent au bord',
     });
     expect(parseRouterReport(report('unclear', 'Quel écran ?'))).toEqual({
       decision: 'unclear',
@@ -370,20 +380,27 @@ describe('parsePipelineReport', () => {
   });
 });
 
-describe('the fix decision', () => {
-  it('is read like the others', () => {
-    expect(parseRouterReport('DECISION: fix\n---\nle service ne démarre pas')).toEqual({
-      decision: 'fix',
+describe('the decisions that are gone', () => {
+  it('reads `bug` like the others', () => {
+    expect(parseRouterReport('DECISION: bug\n---\nle service ne démarre pas')).toEqual({
+      decision: 'bug',
       body: 'le service ne démarre pas',
     });
   });
 
-  it('is still refused when the body is empty', () => {
-    // A repair with nothing to repair must not reach fix.sh.
-    expect(parseRouterReport('DECISION: fix\n---\n  ')).toBeNull();
+  it('refuses `change` and `fix` outright (spec 0016, rule 4)', () => {
+    // They used to start the pipeline and fix.sh. Accepting them now would be
+    // worse than refusing: the gateway has nothing to run, so the reply would
+    // read as a promise it cannot keep.
+    expect(parseRouterReport('DECISION: change\n---\najoute un mur de photos')).toBeNull();
+    expect(parseRouterReport('DECISION: fix\n---\nle service ne démarre pas')).toBeNull();
   });
 
-  it('does not match a word that merely contains it', () => {
-    expect(parseRouterReport('DECISION: prefix\n---\nnon')).toBeNull();
+  it('is still refused when the body is empty', () => {
+    expect(parseRouterReport('DECISION: bug\n---\n  ')).toBeNull();
+  });
+
+  it('does not match a word that merely contains a decision', () => {
+    expect(parseRouterReport('DECISION: debug\n---\nnon')).toBeNull();
   });
 });
