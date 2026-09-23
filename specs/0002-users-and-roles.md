@@ -63,8 +63,13 @@ users
   role        text not null         -- 'admin' | 'user'
   pin_hash    text not null
   avatar      text not null         -- single emoji
+  team_id     text                  -- null until chosen (spec 0017)
   created_at  integer not null      -- unix ms
 ```
+
+A player's team is on the player, and its **history** is not: an admin moving
+someone writes a row in `team_moves` (spec 0017), which is what lets the admin
+log report every move rather than only the last one.
 
 Existing rows: seeding updates them in place by id. An id is therefore a
 permanent identifier and must never be reused for a different person.
@@ -127,3 +132,4 @@ None.
 | 2026-09-14 | Created | Initial harness and application bootstrap |
 | 2026-09-18 | PIN hashes move out of the repository into `SEED_PIN_HASHES` | The repository is public, and a 6-digit PIN behind bcrypt cost 12 falls to a GPU in minutes — the committed hashes were the PINs |
 | 2026-09-18 | The end-to-end suite gets its own roster | Sharing one list meant the tests needed real guests' PINs, and every change to the guest list broke them |
+| 2026-09-23 | Julien and Pierre appended to the roster; `users.team_id` added and team moves recorded in `team_moves` (spec 0017) | The two twins the weekend is for now head a team each; appended last because `generate-users` assigns avatars positionally |

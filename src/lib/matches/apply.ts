@@ -21,6 +21,7 @@ import {
   matchSides,
   matches,
   pointEvents,
+  teamPointEvents,
   users,
 } from '@/db/schema';
 import {
@@ -32,6 +33,7 @@ import {
   type MatchErrorCode,
 } from '@/lib/domain/match-state';
 import { computeAwards, computeReversals } from '@/lib/domain/scoring';
+import { computeTeamAwards, computeTeamReversals } from '@/lib/domain/teams';
 import type { MatchSnapshot, MatchStatus } from '@/lib/domain/types';
 import {
   buildNotifications,
@@ -51,6 +53,15 @@ function loadSnapshot(tx: Tx, matchId: string): MatchSnapshot | null {
   const match = tx.select().from(matches).where(eq(matches.id, matchId)).get();
   if (!match) return null;
 
+  // The mode, because a clash answers a decline differently from every other
+  // match (spec 0017, rule 5). It is the game's, not the match's: nothing
+  // about a decline is a scoring rule, so there is nothing to snapshot.
+  const game = tx
+    .select({ mode: games.mode })
+    .from(games)
+    .where(eq(games.id, match.gameId))
+    .get();
+
   const participants = tx
     .select()
     .from(matchParticipants)
@@ -61,6 +72,7 @@ function loadSnapshot(tx: Tx, matchId: string): MatchSnapshot | null {
   return {
     id: match.id,
     status: match.status,
+    mode: game?.mode ?? 'duel',
     sidesCount: sides.length,
     invitationExpiresAt: match.invitationExpiresAt,
     requiresScore: match.ruleRequiresScore,
@@ -195,22 +207,28 @@ function applyEffects(
           throw new Error(`cannot award points for ${matchId}: no winning side`);
         }
 
+        // Rules come from the match snapshot, never from the game
+        // (spec 0005, rules 13-14).
+        const rules = {
+          pointsPerWin: match.rulePointsPerWin,
+          marginBonusPerPoint: match.ruleMarginBonusPerPoint,
+          marginBonusCap: match.ruleMarginBonusCap,
+          requiresScore: match.ruleRequiresScore,
+        };
+        const sideScores = sides.map((s) => ({ sideIndex: s.sideIndex, score: s.score }));
+
         const awards = computeAwards({
-          // Rules come from the match snapshot, never from the game
-          // (spec 0005, rules 13-14).
-          rules: {
-            pointsPerWin: match.rulePointsPerWin,
-            marginBonusPerPoint: match.ruleMarginBonusPerPoint,
-            marginBonusCap: match.ruleMarginBonusCap,
-            requiresScore: match.ruleRequiresScore,
-          },
+          rules,
           gameName: game.name,
           winningSide,
-          sides: sides.map((s) => ({ sideIndex: s.sideIndex, score: s.score })),
-          participants: participants.map((p) => ({
-            userId: p.userId,
-            sideIndex: p.sideIndex,
-          })),
+          sides: sideScores,
+          // A player who declined was removed from their side and did not
+          // play, so they are paid nothing — which only ever happens in a
+          // clash, the one match a refusal does not cancel (spec 0017,
+          // rule 5).
+          participants: participants
+            .filter((p) => p.invitationStatus !== 'declined')
+            .map((p) => ({ userId: p.userId, sideIndex: p.sideIndex })),
         });
 
         if (awards.length > 0) {
@@ -230,6 +248,52 @@ function applyEffects(
             // Idempotent by construction: the unique index on
             // (match, user, type) makes a double award a no-op rather than a
             // duplicated total (spec 0005, rule 7).
+            .onConflictDoNothing()
+            .run();
+        }
+
+        // The TEAM ledger (spec 0017, rules 17-20). Keyed off team MEMBERSHIP
+        // and not off who accepted: a player who declined is still on a team,
+        // and their side still belongs to it.
+        const memberships = tx
+          .select({ id: users.id, teamId: users.teamId })
+          .from(users)
+          .where(
+            inArray(
+              users.id,
+              participants.map((p) => p.userId),
+            ),
+          )
+          .all();
+        const teamOf = new Map(memberships.map((row) => [row.id, row.teamId]));
+
+        const teamAwards = computeTeamAwards({
+          rules,
+          gameName: game.name,
+          winningSide,
+          sides: sideScores,
+          participants: participants.map((p) => ({
+            sideIndex: p.sideIndex,
+            teamId: teamOf.get(p.userId) ?? null,
+          })),
+        });
+
+        if (teamAwards.length > 0) {
+          tx.insert(teamPointEvents)
+            .values(
+              teamAwards.map((award) => ({
+                id: crypto.randomUUID(),
+                teamId: award.teamId,
+                matchId,
+                type: award.type,
+                points: award.points,
+                detail: award.detail,
+                createdBy: null,
+                createdAt: now,
+              })),
+            )
+            // One row per (match, team, type), exactly as the player ledger
+            // does it (rule 20).
             .onConflictDoNothing()
             .run();
         }
@@ -254,6 +318,38 @@ function applyEffects(
               reversals.map((reversal) => ({
                 id: crypto.randomUUID(),
                 userId: reversal.userId,
+                matchId,
+                type: reversal.type,
+                points: reversal.points,
+                detail: reversal.detail,
+                createdBy: null,
+                createdAt: now,
+              })),
+            )
+            .onConflictDoNothing()
+            .run();
+        }
+
+        // The same, mirrored, for the teams the match paid (spec 0017,
+        // rule 21). The award rows stay: the history shows both, and the
+        // match leaves that team's "matches won" because the two cancel out.
+        const teamAwarded = tx
+          .select({ teamId: teamPointEvents.teamId, points: teamPointEvents.points })
+          .from(teamPointEvents)
+          .where(
+            and(
+              eq(teamPointEvents.matchId, matchId),
+              inArray(teamPointEvents.type, ['match_win', 'margin_bonus']),
+            ),
+          )
+          .all();
+        const teamReversals = computeTeamReversals(teamAwarded, game.name);
+        if (teamReversals.length > 0) {
+          tx.insert(teamPointEvents)
+            .values(
+              teamReversals.map((reversal) => ({
+                id: crypto.randomUUID(),
+                teamId: reversal.teamId,
                 matchId,
                 type: reversal.type,
                 points: reversal.points,
@@ -385,7 +481,12 @@ export async function applyMatchAction(
         );
       }
       if (action.type === 'expire') {
-        return { result: { ok: true, status: 'expired' }, intents };
+        // Not always 'expired': a clash whose invitations lapse proceeds with
+        // whoever accepted (spec 0017, rule 5).
+        return {
+          result: { ok: true, status: expire.ok ? expire.nextStatus : 'expired' },
+          intents,
+        };
       }
       // Run the original action against the pre-expiry snapshot so the player
       // gets "l'invitation a expiré" rather than a generic wrong-state error.

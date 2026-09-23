@@ -36,6 +36,10 @@ function open() {
 /**
  * Clears everything a test can create, and leaves the seeded roster and the
  * seeded games. Child rows first, because foreign keys are on.
+ *
+ * `users` is deliberately untouched — which is why `users.team_id` survives a
+ * reset, and why the choice journey has to clear its own player first
+ * (`clearTeamFor`).
  */
 export function resetVolatileState(): void {
   const db = open();
@@ -43,6 +47,8 @@ export function resetVolatileState(): void {
     db.exec(`
       DELETE FROM notifications;
       DELETE FROM point_events;
+      DELETE FROM team_point_events;
+      DELETE FROM team_moves;
       DELETE FROM match_participants;
       DELETE FROM match_sides;
       DELETE FROM matches;
@@ -218,4 +224,75 @@ export async function waitForClientErrors(
     groups = clientErrorGroups();
   }
   return groups;
+}
+
+/**
+ * Puts one player back to having no team (spec 0017).
+ *
+ * The third fixture, and it earns its place the same way the expired
+ * invitation does: `resetVolatileState()` leaves `users` alone, so a choice is
+ * permanent for the life of the database. Without this the choice journey
+ * passes once and fails on the CI retry — deterministically, which is the
+ * worst kind of flake to diagnose.
+ */
+export function clearTeamFor(userId: string): void {
+  const db = open();
+  try {
+    db.prepare('UPDATE users SET team_id = NULL WHERE id = ?').run(userId);
+  } finally {
+    db.close();
+  }
+}
+
+/** The team a player belongs to, by slug. Null when they have not chosen. */
+export function teamSlugOf(userId: string): string | null {
+  const db = open();
+  try {
+    const row = db
+      .prepare(
+        'SELECT t.slug AS slug FROM users u JOIN teams t ON t.id = u.team_id WHERE u.id = ?',
+      )
+      .get(userId) as { slug: string } | undefined;
+    return row?.slug ?? null;
+  } finally {
+    db.close();
+  }
+}
+
+/** What the team ledger sums to for a team, by slug (spec 0017, rule 24). */
+export function teamPointTotal(slug: string): number {
+  const db = open();
+  try {
+    const row = db
+      .prepare(
+        `SELECT COALESCE(SUM(e.points), 0) AS total
+           FROM team_point_events e
+           JOIN teams t ON t.id = e.team_id
+          WHERE t.slug = ?`,
+      )
+      .get(slug) as { total: number };
+    return row.total;
+  } finally {
+    db.close();
+  }
+}
+
+/** Every row of the team ledger for a team, oldest first. */
+export function teamPointEventTypes(slug: string): string[] {
+  const db = open();
+  try {
+    return (
+      db
+        .prepare(
+          `SELECT e.type AS type
+             FROM team_point_events e
+             JOIN teams t ON t.id = e.team_id
+            WHERE t.slug = ?
+            ORDER BY e.created_at, e.type`,
+        )
+        .all(slug) as { type: string }[]
+    ).map((row) => row.type);
+  } finally {
+    db.close();
+  }
 }

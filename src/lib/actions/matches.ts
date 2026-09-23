@@ -12,7 +12,7 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
 import { db } from '@/db';
-import { games, matchParticipants, matchSides, matches, users } from '@/db/schema';
+import { games, matchParticipants, matchSides, matches, teams, users } from '@/db/schema';
 import { requireUserAction } from '@/lib/auth/guards';
 import { scoringRulesFor } from '@/lib/domain/game-rules';
 import { INVITATION_TTL_MS } from '@/lib/domain/types';
@@ -32,12 +32,89 @@ const createSchema = z.object({
     .min(1),
 });
 
-/** "Alice & Anna" reads better than "Équipe 1"; past 3 players it does not. */
+/**
+ * "Alice & Anna" reads better than "Camp 1"; past 3 players it does not.
+ *
+ * Never «Équipe»: that word now names one of the weekend's two teams, and a
+ * side of a match is a **camp** (spec 0017, rule 29). The one exception is a
+ * clash, whose sides really are the teams — it passes their names in.
+ */
 function sideLabel(names: string[], sideIndex: number): string {
   if (names.length === 0) return `Camp ${sideIndex}`;
   if (names.length === 1) return names[0] as string;
   if (names.length <= 3) return names.join(' & ');
-  return `Équipe ${sideIndex}`;
+  return `Camp ${sideIndex}`;
+}
+
+/** Shown whenever a clash's two sides are not the two teams in full. */
+const CLASH_SHAPE_ERROR = 'Un match d’équipes oppose les deux équipes au complet';
+
+type Assignment = { userId: string; sideIndex: number };
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+/**
+ * A clash's sides must be exactly the two teams, in full (spec 0017, rule 3).
+ *
+ * Membership is what is checked, and it is checked at creation: nobody has
+ * accepted anything yet, and rule 5 lets people drop out afterwards without
+ * the match ceasing to be a clash.
+ *
+ * Returns the two teams by side, or the message to refuse with.
+ */
+function resolveClashSides(
+  tx: Tx,
+  assignments: Assignment[],
+  creatorId: string,
+): { ok: true; teamNames: Map<number, string> } | { ok: false; message: string } {
+  if (!assignments.some((a) => a.userId === creatorId)) {
+    return { ok: false, message: 'Tu ne fais partie d’aucune des deux équipes' };
+  }
+
+  const bySide = new Map<number, string[]>();
+  for (const assignment of assignments) {
+    const existing = bySide.get(assignment.sideIndex);
+    if (existing) existing.push(assignment.userId);
+    else bySide.set(assignment.sideIndex, [assignment.userId]);
+  }
+  if (bySide.size !== 2) return { ok: false, message: CLASH_SHAPE_ERROR };
+
+  const roster = tx
+    .select({ id: users.id, teamId: users.teamId })
+    .from(users)
+    .all();
+  const teamOf = new Map(roster.map((row) => [row.id, row.teamId]));
+
+  const membership = new Map<string, Set<string>>();
+  for (const row of roster) {
+    if (row.teamId === null) continue;
+    const existing = membership.get(row.teamId);
+    if (existing) existing.add(row.id);
+    else membership.set(row.teamId, new Set([row.id]));
+  }
+
+  const teamBySide = new Map<number, string>();
+  for (const [sideIndex, userIds] of bySide) {
+    const first = userIds[0];
+    const teamId = first === undefined ? null : (teamOf.get(first) ?? null);
+    if (teamId === null) return { ok: false, message: CLASH_SHAPE_ERROR };
+    if (userIds.some((userId) => teamOf.get(userId) !== teamId)) {
+      return { ok: false, message: CLASH_SHAPE_ERROR };
+    }
+    const full = membership.get(teamId) ?? new Set<string>();
+    if (full.size !== userIds.length) return { ok: false, message: CLASH_SHAPE_ERROR };
+    teamBySide.set(sideIndex, teamId);
+  }
+
+  const chosen = [...teamBySide.values()];
+  if (chosen[0] === chosen[1]) return { ok: false, message: CLASH_SHAPE_ERROR };
+
+  const named = tx.select({ id: teams.id, name: teams.name }).from(teams).all();
+  const nameOfTeam = new Map(named.map((row) => [row.id, row.name]));
+  const teamNames = new Map<number, string>();
+  for (const [sideIndex, teamId] of teamBySide) {
+    teamNames.set(sideIndex, nameOfTeam.get(teamId) ?? `Camp ${sideIndex}`);
+  }
+  return { ok: true, teamNames };
 }
 
 export async function createMatch(input: {
@@ -61,10 +138,21 @@ export async function createMatch(input: {
       if (!game) return { ok: false, message: 'Ce jeu n’existe pas' };
       if (!game.isActive) return { ok: false, message: 'Ce jeu est archivé' };
 
+      // A clash commits every guest at once, so an admin calls it
+      // (spec 0017, Authorisation).
+      const isClash = game.mode === 'clash';
+      if (isClash && me.role !== 'admin') {
+        return { ok: false, message: 'Réservé aux admins' };
+      }
+
       // The creator is always a participant, on side 1 (spec 0004, rule 2).
-      const withCreator = assignments.some((a) => a.userId === me.id)
-        ? assignments
-        : [...assignments, { userId: me.id, sideIndex: 1 }];
+      // A clash is the exception and has to be: its sides ARE the two teams,
+      // so the creator sits on their own team's side and adding them to side 1
+      // would break the very membership rule 3 checks.
+      const withCreator =
+        isClash || assignments.some((a) => a.userId === me.id)
+          ? assignments
+          : [...assignments, { userId: me.id, sideIndex: 1 }];
 
       const seen = new Set<string>();
       for (const a of withCreator) {
@@ -76,17 +164,29 @@ export async function createMatch(input: {
           return { ok: false, message: 'Camp invalide' };
         }
       }
-      if (withCreator.find((a) => a.userId === me.id)?.sideIndex !== 1) {
-        return { ok: false, message: 'Le créateur joue dans le camp 1' };
-      }
+      // Side labels: the players' names, or the team names for a clash
+      // (spec 0017, rule 29).
+      let clashTeamNames: Map<number, string> | null = null;
 
-      for (let sideIndex = 1; sideIndex <= game.sidesCount; sideIndex += 1) {
-        const count = withCreator.filter((a) => a.sideIndex === sideIndex).length;
-        if (count !== game.playersPerSide) {
-          return {
-            ok: false,
-            message: `Il manque des joueurs dans le camp ${sideIndex} (${count}/${game.playersPerSide})`,
-          };
+      if (isClash) {
+        const shape = resolveClashSides(tx, withCreator, me.id);
+        if (!shape.ok) return { ok: false, message: shape.message };
+        clashTeamNames = shape.teamNames;
+      } else {
+        if (withCreator.find((a) => a.userId === me.id)?.sideIndex !== 1) {
+          return { ok: false, message: 'Le créateur joue dans le camp 1' };
+        }
+
+        // The ONE check a clash had to be exempted from: its two sides are as
+        // big as the teams are, and they need not match (spec 0017, rule 2).
+        for (let sideIndex = 1; sideIndex <= game.sidesCount; sideIndex += 1) {
+          const count = withCreator.filter((a) => a.sideIndex === sideIndex).length;
+          if (count !== game.playersPerSide) {
+            return {
+              ok: false,
+              message: `Il manque des joueurs dans le camp ${sideIndex} (${count}/${game.playersPerSide})`,
+            };
+          }
         }
       }
 
@@ -158,7 +258,7 @@ export async function createMatch(input: {
           .values({
             matchId,
             sideIndex,
-            label: sideLabel(names, sideIndex),
+            label: clashTeamNames?.get(sideIndex) ?? sideLabel(names, sideIndex),
             score: null,
             validatedAt: null,
             validatedBy: null,

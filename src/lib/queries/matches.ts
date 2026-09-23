@@ -56,12 +56,16 @@ export type MatchView = {
 
 function toSnapshot(
   match: MatchRow,
+  game: GameRow,
   participants: MatchParticipantView[],
   sides: MatchSideView[],
 ): MatchSnapshot {
   return {
     id: match.id,
     status: match.status,
+    // The game's mode, because a clash answers a decline differently from
+    // every other match (spec 0017, rule 5).
+    mode: game.mode,
     sidesCount: sides.length,
     invitationExpiresAt: match.invitationExpiresAt,
     requiresScore: match.ruleRequiresScore,
@@ -136,7 +140,7 @@ export async function getMatchView(
     players: participantRows.filter((p) => p.sideIndex === side.sideIndex),
   }));
 
-  const snapshot = toSnapshot(row.match, participantRows, sides);
+  const snapshot = toSnapshot(row.match, row.game, participantRows, sides);
 
   return {
     match: row.match,

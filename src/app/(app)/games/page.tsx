@@ -78,7 +78,9 @@ export default async function GamesPage() {
                       <Badge>
                         {game.mode === 'duel'
                           ? `${game.sidesCount} joueurs`
-                          : `${game.sidesCount} × ${game.playersPerSide} joueurs`}
+                          : game.mode === 'clash'
+                            ? 'Les deux équipes'
+                            : `${game.sidesCount} × ${game.playersPerSide} joueurs`}
                       </Badge>
                       {game.marginBonusEnabled ? (
                         <Badge tone="grape">

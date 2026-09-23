@@ -43,7 +43,14 @@ export function validateGameDefinition(game: GameDefinition): GameRuleError[] {
     errors.push({ field: 'playersPerSide', message: 'Un duel oppose des joueurs seuls' });
   }
   if (game.mode === 'team' && game.playersPerSide < 2) {
-    errors.push({ field: 'playersPerSide', message: 'Une équipe compte au moins 2 joueurs' });
+    errors.push({ field: 'playersPerSide', message: 'Un camp d’équipe compte au moins 2 joueurs' });
+  }
+  // A clash is the two teams in full, so it has exactly two sides and its
+  // `playersPerSide` is never read (spec 0017, rule 1). The size checks above
+  // deliberately do not apply to it: a validator that demands equal sides
+  // makes a 8 v 7 impossible to create, which is the bug 0017 corrects.
+  if (game.mode === 'clash' && game.sidesCount !== 2) {
+    errors.push({ field: 'sidesCount', message: 'Un choc oppose les deux équipes' });
   }
   if (game.playersPerSide > GAME_LIMITS.playersPerSide.max) {
     errors.push({ field: 'playersPerSide', message: 'Maximum 6 joueurs par camp' });
@@ -82,11 +89,15 @@ export function validateGameDefinition(game: GameDefinition): GameRuleError[] {
 export function normaliseGameDefinition(
   game: GameDefinition & { requiresScore: boolean },
 ): GameDefinition & { requiresScore: boolean } {
-  const playersPerSide = game.mode === 'duel' ? 1 : game.playersPerSide;
+  // A duel is one player a side, and a clash stores 1 and never reads it
+  // (spec 0017, rule 2).
+  const playersPerSide = game.mode === 'duel' || game.mode === 'clash' ? 1 : game.playersPerSide;
+  const sidesCount = game.mode === 'clash' ? 2 : game.sidesCount;
   const marginBonusPerPoint = game.marginBonusEnabled ? game.marginBonusPerPoint : 0;
   return {
     ...game,
     playersPerSide,
+    sidesCount,
     marginBonusPerPoint,
     marginBonusCap: game.marginBonusEnabled ? game.marginBonusCap : null,
     requiresScore: game.marginBonusEnabled ? true : game.requiresScore,

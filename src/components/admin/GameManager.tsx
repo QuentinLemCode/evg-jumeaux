@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 
 import { createGame, setGameArchived, updateGame } from '@/lib/actions/games';
+import type { GameMode } from '@/lib/domain/types';
 
 import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
@@ -16,7 +17,7 @@ export type ManagedGame = {
   name: string;
   description: string | null;
   icon: string;
-  mode: 'duel' | 'team';
+  mode: GameMode;
   sidesCount: number;
   playersPerSide: number;
   pointsPerWin: number;
@@ -32,7 +33,7 @@ type Draft = {
   name: string;
   description: string;
   icon: string;
-  mode: 'duel' | 'team';
+  mode: GameMode;
   sidesCount: number;
   playersPerSide: number;
   pointsPerWin: number;
@@ -40,6 +41,16 @@ type Draft = {
   marginBonusPerPoint: number;
   marginBonusCap: string;
   requiresScore: boolean;
+};
+
+/**
+ * «Camp» and not «équipe» for a side of a match: «équipe» now names one of
+ * the weekend's two teams (spec 0017, rule 29).
+ */
+const MODE_LABELS: Record<GameMode, string> = {
+  duel: 'Chacun pour soi',
+  team: 'Par camps',
+  clash: 'Les deux équipes',
 };
 
 const BLANK: Draft = {
@@ -82,9 +93,12 @@ export function GameManager({ games }: { games: ManagedGame[] }) {
   const set = <K extends keyof Draft>(key: K, value: Draft[K]) =>
     setDraft((current) => {
       const next = { ...current, [key]: value };
-      // A duel is one player per side, by definition (spec 0003, rule 3).
+      // A duel is one player per side, by definition (spec 0003, rule 3), and
+      // a clash is the two teams in full — it stores 1 and never reads it
+      // (spec 0017, rule 1).
       if (key === 'mode') {
-        next.playersPerSide = value === 'duel' ? 1 : Math.max(2, current.playersPerSide);
+        next.playersPerSide = value === 'team' ? Math.max(2, current.playersPerSide) : 1;
+        if (value === 'clash') next.sidesCount = 2;
       }
       // A margin cannot be computed without scores, so enabling the bonus
       // forces them on rather than saving a rule that can never fire.
@@ -161,7 +175,7 @@ export function GameManager({ games }: { games: ManagedGame[] }) {
 
       <FieldGroup label="Format">
         <div className="flex gap-2">
-          {(['duel', 'team'] as const).map((mode) => (
+          {(['duel', 'team', 'clash'] as const).map((mode) => (
             <button
               key={mode}
               type="button"
@@ -173,26 +187,35 @@ export function GameManager({ games }: { games: ManagedGame[] }) {
                   : 'border-border bg-bg-elevated text-muted',
               ].join(' ')}
             >
-              {mode === 'duel' ? 'Chacun pour soi' : 'Par équipes'}
+              {MODE_LABELS[mode]}
             </button>
           ))}
         </div>
       </FieldGroup>
 
       <div className="grid grid-cols-2 gap-3">
-        <Field label={draft.mode === 'duel' ? 'Nombre de joueurs' : 'Nombre d’équipes'}>
-          <input
-            type="number"
-            inputMode="numeric"
-            min={2}
-            max={4}
-            value={draft.sidesCount}
-            onChange={(event) => set('sidesCount', Number(event.target.value))}
-            className={inputClass}
-          />
-        </Field>
+        {draft.mode === 'clash' ? (
+          // Two sides, as big as the teams are: there is nothing to configure
+          // (spec 0017, rule 1).
+          <p className="col-span-2 text-xs text-muted">
+            Les deux équipes du week-end s’affrontent au complet. Pas de taille à
+            régler : elles n’ont pas besoin d’être de la même taille.
+          </p>
+        ) : (
+          <Field label={draft.mode === 'duel' ? 'Nombre de joueurs' : 'Nombre de camps'}>
+            <input
+              type="number"
+              inputMode="numeric"
+              min={2}
+              max={4}
+              value={draft.sidesCount}
+              onChange={(event) => set('sidesCount', Number(event.target.value))}
+              className={inputClass}
+            />
+          </Field>
+        )}
         {draft.mode === 'team' ? (
-          <Field label="Joueurs par équipe">
+          <Field label="Joueurs par camp">
             <input
               type="number"
               inputMode="numeric"
@@ -342,7 +365,9 @@ export function GameManager({ games }: { games: ManagedGame[] }) {
                       <Badge>
                         {game.mode === 'duel'
                           ? `${game.sidesCount} joueurs`
-                          : `${game.sidesCount} × ${game.playersPerSide}`}
+                          : game.mode === 'clash'
+                            ? 'Les deux équipes'
+                            : `${game.sidesCount} × ${game.playersPerSide}`}
                       </Badge>
                       {game.marginBonusEnabled ? (
                         <Badge tone="grape">+{game.marginBonusPerPoint}/écart</Badge>

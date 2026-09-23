@@ -15,6 +15,7 @@ function duel(overrides: Partial<MatchSnapshot> = {}): MatchSnapshot {
   return {
     id: 'm1',
     status: 'pending',
+    mode: 'duel',
     sidesCount: 2,
     invitationExpiresAt: NOW + INVITATION_TTL_MS,
     requiresScore: true,
@@ -174,6 +175,123 @@ describe('declining an invitation', () => {
       userId: 'ben',
       status: 'declined',
     });
+  });
+});
+
+/**
+ * A clash is the one match a refusal does not kill (spec 0017, rule 5). It is
+ * the weekend's set piece, announced in advance, and re-forming fifteen people
+ * around one absence is not something anybody is going to do.
+ */
+describe('a clash, which survives its refusals', () => {
+  function clash(overrides: Partial<MatchSnapshot> = {}): MatchSnapshot {
+    return duel({
+      mode: 'clash',
+      participants: [
+        { userId: 'alice', sideIndex: 1, invitationStatus: 'accepted' },
+        { userId: 'anna', sideIndex: 1, invitationStatus: 'pending' },
+        { userId: 'bob', sideIndex: 2, invitationStatus: 'pending' },
+        { userId: 'ben', sideIndex: 2, invitationStatus: 'pending' },
+      ],
+      ...overrides,
+    });
+  }
+
+  it('carries on when one player refuses', () => {
+    const result = transition(clash(), { type: 'decline', userId: 'ben' }, NOW);
+    expect(result).toMatchObject({ ok: true, nextStatus: 'pending' });
+    if (!result.ok) throw new Error('unreachable');
+    expect(result.effects).toEqual([
+      { kind: 'set-invitation', userId: 'ben', status: 'declined' },
+    ]);
+  });
+
+  it('starts when the refusal was the last answer owed', () => {
+    const result = transition(
+      clash({
+        participants: [
+          { userId: 'alice', sideIndex: 1, invitationStatus: 'accepted' },
+          { userId: 'bob', sideIndex: 2, invitationStatus: 'accepted' },
+          { userId: 'ben', sideIndex: 2, invitationStatus: 'pending' },
+        ],
+      }),
+      { type: 'decline', userId: 'ben' },
+      NOW,
+    );
+    expect(result).toMatchObject({ ok: true, nextStatus: 'active' });
+  });
+
+  it('is cancelled when the refusal empties a side', () => {
+    const result = transition(
+      clash({
+        participants: [
+          { userId: 'alice', sideIndex: 1, invitationStatus: 'accepted' },
+          { userId: 'bob', sideIndex: 2, invitationStatus: 'pending' },
+        ],
+      }),
+      { type: 'decline', userId: 'bob' },
+      NOW,
+    );
+    expect(result).toMatchObject({ ok: true, nextStatus: 'cancelled' });
+    if (!result.ok) throw new Error('unreachable');
+    expect(result.effects).toContainEqual({
+      kind: 'cancel',
+      userId: 'bob',
+      reason: 'Match annulé : plus personne dans un camp',
+    });
+  });
+
+  it('drops the lapsed invitations at the deadline and starts anyway', () => {
+    const result = transition(
+      clash({
+        participants: [
+          { userId: 'alice', sideIndex: 1, invitationStatus: 'accepted' },
+          { userId: 'anna', sideIndex: 1, invitationStatus: 'pending' },
+          { userId: 'bob', sideIndex: 2, invitationStatus: 'accepted' },
+          { userId: 'ben', sideIndex: 2, invitationStatus: 'pending' },
+        ],
+      }),
+      { type: 'expire' },
+      NOW + INVITATION_TTL_MS + 1,
+    );
+    expect(result).toMatchObject({ ok: true, nextStatus: 'active' });
+    if (!result.ok) throw new Error('unreachable');
+    // Removed from their side: they are not paid for a match they sat out.
+    expect(result.effects).toEqual([
+      { kind: 'set-invitation', userId: 'anna', status: 'declined' },
+      { kind: 'set-invitation', userId: 'ben', status: 'declined' },
+    ]);
+  });
+
+  it('is cancelled at the deadline when nobody on a side accepted', () => {
+    const result = transition(
+      clash({
+        participants: [
+          { userId: 'alice', sideIndex: 1, invitationStatus: 'accepted' },
+          { userId: 'bob', sideIndex: 2, invitationStatus: 'pending' },
+        ],
+      }),
+      { type: 'expire' },
+      NOW + INVITATION_TTL_MS + 1,
+    );
+    expect(result).toMatchObject({ ok: true, nextStatus: 'cancelled' });
+  });
+
+  it('offers nothing to a player who was removed from their side', () => {
+    const acted = canAct(
+      clash({
+        status: 'active',
+        participants: [
+          { userId: 'alice', sideIndex: 1, invitationStatus: 'accepted' },
+          { userId: 'bob', sideIndex: 2, invitationStatus: 'accepted' },
+          { userId: 'ben', sideIndex: 2, invitationStatus: 'declined' },
+        ],
+      }),
+      'ben',
+      NOW,
+    );
+    expect(acted.canReport).toBe(false);
+    expect(acted.canCancel).toBe(false);
   });
 });
 

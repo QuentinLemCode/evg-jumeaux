@@ -24,7 +24,7 @@ const gameSchema = z.object({
   name: z.string().trim().min(2).max(60),
   description: z.string().trim().max(280).optional(),
   icon: z.string().trim().min(1).max(8),
-  mode: z.enum(['duel', 'team']),
+  mode: z.enum(['duel', 'team', 'clash']),
   sidesCount: z.coerce
     .number()
     .int()

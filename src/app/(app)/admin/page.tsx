@@ -1,4 +1,5 @@
 import { AdjustPointsForm } from '@/components/admin/AdjustPointsForm';
+import { TeamMoveForm } from '@/components/admin/TeamMoveForm';
 import { AdminMatchControls } from '@/components/admin/AdminMatchControls';
 import { DisputeResolver } from '@/components/admin/DisputeResolver';
 import { MatchSummaryCard } from '@/components/matches/MatchSummaryCard';
@@ -10,17 +11,22 @@ import { requireAdmin } from '@/lib/auth/guards';
 import { countOpenClientErrors } from '@/lib/queries/client-errors';
 import { listDisputedMatches, listNonTerminalMatches } from '@/lib/queries/matches';
 import { getRoster } from '@/lib/queries/roster';
+import { listPlayersWithTeams, listTeams } from '@/lib/queries/teams';
 
 export const dynamic = 'force-dynamic';
 
 export default async function AdminPage() {
   await requireAdmin('/admin');
-  const [disputes, running, roster, openErrors] = await Promise.all([
+  const [disputes, running, roster, openErrors, teams, placements] = await Promise.all([
     listDisputedMatches(),
     listNonTerminalMatches(),
     getRoster(),
     countOpenClientErrors(),
+    listTeams(),
+    listPlayersWithTeams(),
   ]);
+
+  const unplaced = placements.filter((player) => player.teamId === null).length;
 
   return (
     <div className="space-y-6">
@@ -101,6 +107,29 @@ export default async function AdminPage() {
             ))}
           </ul>
         )}
+      </section>
+
+      <section>
+        <SectionTitle>Équipes</SectionTitle>
+        <Card>
+          <p className="mb-3 text-sm text-muted">
+            {teams.map((team) => `${team.name} : ${team.memberCount}`).join(' · ')}
+            {unplaced > 0
+              ? ` · ${unplaced} sans équipe`
+              : ' · tout le monde a choisi'}
+            . Déplacer quelqu’un ne bouge aucun point — ni les siens, ni ceux de
+            son ancienne équipe.
+          </p>
+          <TeamMoveForm
+            players={placements.map((player) => ({
+              id: player.id,
+              name: player.name,
+              teamName: player.teamName,
+              isCaptain: player.isCaptain,
+            }))}
+            teams={teams.map((team) => ({ teamId: team.teamId, name: team.name }))}
+          />
+        </Card>
       </section>
 
       <section>

@@ -19,10 +19,20 @@ without a developer.
 1. A **game** is a type of contest, not an instance of one. "Palet" is a game;
    Tuesday's palet match between Paul and Hugo is a match (0004).
 2. A game declares its shape:
-   - `mode`: `duel` (each side is one player) or `team` (each side is several).
-   - `sidesCount`: how many sides face each other, 2 to 4.
-   - `playersPerSide`: 1 for a duel; 2 to 6 for a team game.
-   - Total participants is therefore `sidesCount × playersPerSide`, from 2 to 24.
+   - `mode`: `duel` (each side is one player), `team` (each side is several),
+     or `clash` (each side is one of the weekend's two teams, in full —
+     spec 0017).
+   - `sidesCount`: how many sides face each other, 2 to 4. Always 2 for a
+     `clash`.
+   - `playersPerSide`: 1 for a duel; 2 to 6 for a team game. **Ignored for a
+     `clash`**, whose sides are as big as the teams are and need not match
+     each other; the column still holds a value, and that value is 1.
+   - Total participants is `sidesCount × playersPerSide`, from 2 to 24 — for
+     `duel` and `team`. A `clash` holds every member of both teams.
+   - The 1..6 bound on `playersPerSide` and the "every side holds exactly
+     `playersPerSide` players" check apply to `duel` and `team` only. A
+     validator that applies them to every mode makes a `clash` impossible to
+     create, which is the bug spec 0017 had to correct.
 3. A game declares its scoring:
    - `pointsPerWin`: leaderboard points awarded to **each player of the winning
      side**, 1 to 100.
@@ -52,9 +62,9 @@ games
   name                   text not null
   description            text
   icon                   text not null      -- single emoji
-  mode                   text not null      -- 'duel' | 'team'
-  sides_count            integer not null   -- 2..4
-  players_per_side       integer not null   -- 1..6 (1 when mode = 'duel')
+  mode                   text not null      -- 'duel' | 'team' | 'clash'
+  sides_count            integer not null   -- 2..4 (always 2 when 'clash')
+  players_per_side       integer not null   -- 1..6 ('duel' and 'clash': 1)
   points_per_win         integer not null   -- 1..100
   margin_bonus_enabled   integer not null   -- 0 | 1
   margin_bonus_per_point integer not null   -- 0..20
@@ -86,7 +96,7 @@ Default games are seeded so the app is usable on first boot: *Palet*,
 |---|---|---|
 | Name already taken | Reject, keep the form filled | « Un jeu porte déjà ce nom » |
 | `mode = duel` with `playersPerSide > 1` | Reject | « Un duel oppose des joueurs seuls » |
-| `mode = team` with `playersPerSide < 2` | Reject | « Une équipe compte au moins 2 joueurs » |
+| `mode = team` with `playersPerSide < 2` | Reject | « Un camp d’équipe compte au moins 2 joueurs » |
 | Margin bonus enabled with `marginBonusPerPoint = 0` | Reject | « Indique combien de points rapporte chaque point d'écart » |
 | Margin bonus enabled while `requiresScore` is off | `requiresScore` is forced on | (silent, explained in the form) |
 | Non-admin calls a mutating action directly | 403, nothing written | « Réservé aux admins » |
@@ -131,3 +141,4 @@ None.
 | Date | Change | Why |
 |---|---|---|
 | 2026-09-14 | Created | Initial harness and application bootstrap |
+| 2026-09-23 | A third mode, `clash`, where the two sides are the two teams in full and need not be the same size (spec 0017) | `playersPerSide` forces every side to the same count, so two teams of 8 and 7 could never meet |

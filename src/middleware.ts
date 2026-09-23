@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 
 import { SESSION_COOKIE } from '@/lib/auth/cookie';
+import { PATHNAME_HEADER } from '@/lib/request-path';
 
 /**
  * Remembers where a guest was going (spec 0001, rule 7).
@@ -26,7 +27,19 @@ const PROTECTED = [
   '/matches',
   '/notifications',
   '/players',
+  '/team-choice',
+  '/teams',
 ];
+
+/**
+ * Stamps the pathname on the request so the `(app)` layout can send a player
+ * with no team to the choice screen and then back here (spec 0017, rule 9).
+ */
+function withPathname(request: NextRequest, pathname: string) {
+  const headers = new Headers(request.headers);
+  headers.set(PATHNAME_HEADER, pathname);
+  return NextResponse.next({ request: { headers } });
+}
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -34,7 +47,7 @@ export function middleware(request: NextRequest) {
     (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
   );
   if (!guarded) return NextResponse.next();
-  if (request.cookies.has(SESSION_COOKIE)) return NextResponse.next();
+  if (request.cookies.has(SESSION_COOKIE)) return withPathname(request, pathname);
 
   const login = new URL('/', request.url);
   // The route only — a query string can carry another `next=`, and chaining
@@ -59,5 +72,7 @@ export const config = {
     '/matches/:path*',
     '/notifications',
     '/players/:path*',
+    '/team-choice',
+    '/teams',
   ],
 };

@@ -145,7 +145,7 @@ matches
 match_sides
   match_id   text not null references matches(id)
   side_index integer not null   -- 1..sidesCount
-  label      text not null      -- 'Équipe 1' or the single player's name
+  label      text not null      -- 'Camp 1' or the single player's name (0017)
   score      integer            -- null until reported
   validated_at integer          -- null until this side validates
   validated_by text references users(id)
@@ -193,7 +193,7 @@ matches are queried by `user_id`.
 | Validating a match one is not in | 403 | « Tu ne participes pas à cette partie » |
 | Validating one's own report | Reject | « L'autre camp doit valider » |
 | Validating twice for the same side | No-op | (none) |
-| Team has the wrong number of players | Reject at creation | « Il manque des joueurs dans l'équipe X » |
+| A side has the wrong number of players | Reject at creation | « Il manque des joueurs dans le camp X » |
 | Same player on two sides | Reject | « Un joueur ne peut pas être dans deux camps » |
 
 ## Acceptance criteria
@@ -257,3 +257,4 @@ None.
 | Date | Change | Why |
 |---|---|---|
 | 2026-09-14 | Created | Initial harness and application bootstrap |
+| 2026-09-23 | A match's halves are «camps», not «équipes» (spec 0017) | «Équipe» now names one of the weekend's two teams, and both words were landing on the same screen |

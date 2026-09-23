@@ -9,6 +9,7 @@ import {
   EyeIcon,
   ScalesIcon,
   SlidersIcon,
+  SwapIcon,
   UndoIcon,
   type IconProps,
 } from '@/components/ui/Icon';
@@ -37,6 +38,7 @@ const MARKS: Record<
   dispute_settled: { Icon: ScalesIcon, tint: 'bg-grape-tint', ink: 'text-grape' },
   match_cancelled: { Icon: UndoIcon, tint: 'bg-coral-tint', ink: 'text-coral' },
   force_expired: { Icon: ClockIcon, tint: 'bg-tangerine-tint', ink: 'text-tangerine-deep' },
+  team_move: { Icon: SwapIcon, tint: 'bg-mint-tint', ink: 'text-mint-deep' },
 };
 
 function isLogType(value: string | undefined): value is AdminLogType {
@@ -142,6 +144,9 @@ export default async function AdminLogPage({
                     ) : (
                       <span>{entry.subject}</span>
                     )}
+                    {entry.trajectory ? (
+                      <span className="text-muted"> — {entry.trajectory}</span>
+                    ) : null}
                     {entry.affected > 1 ? (
                       <span className="text-muted"> — réparti sur {entry.affected} joueurs</span>
                     ) : null}

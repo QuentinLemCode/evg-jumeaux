@@ -13,6 +13,7 @@ import { Delta, Score } from '@/components/ui/Score';
 import { requireUser } from '@/lib/auth/guards';
 import { POINT_TYPE_LABELS, dateTime } from '@/lib/format';
 import { getPlayerProfile } from '@/lib/queries/players';
+import { getPlayerTeam } from '@/lib/queries/teams';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,7 +29,7 @@ function Stat({ label, value }: { label: string; value: string }) {
 export default async function PlayerPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const me = await requireUser(`/players/${id}`);
-  const profile = await getPlayerProfile(id);
+  const [profile, team] = await Promise.all([getPlayerProfile(id), getPlayerTeam(id)]);
   if (!profile) notFound();
 
   const { standing, ledger, perGame, history, winRate, busyMatchId, role } = profile;
@@ -48,6 +49,19 @@ export default async function PlayerPage({ params }: { params: Promise<{ id: str
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-1.5">
               <Badge tone="coral">#{standing.rank} au classement</Badge>
+              {/* The player's team, linked to the team screen — the tie
+                  between the two leaderboards is navigational and never
+                  arithmetic (spec 0017, rule 28). */}
+              {team ? (
+                <Link href="/teams" data-testid="player-team">
+                  <Badge tone="sky">
+                    {team.name}
+                    {team.isCaptain ? ' · capitaine' : ''}
+                  </Badge>
+                </Link>
+              ) : (
+                <Badge>Sans équipe</Badge>
+              )}
               {role === 'admin' ? <Badge tone="grape">Admin</Badge> : null}
               {busyMatchId ? <Badge tone="tangerine">En partie</Badge> : null}
             </div>

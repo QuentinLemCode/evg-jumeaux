@@ -92,6 +92,21 @@ function participantOf(
 }
 
 /**
+ * The reason a clash is cancelled when nobody is left on one of its sides
+ * (spec 0017, rule 5). Shown to the players as-is.
+ */
+const EMPTY_SIDE_REASON = 'Match annulé : plus personne dans un camp';
+
+/** Whether every side of the match still holds at least one player. */
+function everySideStillHasSomebody(
+  match: MatchSnapshot,
+  remaining: ParticipantSnapshot[],
+): boolean {
+  const sidesLeft = new Set(remaining.map((p) => p.sideIndex));
+  return sidesLeft.size >= match.sidesCount;
+}
+
+/**
  * True when a `pending` match is past its deadline. Callers apply the `expire`
  * transition before anything else, so a stale invitation is never shown as
  * joinable even if the background sweep has not run (spec 0004, rule 13).
@@ -157,6 +172,31 @@ export function transition(
       const effects: MatchEffect[] = action.byUserId
         ? [{ kind: 'force-expire', byUserId: action.byUserId }]
         : [];
+
+      // A clash is the weekend's set piece: it is announced, and it does not
+      // die because one guest left their phone in a pocket. The lapsed
+      // invitations are removed from their side and it proceeds — unless a
+      // side is left with nobody (spec 0017, rule 5).
+      if (match.mode === 'clash') {
+        for (const participant of match.participants) {
+          if (participant.invitationStatus === 'pending') {
+            effects.push({
+              kind: 'set-invitation',
+              userId: participant.userId,
+              status: 'declined',
+            });
+          }
+        }
+        const remaining = match.participants.filter(
+          (p) => p.invitationStatus === 'accepted',
+        );
+        if (!everySideStillHasSomebody(match, remaining)) {
+          effects.push({ kind: 'cancel', userId: null, reason: EMPTY_SIDE_REASON });
+          return { ok: true, nextStatus: 'cancelled', effects };
+        }
+        return { ok: true, nextStatus: 'active', effects };
+      }
+
       return { ok: true, nextStatus: 'expired', effects };
     }
 
@@ -187,13 +227,44 @@ export function transition(
       const me = participantOf(match, action.userId);
       if (!me) return fail('not_a_participant');
       if (me.invitationStatus !== 'pending') return fail('invitation_already_answered');
-      // One refusal cancels the match: there is no partial re-forming
+      const declined: MatchEffect = {
+        kind: 'set-invitation',
+        userId: action.userId,
+        status: 'declined',
+      };
+
+      // A clash survives a refusal: the player is removed from their side and
+      // it proceeds, because re-forming fifteen people around one absence is
+      // not a thing anybody is going to do (spec 0017, rule 5). Every other
+      // match is cancelled by one refusal — there is no partial re-forming
       // (spec 0004, rule 12).
+      if (match.mode === 'clash') {
+        const remaining = match.participants.filter(
+          (p) => p.userId !== action.userId && p.invitationStatus !== 'declined',
+        );
+        if (!everySideStillHasSomebody(match, remaining)) {
+          return {
+            ok: true,
+            nextStatus: 'cancelled',
+            effects: [
+              declined,
+              { kind: 'cancel', userId: action.userId, reason: EMPTY_SIDE_REASON },
+            ],
+          };
+        }
+        const stillPending = remaining.filter((p) => p.invitationStatus === 'pending');
+        return {
+          ok: true,
+          nextStatus: stillPending.length === 0 ? 'active' : 'pending',
+          effects: [declined],
+        };
+      }
+
       return {
         ok: true,
         nextStatus: 'cancelled',
         effects: [
-          { kind: 'set-invitation', userId: action.userId, status: 'declined' },
+          declined,
           { kind: 'cancel', userId: action.userId, reason: 'Invitation refusée' },
         ],
       };
@@ -334,20 +405,25 @@ export function canAct(match: MatchSnapshot, userId: string, now: number): {
   const expired = isInvitationExpired(match, now);
   const owed = sidesOwingValidation(match);
   const mySide = me ? match.sides.find((s) => s.sideIndex === me.sideIndex) : undefined;
+  const playing = me !== undefined && me.invitationStatus !== 'declined';
   return {
     canAccept:
       match.status === 'pending' && !expired && me?.invitationStatus === 'pending',
     canDecline:
       match.status === 'pending' && !expired && me?.invitationStatus === 'pending',
-    canReport: match.status === 'active' && me !== undefined,
+    // A player who declined has been removed from their side — in a clash
+    // the match carries on without them, so they report nothing and validate
+    // nothing (spec 0017, rule 5).
+    canReport: match.status === 'active' && playing,
     canValidate:
       match.status === 'awaiting_validation' &&
+      playing &&
       me !== undefined &&
       owed.includes(me.sideIndex) &&
       !mySide?.validatedAt,
     canCancel:
       !isTerminal(match.status) &&
       (match.status === 'pending' || match.status === 'active') &&
-      me !== undefined,
+      playing,
   };
 }
