@@ -141,6 +141,11 @@ router's judgement is a model's and is exercised by hand.
 
 ## Changelog
 
+- **2026-09-23** — Amended by [0016](0016-read-only-bot.md). The decisions are
+  now `answer`, `bug` and `unclear`: `change` and `fix` started the pipeline
+  and `fix.sh`, and the bot no longer writes. A router report saying either is
+  refused rather than acted upon.
+
 | Date | Change | Why |
 |---|---|---|
 | 2026-09-19 | Fourth decision `fix`, for repairing the machinery | A broken agent is not a product change and had no door; the bot could diagnose it and not act |

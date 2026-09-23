@@ -152,10 +152,11 @@ scripts/agent/open-pr.sh specs/0004-….md   # branch, commit, PR, auto-merge
 scripts/agent/pipeline.sh --no-pr "..."    # everything up to the PR
 scripts/agent/pr-status.sh                 # where the PRs stand
 
-# the application lives on another VM — six allowlisted verbs get you there
+# the application lives on another VM — six allowlisted READ-ONLY verbs get
+# you there. To deploy or roll back, run deploy.sh ON that VM.
 scripts/agent/app-exec.sh status
 scripts/agent/app-exec.sh logs caddy
-scripts/agent/app-exec.sh rollback
+scripts/agent/app-exec.sh data
 ```
 
 Full transcripts land in `.agent-logs/` (git-ignored). When something behaves

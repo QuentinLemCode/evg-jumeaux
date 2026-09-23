@@ -22,6 +22,11 @@ export type Turn = { at: number; who: 'human' | 'bot'; text: string };
  * human says yes, so it also carries the spec that approval would release.
  */
 export type Pending = {
+  /**
+   * `approval` can no longer be CREATED (spec 0016: there is nothing to
+   * approve), but the field is still read: a store written before that change
+   * may hold one, and it must parse rather than crash the gateway.
+   */
   kind: 'question' | 'approval';
   request: string;
   question: string;
@@ -145,25 +150,6 @@ export class Memory {
   /** Records that the bot is waiting on an answer (0014 rule 6). */
   await_(id: number, request: string, question: string, now = Date.now()): void {
     this.chat(id).pending = { kind: 'question', request, question, at: now };
-    this.persist();
-  }
-
-  /**
-   * Records that a specification is written and waiting on a human
-   * (0015 rule 11).
-   *
-   * Persisted like everything else, because the gateway is restarted by every
-   * deploy and a specification nobody can approve any more is worse than one
-   * that was never written.
-   */
-  awaitApproval(
-    id: number,
-    request: string,
-    spec: string,
-    question: string,
-    now = Date.now(),
-  ): void {
-    this.chat(id).pending = { kind: 'approval', request, question, spec, at: now };
     this.persist();
   }
 

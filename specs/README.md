@@ -18,10 +18,11 @@ No code change lands without a spec change first — see `AGENTS.md` §6.
 | `0009` | [PWA and responsive shell](0009-pwa-and-responsive-shell.md) | implemented | Mobile-first shell, installable PWA, desktop layout |
 | `0010` | [Visual design system (« Confetti »)](0010-visual-design-system.md) | implemented | Cream paper, sticker cards, hard shadows, Gabarito, shared screen anatomy — enforced by `lint:design` |
 | `0011` | [Client error reporting](0011-client-error-reporting.md) | implemented | Browser crashes reach a table, an admin screen and the alert channel — grouped, rate limited, no third party |
-| `0012` | [Telegram gateway](0012-telegram-gateway.md) | implemented | Mention-gated bot: commands and change requests reach `scripts/agent/`, one job at a time |
-| `0013` | [Natural-language routing](0013-natural-language-routing.md) | implemented | The bot decides: a question is answered, a change request runs the pipeline, a vague one gets a question back |
+| `0012` | [Telegram gateway](0012-telegram-gateway.md) | amended by 0016 | Mention-gated bot: commands and change requests reach `scripts/agent/`, one job at a time |
+| `0013` | [Natural-language routing](0013-natural-language-routing.md) | amended by 0016 | The bot decides: a question is answered, a bug report becomes a prompt, a vague one gets a question back |
 | `0014` | [Conversational memory](0014-conversational-memory.md) | implemented | Remembers the thread, asks blocking questions in the chat, resumes from the answer |
-| `0015` | [A staged pipeline the chat can follow](0015-staged-pipeline.md) | implemented | Stage-by-stage progress in the chat, and the spec is approved by a human before any code is written |
+| `0015` | [A staged pipeline the chat can follow](0015-staged-pipeline.md) | superseded by 0016 (bot half) | Stage-by-stage progress in the chat, and the spec is approved by a human before any code is written |
+| `0016` | [A read-only bot](0016-read-only-bot.md) | implemented | The bot reads and never writes: bug reports become prompts, questions are answered from the specs and the data; changes move to Antigravity remote control |
 
 Status values: `draft` → `ready-for-code` → `implemented` → `superseded`.
 

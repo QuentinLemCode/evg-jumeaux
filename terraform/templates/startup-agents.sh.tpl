@@ -293,6 +293,35 @@ RestartSec=5
 WantedBy=multi-user.target
 UNIT
 
+# Antigravity remote control (spec 0016, rule 16). This is how a change gets
+# made now: a human opens a session from the Antigravity site, attaches to THIS
+# machine, and works in the checkout. The bot stopped writing; this replaced
+# it.
+#
+# Type=oneshot with RemainAfterExit: `agy remote-control start` manages its own
+# background daemon, so systemd must not be told to expect a foreground
+# process. Whether the command forks or stays, the unit ends up active, and
+# ExecStop is the documented way to take it down.
+cat > /etc/systemd/system/agy-remote-control.service <<'UNIT'
+[Unit]
+Description=Antigravity remote control daemon (spec 0016)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+User=hermes
+WorkingDirectory=/home/hermes/site
+EnvironmentFile=/home/hermes/.hermes/.env
+Environment=PATH=/home/hermes/.local/bin:/home/hermes/.opencode/bin:/usr/local/bin:/usr/bin:/bin
+ExecStart=/home/hermes/.local/bin/agy remote-control start
+ExecStop=/home/hermes/.local/bin/agy remote-control stop
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+
 # Surveillance de l'application, depuis cette VM : un watcher installé sur la
 # machine qu'il surveille ne peut pas signaler que cette machine est morte.
 cat > /etc/systemd/system/evg-watch-errors.service <<'UNIT'
@@ -321,11 +350,12 @@ AccuracySec=15s
 WantedBy=timers.target
 UNIT
 
-# Le workflow *Deploy infra* redémarre la passerelle à distance, en SSH comme
-# hermes. Plutôt que de donner root à la CI, un droit sudo limité À CETTE SEULE
-# unité : la CI ne peut rien faire d'autre avec.
+# Le workflow *Deploy infra* redémarre la passerelle et le contrôle à distance,
+# en SSH comme hermes. Plutôt que de donner root à la CI, un droit sudo limité
+# À CES DEUX UNITÉS et au seul verbe `restart` : la CI ne peut rien faire
+# d'autre avec.
 cat > /etc/sudoers.d/hermes-gateway <<'SUDOERS'
-hermes ALL=(root) NOPASSWD: /usr/bin/systemctl restart hermes-gateway, /usr/bin/systemctl restart hermes-gateway.service
+hermes ALL=(root) NOPASSWD: /usr/bin/systemctl restart hermes-gateway, /usr/bin/systemctl restart hermes-gateway.service, /usr/bin/systemctl restart agy-remote-control, /usr/bin/systemctl restart agy-remote-control.service
 SUDOERS
 chmod 440 /etc/sudoers.d/hermes-gateway
 # Un sudoers invalide verrouille sudo pour tout le monde : on valide avant de
@@ -358,6 +388,13 @@ fi
 %{ if site_repo_url != "" ~}
 systemctl enable --now evg-watch-errors.timer
 %{ endif ~}
+
+# Le contrôle à distance : s'il ne démarre pas, il n'y a plus AUCUN moyen de
+# modifier le code depuis l'extérieur, donc l'échec doit se lire au boot.
+systemctl enable --now agy-remote-control.service \
+  || echo "WARN: agy remote-control n'a pas demarre — sur la VM : agy remote-control status"
+su - hermes -c "export PATH=\$HOME/.local/bin:\$PATH && agy remote-control status 2>&1 | head -5" \
+  || echo "WARN: agy remote-control status a echoue"
 
 echo "=== Terminé ==="
 echo "Agents  : tailscale ssh hermes@${instance_name}"

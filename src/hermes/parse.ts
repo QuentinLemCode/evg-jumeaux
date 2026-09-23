@@ -97,7 +97,8 @@ export function parseAllowlist(raw: string | undefined): number[] {
     .map(Number);
 }
 
-export type Command = 'status' | 'errors' | 'logs' | 'deploy' | 'help' | 'reset';
+/** Spec 0016, rule 2: `deploy` was here and is gone. Deploying is a write. */
+export type Command = 'status' | 'errors' | 'logs' | 'help' | 'reset';
 
 export type Route =
   | { kind: 'command'; command: Command }
@@ -108,7 +109,6 @@ const COMMANDS: Record<string, Command> = {
   '/status': 'status',
   '/errors': 'errors',
   '/logs': 'logs',
-  '/deploy': 'deploy',
   '/help': 'help',
   '/start': 'help',
   // Spec 0014 rule 13: forget this chat's history and pending question.
@@ -118,8 +118,8 @@ const COMMANDS: Record<string, Command> = {
 /**
  * What the message asks for (rules 4, 8, 9).
  *
- * A mention and nothing else is help, not an empty request — the pipeline must
- * never be started by someone tapping the bot's name by accident.
+ * A mention and nothing else is help, not an empty request — nothing should
+ * happen because someone tapped the bot's name by accident.
  */
 export function route(text: string): Route {
   const trimmed = text.trim();
@@ -158,7 +158,12 @@ export function truncateForTelegram(text: string, limit = TELEGRAM_LIMIT): strin
 }
 
 /** What the router decided about one message (spec 0013, rule 1). */
-export type RouterDecision = 'answer' | 'change' | 'fix' | 'unclear';
+/**
+ * Spec 0016, rule 4. `change` and `fix` are gone: there is nothing left for
+ * them to start, and a decision the gateway cannot act on is worse than one it
+ * refuses — it would read as a promise.
+ */
+export type RouterDecision = 'answer' | 'bug' | 'unclear';
 
 export type Routed = { decision: RouterDecision; body: string };
 
@@ -180,7 +185,7 @@ export function parseRouterReport(output: string): Routed | null {
   let at = -1;
   let decision: RouterDecision | null = null;
   for (const [index, line] of lines.entries()) {
-    const match = /^\s*DECISION:\s*(answer|change|fix|unclear)\s*$/i.exec(line);
+    const match = /^\s*DECISION:\s*(answer|bug|unclear)\s*$/i.exec(line);
     if (match?.[1]) {
       at = index;
       decision = match[1].toLowerCase() as RouterDecision;

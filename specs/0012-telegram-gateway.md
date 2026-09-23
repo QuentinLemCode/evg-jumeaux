@@ -55,19 +55,21 @@ phone) belong here and are shared by both.
 
 ### What it can be asked
 
-8. Five commands, each a script from `scripts/agent/`:
+8. Four commands, each a script from `scripts/agent/`. `/deploy` was a fifth
+   and was removed by [0016](0016-read-only-bot.md): deploying is a write.
 
    | Command | Runs | Answers with |
    |---|---|---|
    | `/status` | `status.sh` | the app's health, the services, open PRs |
    | `/errors` | `app-exec.sh client-errors` | open browser-error groups |
    | `/logs` | `app-exec.sh logs` | the last lines from the app VM |
-   | `/deploy` | `app-exec.sh deploy` | the deploy's outcome |
-   | `/help` | — | the list above, and how to ask for a change |
+   | `/help` | — | the list above, and what the bot can be asked |
 
-9. Anything else goes to the router of **spec 0013**, which decides whether it
-   is a question about the app or a request to change it. A change request runs
-   the spec-driven pipeline, `pipeline.sh "<the request>"` — that is the point
+9. Anything else goes to the router of **spec 0013**, amended by
+   [0016](0016-read-only-bot.md): it decides between answering, turning a bug
+   report into a prompt, and asking one question back. It starts nothing.
+   What follows described the pipeline it used to start, and is kept as the
+   record of why that was removed — that is the point
    of the gateway, «ajoute un mur de photos» has to reach the same loop a human
    would run. *(Superseded: this rule originally treated every non-command
    message as a change request, so asking a question launched the spec agent.)*
@@ -160,6 +162,9 @@ already exercises.
   transport shape applies; nobody has asked for it yet.
 
 ## Changelog
+
+- **2026-09-23** — Amended by [0016](0016-read-only-bot.md): `/deploy` removed,
+  and free text no longer starts a pipeline. The gateway became read-only.
 
 | Date | Change | Why |
 |---|---|---|

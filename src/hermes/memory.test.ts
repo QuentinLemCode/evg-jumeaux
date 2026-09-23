@@ -56,32 +56,10 @@ describe('Memory', () => {
     expect(new Memory(store()).lostOnStart).toBe(false);
   });
 
-  it('tracks a pending approval, with the spec it would release', () => {
-    const memory = new Memory(store());
-    memory.awaitApproval(1, 'ajoute un mur de photos', 'specs/0042-x.md', 'À valider');
-    expect(memory.pending(1)).toMatchObject({
-      kind: 'approval',
-      request: 'ajoute un mur de photos',
-      spec: 'specs/0042-x.md',
-    });
-  });
 
-  it('keeps a pending approval across a restart (0015 rule 11)', () => {
-    const path = store();
-    new Memory(path).awaitApproval(1, 'la demande', 'specs/0042-x.md', 'À valider');
-    const second = new Memory(path);
-    expect(second.pending(1)?.kind).toBe('approval');
-    expect(second.pending(1)?.spec).toBe('specs/0042-x.md');
-  });
 
-  it('clears a pending approval on reset', () => {
-    const memory = new Memory(store());
-    memory.awaitApproval(1, 'r', 'specs/0042-x.md', 'q');
-    expect(memory.reset(1).hadPending).toBe(true);
-    expect(memory.pending(1)).toBeNull();
-  });
 
-  it('reads a store written before approvals existed as a question', () => {
+  it('reads an old store’s pending entry as a question', () => {
     // Every pending entry in an older store WAS a question; that is what the
     // field meant. Anything else would invent an approval nobody asked for.
     const { store } = parseStore(

@@ -157,43 +157,34 @@ ${evidence}"
 
   "$NOTIFY" "$title" "$body" && mark_alerted "$fp"
 
-  # Diagnosing and then doing nothing is what a log file already does. If the
-  # diagnosis held, try the repair — it opens a pull request that cannot merge
-  # without a human label, so "propose" is the strongest thing it can do.
-  propose_repair "$diagnosis"
+  # Diagnosing and then doing nothing is what a log file already does — so the
+  # alert carries a PROMPT, and a human decides whether it becomes a change.
+  #
+  # This used to call fix.sh, which opened a pull request on its own. Spec 0016
+  # removed that: an automatic write with nobody in the loop is the thing that
+  # had to go, and the repairs it proposed all needed a human anyway.
+  emit_prompt "$title" "$diagnosis" "$evidence"
 }
 
-# --- propose a repair, once, and say what came of it -------------------------
-propose_repair() {
-  local diagnosis="$1"
-  [[ "${WATCH_AUTOFIX:-1}" == "1" ]] || return 0
-  # No diagnosis means no cause, and a repair without a cause is a guess.
-  [[ -n "${diagnosis// /}" ]] || return 0
-  [[ -x "$REPO_ROOT/scripts/agent/fix.sh" ]] || return 0
+# --- the prompt a human pastes into Antigravity (spec 0016, rules 8-9) -------
+emit_prompt() {
+  local title="$1" diagnosis="$2" evidence="$3"
 
-  local summary
-  summary="$(printf '%s' "$diagnosis" | tr '\n' ' ' | cut -c1-300)"
+  # Never invent the expected behaviour: the alert says what was OBSERVED, and
+  # the diagnosis is the model's reading of it. A prompt that asserts a
+  # requirement nobody stated turns a bug fix into an unrequested feature.
+  "$NOTIFY" "🧰 Prompt pour un agent de code" "À coller dans Antigravity :
 
-  echo "watch: proposing a repair" >&2
-  local out rc
-  out="$("$REPO_ROOT/scripts/agent/fix.sh" "$summary" 2>&1)"; rc=$?
+\`\`\`
+${title}
 
-  local pr
-  pr="$(printf '%s\n' "$out" | grep -m1 -E '^PR:' | sed -E 's/^PR:[[:space:]]*//')"
+Symptôme : $(printf '%s' "$evidence" | tr '\n' ' ' | cut -c1-500)
+Diagnostic automatique : ${diagnosis:-non disponible}
+Attendu : non précisé — à confirmer avec un humain
+Spec concernée : à déterminer
 
-  if [[ $rc -eq 3 ]]; then
-    return 0  # another repair is already running; nothing new to say
-  elif [[ -n "$pr" ]]; then
-    "$NOTIFY" "🔧 Correction proposée" "$pr
-
-Elle attend le label infra-ok si elle touche à l'infrastructure.
-
-$(printf '%s\n' "$out" | grep -E '^(CAUSE|FIX):' || true)"
-  else
-    "$NOTIFY" "🔧 Réparation non aboutie" "L'agent n'a pas pu corriger ça tout seul.
-
-$(printf '%s\n' "$out" | tail -12)"
-  fi
+Commence par reproduire, puis corrige, puis ouvre une PR.
+\`\`\`"
 }
 
 # --- 1. is it up? ------------------------------------------------------------

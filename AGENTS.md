@@ -13,9 +13,12 @@ A mobile-first web app for a bachelor party ("EVG") weekend. Guests log in,
 challenge each other at games (some played in the app, most played in real
 life — pétanque, palet, beer pong…), report results, and climb a leaderboard.
 
-It is operated by an autonomous agent pipeline running on a GCP VM: a human
-talks to **Hermes** over Discord/Telegram, Hermes delegates to a **spec agent**
-then a **code agent**, and the result is deployed to production automatically.
+It is operated from a GCP VM, in two halves that do not overlap. **Hermes**,
+a Telegram bot, is **read-only** (spec 0016): it answers questions about the
+app and its data, and turns a bug report into a prompt. **Changes** are made by
+a human driving **Antigravity remote control** on the agents VM, which runs
+the spec and code agents from `scripts/agent/`. The result goes through a pull
+request and is deployed automatically once the checks pass.
 
 Two hard rules that shape everything:
 
@@ -178,26 +181,27 @@ A deliberate exception is annotated in place and scoped to the rule
 
 ## 6. Spec-driven workflow
 
-The pipeline is: **request → spec → A HUMAN APPROVES → code → pull request →
+The pipeline is: **request → spec → A HUMAN READS IT → code → pull request →
 CI → deploy**. Each step has one owner, and three of those owners are not
-agents. The approval is spec 0015: `specs/` is the contract everything else is
-built on, and writing it and acting on it in one breath skipped the one moment
-where a misunderstanding is cheap to fix.
+agents.
+
+**It is started by a human, not by the bot** (spec 0016). Hermes used to drive
+it from a chat message; that never worked — every run needed someone to unblock
+something, and the specification was read for the first time in a chat window,
+which is not where a contract gets read. So a change now begins with a human
+opening an Antigravity session on the agents VM and running the scripts below.
+The bot's job is to tell you a change is needed, and to hand you the prompt.
 
 ```
-human (Discord/Telegram)
-   │
-   ▼
-Hermes            orchestrator. Talks to the human, never writes app code.
-   │  scripts/agent/spec.sh "<request>"
+human (Antigravity remote control, on the agents VM)
+   │  scripts/agent/pipeline.sh --spec-only "<request>"
    ▼
 spec agent        owns specs/. Writes/updates the spec, updates the index.
    │
    ▼
-THE HUMAN         reads the specification in the chat and approves it.
-   │              Nothing is coded before this (spec 0015). A reply that is
-   │              not an approval is a correction, and the spec is rewritten.
-   │  scripts/agent/code.sh <spec-id>
+THE HUMAN         reads the specification and decides. Nothing is coded
+   │              before this.
+   │  scripts/agent/pipeline.sh --from-spec <spec>
    ▼
 code agent        owns src/ and e2e/. Implements exactly the spec, runs the gate.
    │  scripts/agent/open-pr.sh <spec>
@@ -263,10 +267,12 @@ response time, during the party, exactly when it is being used.
 So: the agents VM holds no application secret (no `AUTH_SECRET`, no VAPID key,
 no tunnel token), and the application VM holds no LLM key and no GitHub token.
 Anything an agent needs from the running app goes through
-`scripts/agent/app-exec.sh` — an allowlist of seven verbs over Tailscale SSH,
-not a shell (`status`, `health`, `ps`, `logs`, `deploy`, `rollback`,
-`client-errors`). Do not add an eighth without asking why the existing seven
-are not enough.
+`scripts/agent/app-exec.sh` — an allowlist of six READ-ONLY verbs over
+Tailscale SSH, not a shell (`status`, `health`, `ps`, `logs`, `client-errors`,
+`data`). Do not add a seventh without asking why the existing six are not
+enough, and **do not add a writing one**: `deploy` and `rollback` were here
+and were removed by spec 0016, so "could the bot deploy?" has a structural
+answer rather than a policy one.
 
 ### Rules for the spec agent
 - One spec per coherent feature, numbered `NNNN-kebab-case-title.md`.

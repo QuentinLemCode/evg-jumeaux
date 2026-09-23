@@ -46,6 +46,20 @@ else
   echo "hermes-gateway: not installed on this machine"
 fi
 
+# Antigravity remote control (spec 0016, rule 18). Since the bot stopped
+# writing, this daemon is the ONLY way to change the code from outside the
+# repository — and a daemon that quietly died looks exactly like one nobody
+# used today, which is why `agy` is asked directly rather than trusted from
+# the unit's state.
+if systemctl list-unit-files agy-remote-control.service >/dev/null 2>&1; then
+  printf 'agy-remote-control: %s\n' \
+    "$(systemctl is-active agy-remote-control 2>/dev/null || echo unknown)"
+  PATH="$HOME/.local/bin:$PATH" agy remote-control status 2>&1 | head -4 | sed 's/^/    /' \
+    || echo "    (agy remote-control status a échoué)"
+else
+  echo "agy-remote-control: not installed on this machine"
+fi
+
 # The watcher is the opposite shape: a oneshot fired by a TIMER, so the service
 # being inactive is the normal state and only the timer says anything useful.
 if systemctl list-unit-files evg-watch-errors.timer >/dev/null 2>&1; then

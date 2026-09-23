@@ -16,8 +16,10 @@ machine holds the other's secrets, and the app VM can be small: fewer than 50
 players, and nothing is built there.
 
 The only path between them is `scripts/agent/app-exec.sh` — six allowlisted
-verbs over Tailscale SSH (`status`, `deploy`, `rollback`, `logs`, `ps`,
-`health`), not a shell.
+READ-ONLY verbs over Tailscale SSH (`status`, `logs`, `ps`, `health`,
+`client-errors`, `data`), not a shell. `deploy` and `rollback` were verbs here
+until spec 0016 made the door read-only; deploying happens in the Deploy
+workflow, from `main`.
 
 ```
   ┌──── evg-site-agent (no inbound port) ────────────────────────────┐
