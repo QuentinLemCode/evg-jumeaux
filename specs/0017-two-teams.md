@@ -314,7 +314,7 @@ only CI runs (AGENTS.md §4 and §9) — see *Open questions*.
   remaining player is placed in the other and finds the notification in their
   inbox; a full team's button is disabled and says so; and no screen anywhere
   offers an admin a way to move somebody.
-- `e2e/teams.spec.ts` `@spec-0017` — a player with no team follows a deep link, is sent to the choice screen, chooses, and lands where they were going; the team that is one ahead is offered disabled with its reason; **a captain opening the choice screen is told they are one, and is offered nothing** (rule 9); a match between the two teams moves both leaderboards, the team's by the match's points once and each winner's by the full amount; a match inside one team moves only the player leaderboard.
+- `e2e/teams.spec.ts` `@spec-0017` — a player with no team follows a deep link, is sent to the choice screen, chooses, and lands where they were going; a full team is offered disabled, saying so; **a captain opening the choice screen is told they are one, and is offered nothing** (rule 9); a match between the two teams moves both leaderboards, the team's by the match's points once and each winner's by the full amount; a match inside one team moves only the player leaderboard.
 
 The existing nine suites must keep passing, so the e2e roster
 (`src/db/seed/users.e2e.ts`) is seeded with teams already assigned: `quentin`
@@ -377,12 +377,17 @@ database and would fail a CI retry, so `e2e/helpers/db.ts` gains a scoped
    is a better test of rule 12 than fifteen would be, because a hardcoded 8
    would pass a fifteen-player fixture and fail this one.
 
-4. **A late arrival reopens both teams**, and nothing in the spec says
-   whether it should. The cap is derived from the roster, so seeding a
-   sixteenth guest moves it from 8 to 9 and a team that was full has room
-   again. That is the behaviour rule 12 asks for read literally, and it is
-   probably the kind one — but if a guest is added on the Saturday, the
-   weekend gets a 9-and-7 split rather than a refusal, and nobody is told.
+4. **A seventeenth guest would reopen a full team**, and nothing says
+   whether it should. The cap is `ceil(total / 2)`, so it holds at 8 from
+   fifteen players **through sixteen** — a sixteenth arrival simply makes the
+   split 8 and 8, which is better than 8 and 7, not worse. It is the
+   seventeenth that moves the cap to 9 and gives a team that was full room
+   again, silently and with nobody told.
+
+   Deliberately not guarded: a frozen cap would refuse a late arrival
+   outright, which is the worse failure at a party. Recorded because the
+   arithmetic is one off from what it looks like — the obvious worry is the
+   sixteenth guest, and the sixteenth guest is fine.
 
 ## Changelog
 
