@@ -120,10 +120,15 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
         matchId={match.id}
         status={effectiveStatus}
         requiresScore={match.ruleRequiresScore}
-        sides={sides.map((side) => ({ sideIndex: side.sideIndex, label: side.label }))}
+        sides={sides.map((side) => ({
+          sideIndex: side.sideIndex,
+          label: side.label,
+          score: side.score,
+        }))}
         mySide={mySide}
         permissions={permissions}
         isAdmin={me.role === 'admin'}
+        gameMode={game.mode}
       />
 
       {awards.length > 0 ? (

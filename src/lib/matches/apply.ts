@@ -52,6 +52,7 @@ type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 function loadSnapshot(tx: Tx, matchId: string): MatchSnapshot | null {
   const match = tx.select().from(matches).where(eq(matches.id, matchId)).get();
   if (!match) return null;
+  const game = tx.select({ mode: games.mode }).from(games).where(eq(games.id, match.gameId)).get();
 
   const participants = tx
     .select()
@@ -62,6 +63,7 @@ function loadSnapshot(tx: Tx, matchId: string): MatchSnapshot | null {
 
   return {
     id: match.id,
+    mode: game?.mode,
     status: match.status,
     sidesCount: sides.length,
     invitationExpiresAt: match.invitationExpiresAt,
@@ -434,6 +436,14 @@ function eventFor(
         kind: 'result_disputed',
         reason: action.reason,
         reporterId: before.reportedBy,
+      };
+    case 'update-scores':
+      return null;
+    case 'settle-clash':
+      return {
+        kind: 'clash_finished',
+        winningSide: action.winningSide,
+        pointsByUser,
       };
     case 'cancel':
       return { kind: 'match_cancelled', reason: action.reason };

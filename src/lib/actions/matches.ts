@@ -13,7 +13,7 @@ import { z } from 'zod';
 
 import { db } from '@/db';
 import { games, matchParticipants, matchSides, matches, teams, users } from '@/db/schema';
-import { requireUserAction } from '@/lib/auth/guards';
+import { requireAdminAction, requireUserAction } from '@/lib/auth/guards';
 import { scoringRulesFor } from '@/lib/domain/game-rules';
 import { initialStatus, startsAccepted } from '@/lib/domain/match-state';
 import { INVITATION_TTL_MS } from '@/lib/domain/types';
@@ -527,3 +527,69 @@ export async function cancelMatch(
     return ok();
   });
 }
+
+const updateClashScoresSchema = z.object({
+  matchId: z.string().min(1),
+  scores: z.array(
+    z.object({
+      sideIndex: z.coerce.number().int().min(1),
+      score: z.coerce.number().int().min(0),
+    }),
+  ),
+});
+
+export async function updateClashScores(input: {
+  matchId: string;
+  scores: { sideIndex: number; score: number }[];
+}): Promise<ActionResult> {
+  return guarded(async () => {
+    const admin = await requireAdminAction();
+    const parsed = updateClashScoresSchema.safeParse(input);
+    if (!parsed.success) return err('Scores invalides');
+
+    const result = await applyMatchAction(parsed.data.matchId, {
+      type: 'update-scores',
+      adminId: admin.id,
+      scores: parsed.data.scores,
+    });
+    if (!result.ok) return err(result.message);
+    await refresh(parsed.data.matchId);
+    return ok();
+  });
+}
+
+const settleClashSchema = z.object({
+  matchId: z.string().min(1),
+  winningSide: z.coerce.number().int().min(1).max(4),
+  scores: z
+    .array(
+      z.object({
+        sideIndex: z.coerce.number().int().min(1),
+        score: z.coerce.number().int().min(0),
+      }),
+    )
+    .optional(),
+});
+
+export async function settleClash(input: {
+  matchId: string;
+  winningSide: number;
+  scores?: { sideIndex: number; score: number }[];
+}): Promise<ActionResult> {
+  return guarded(async () => {
+    const admin = await requireAdminAction();
+    const parsed = settleClashSchema.safeParse(input);
+    if (!parsed.success) return err('Résultat invalide');
+
+    const result = await applyMatchAction(parsed.data.matchId, {
+      type: 'settle-clash',
+      adminId: admin.id,
+      winningSide: parsed.data.winningSide,
+      scores: parsed.data.scores,
+    });
+    if (!result.ok) return err(result.message);
+    await refresh(parsed.data.matchId);
+    return ok();
+  });
+}
+

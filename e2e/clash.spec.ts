@@ -51,6 +51,7 @@ async function createClashGame(admin: Page): Promise<void> {
   await admin.getByRole('button', { name: '+ Créer un jeu' }).click();
   await admin.getByPlaceholder('ex. Molkky').fill(CLASH_GAME);
   await admin.getByRole('button', { name: 'Les deux équipes' }).click();
+  await admin.getByLabel(/Score chiffré obligatoire/).check();
   await admin.getByRole('button', { name: 'Enregistrer' }).click();
   await expect(admin.getByText(CLASH_GAME)).toBeVisible();
 }
@@ -138,7 +139,9 @@ test.describe('The clash', { tag: '@spec-0017' }, () => {
     await expect(admin.getByText(/Le grand match commence/)).toHaveCount(0);
   });
 
-  test('tells everybody but the validator when it is over', async ({ browser }) => {
+  test('admin updates live scores and settles clash directly, players are read-only', async ({
+    browser,
+  }) => {
     clearTeamFor(PLAYERS.thomas.id);
     await placeEverybody(browser);
     const admin = await asPlayer(browser, 'quentin');
@@ -148,25 +151,38 @@ test.describe('The clash', { tag: '@spec-0017' }, () => {
     await createClashGame(admin);
     const clash = await startClash(admin);
 
-    // The admin captains Julien, so their team is camp 1 (spec 0004, rule 2).
-    await admin.getByRole('button', { name: 'Saisir le résultat' }).click();
-    await admin.getByRole('button', { name: /Équipe Julien/ }).click();
-    await admin.getByRole('button', { name: 'Envoyer pour validation' }).click();
-
-    // Lucas plays for Pierre, the side that owes the validation.
+    // Lucas (regular player) sees the clash is in progress, but has no action buttons.
     await lucas.goto(`/matches/${clash}`);
-    await lucas.getByRole('button', { name: 'Je confirme ce résultat' }).click();
-    await expect(lucas.getByText('Terminée', { exact: true })).toBeVisible();
+    await expect(lucas.getByText('En cours', { exact: true })).toBeVisible();
+    await expect(lucas.getByRole('button', { name: 'Saisir le résultat' })).toHaveCount(0);
+    await expect(lucas.getByRole('button', { name: 'Je confirme ce résultat' })).toHaveCount(0);
+
+    // Admin updates live scores while match is active.
+    await admin.getByLabel(/Score de Équipe Julien/).fill('10');
+    await admin.getByLabel(/Score de Équipe Pierre/).fill('7');
+    await admin.getByRole('button', { name: 'Mettre à jour le score' }).click();
+    await expect(admin.getByText('Scores mis à jour')).toBeVisible();
+
+    // Regular player sees updated score.
+    await lucas.reload();
+    await expect(lucas.getByText('10', { exact: true })).toBeVisible();
+    await expect(lucas.getByText('7', { exact: true })).toBeVisible();
+
+    // Admin settles the clash directly: selects winning team and closes the match.
+    await admin.getByRole('button', { name: /Équipe Julien/ }).click();
+    await admin.getByRole('button', { name: 'Clôturer le match' }).click();
+
+    await expect(admin.getByText('Terminée', { exact: true })).toBeVisible();
     expect(matchStatus(clash)).toBe('completed');
 
-    // Everybody is told — except Lucas, who just said it himself (rule 7).
+    // Everybody is told — except the admin who settled it (spec 0017, rule 7).
     await romain.goto('/notifications');
     await expect(romain.getByText(/Le grand match est terminé/)).toBeVisible();
 
-    await admin.goto('/notifications');
-    await expect(admin.getByText(/Le grand match est terminé/)).toBeVisible();
-
     await lucas.goto('/notifications');
-    await expect(lucas.getByText(/Le grand match est terminé/)).toHaveCount(0);
+    await expect(lucas.getByText(/Le grand match est terminé/)).toBeVisible();
+
+    await admin.goto('/notifications');
+    await expect(admin.getByText(/Le grand match est terminé/)).toHaveCount(0);
   });
 });
