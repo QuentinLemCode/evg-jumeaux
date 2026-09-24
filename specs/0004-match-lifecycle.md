@@ -69,8 +69,14 @@ Terminal states: `completed`, `cancelled`, `expired`.
 7. A player is **busy** when they participate in a match whose status is
    `active`, `awaiting_validation` or `disputed`, **or** when their invitation
    is `accepted` in a `pending` match.
+
+   **A `clash` counts for nothing here** (spec 0017): being in one never makes
+   anybody busy, and being busy never keeps anybody out of one. The weekend's
+   set piece runs *alongside* whatever is on the pétanque court, and a darts
+   match already under way neither blocks it nor is blocked by it.
 8. A busy player cannot create a match, cannot be invited, and cannot accept an
-   invitation. They may still decline one.
+   invitation. They may still decline one. Again, a `clash` is outside this
+   rule in both directions.
 9. A player with several invitations open may therefore accept only the first;
    accepting one leaves the others, which they should decline — the app does
    not decline them automatically, because the other matches may still be
@@ -272,3 +278,4 @@ None.
 | 2026-09-23 | A match's halves are «camps», not «équipes» (spec 0017) | «Équipe» now names one of the weekend's two teams, and both words were landing on the same screen |
 | 2026-09-23 | Rules 2, 12 and 13 carve out the `clash` mode (spec 0017) | A match that invites all fifteen guests cannot be cancelled by one refusal, and its sides are the teams rather than slots the creator fills |
 | 2026-09-24 | A `clash` skips the invitation phase entirely: admin-started, everyone accepted, `active` at once (rules 5, 6, 11-13) | Nobody confirms a match the organiser has already called, and with no pending invitation there is nothing to decline or expire — which removes the mode-aware decline and expiry paths added the day before |
+| 2026-09-24 | A `clash` is outside the busy rule entirely, both ways (rules 7-8, spec 0017) | The set piece involves everybody, so requiring fifteen idle guests meant it could never start — and a darts match in progress must simply keep running alongside it |

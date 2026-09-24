@@ -56,6 +56,8 @@ unreliable on some.
 | Result disputed | every admin, and the reporter | « Résultat contesté » |
 | Match cancelled | every participant except the canceller | « Partie annulée » |
 | Admin resolved a dispute | every participant | « Un admin a tranché » |
+| Clash started | every participant except the admin who started it | « Le grand match commence ! » |
+| Clash finished | every participant except whoever validated it | « Le grand match est terminé » |
 
 8. A notification carries a title, a body, and a deep link to the screen where
    the player can act — an invitation links to the match screen, not to the home
@@ -226,3 +228,4 @@ None.
 | 2026-09-14 | Created | Initial harness and application bootstrap |
 | 2026-09-14 | Added rules 12-16: explicit per-event `TTL`, `Urgency` and `Topic`, and what happens when the phone is asleep or offline | Every one of the three defaults was wrong: a four-week TTL would buzz a dead invitation the next morning, `normal` urgency lets Doze defer a 5-minute deadline, and no topic means a phone that was asleep wakes to a stack of stale banners |
 | 2026-09-14 | Added rule 2b: the iOS install hint moves to the login screen, before sign-in | The installed iOS app has a separate cookie jar, so installing after logging in costs a second PIN entry — and the human asked for an iOS answer that needs no native app |
+| 2026-09-24 | Two events for a clash: started and finished (spec 0017) | A clash has no invitation, so nothing else tells the other fourteen guests it has begun — « Match started (all accepted) » is both the wrong trigger and the wrong words |

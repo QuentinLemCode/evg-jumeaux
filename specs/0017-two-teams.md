@@ -4,7 +4,7 @@
 |---|---|
 | **Status** | implemented |
 | **Owner** | spec agent |
-| **Depends on** | 0001, 0002, 0003, 0004, 0005, 0008, 0010 |
+| **Depends on** | 0001, 0002, 0003, 0004, 0005, 0006, 0008, 0010 |
 | **Ready for code** | yes |
 
 ## Intent
@@ -55,101 +55,111 @@ rule survives any future roster.
 5. **Rule 5.** It follows that a `clash` cannot be declined and cannot expire.
    Spec 0004's rules 12 and 13 have nothing to act on, and the state machine
    needs no special case for either.
-6. **Rule 6.** Everyone must still be free of another match when it is created
-   (spec 0004's busy rule, unchanged) — a player cannot be in two matches at
-   once. That is now the only reason a `clash` fails to start, and it is the
-   admin's to resolve before calling it.
+6. **Rule 6.** A `clash` runs **alongside** everything else. Spec 0004's busy
+   rule does not apply to it in either direction: a darts match already under
+   way does not block it, and being in it never makes anybody unavailable for
+   anything. Requiring fifteen idle guests meant the set piece could never
+   start.
+
+   The one thing that is refused is a **second** `clash` while one is live —
+   both would claim the same two teams in full, and a team cannot play itself
+   in two places.
+7. **Rule 7.** Starting a `clash` notifies every participant except the admin
+   who started it, and settling one notifies every participant except whoever
+   validated it (spec 0006, rule 9: nobody is told about their own action).
+   Without this nothing tells the other fourteen guests the set piece has
+   begun — a clash has no invitation to arrive.
 
 ### The teams
 
-7. **Rule 7.** Exactly two teams, seeded and not creatable from the app. Each
+8. **Rule 8.** Exactly two teams, seeded and not creatable from the app. Each
    names its **captain**, a player: `équipe Julien` is captained by `julien`,
    `équipe Pierre` by `pierre`. The captain is set by the **seeder**, not the
    migration — the players do not exist yet when the migration runs. A third
    team is a spec change.
    A team whose captain is not seeded still works: `captain_id` stays null.
-8. **Rule 8.** A captain is seeded onto their own team and cannot change team,
+9. **Rule 9.** A captain is seeded onto their own team and cannot change team,
    by themselves or by an admin.
-9. **Rule 9.** Every other player has no team until they choose one.
+10. **Rule 10.** Every other player has no team until they choose one.
 
 ### Choosing a team
 
-10. **Rule 10.** On the first authenticated page load, a player with no team is
+11. **Rule 11.** On the first authenticated page load, a player with no team is
    sent to a team-choice screen and reaches nothing else until they choose —
    a one-time gate, not a dismissible banner.
-11. **Rule 11.** A player may only join a team whose current size is **less
+12. **Rule 12.** A player may only join a team whose current size is **less
     than or equal to** the other's. Seeded one captain each, the teams
     therefore never differ by more than one, without anyone needing to know
     the final roster.
-12. **Rule 12.** Counting the teams and writing the choice happen in **one
+13. **Rule 13.** Counting the teams and writing the choice happen in **one
     transaction**: otherwise two players choosing while level both pass the
-    check, join the same team, and leave a gap of two rule 11 can never close.
-13. **Rule 13.** When the teams are level both are offered. When they are not,
+    check, join the same team, and leave a gap of two rule 12 can never close.
+14. **Rule 14.** When the teams are level both are offered. When they are not,
     the larger is shown **disabled, naming itself and the reason** — never
     silently absent.
-14. **Rule 14.** A player cannot change team once chosen. An admin can move
+15. **Rule 15.** A player cannot change team once chosen. An admin can move
     someone, with a reason of at least 5 characters, and the move is written
     to `team_moves` and appears in the admin log (spec 0008).
-15. **Rule 15.** A player choosing their **own** team writes no `team_moves`
+16. **Rule 16.** A player choosing their **own** team writes no `team_moves`
     row. Only an admin's move is an intervention, and only interventions
     belong in the admin log.
-16. **Rule 16.** An admin move is **exempt** from rule 11 — it is the tool for
+17. **Rule 17.** An admin move is **exempt** from rule 12 — it is the tool for
     fixing a split that attendance, not choice, made lopsided.
-17. **Rule 17.** A move carries **no points**: the player keeps theirs, the
+18. **Rule 18.** A move carries **no points**: the player keeps theirs, the
     old team keeps what it earned. A move is not a reason to rewrite history.
 
 ### What earns a team points
 
-18. **Rule 18.** A settled match awards `pointsPerWin` **once** to the winning
+19. **Rule 19.** A settled match awards `pointsPerWin` **once** to the winning
     team — not once per winner. A margin bonus, where the game has one, is
     awarded once in the same way.
-19. **Rule 19.** A match awards team points only when it **opposes the two
+20. **Rule 20.** A match awards team points only when it **opposes the two
     teams**: exactly two sides, every participant of a side being a member of
     one team, and the two sides being different teams. Team membership is what
     counts, not invitation status — a player who declined is still on a team.
-20. **Rule 20.** A player with no team earns their personal points normally;
+21. **Rule 21.** A player with no team earns their personal points normally;
     their matches award none to any team. Rule 18 is also what stops a team
     farming itself — two of its players facing each other earn it nothing, and
     the bigger team has more internal pairs to try it with, 28 against 21.
-21. **Rule 21.** Awarding is idempotent: at most one row per
+22. **Rule 22.** Awarding is idempotent: at most one row per
     `(match, team, type)`, exactly as spec 0005 requires of player awards.
-22. **Rule 22.** Cancelling a settled match writes one `match_reversal` row
+23. **Rule 23.** Cancelling a settled match writes one `match_reversal` row
     per team **the match awarded anything**, worth the negative of that. The
     award rows stay, so the history shows both — `computeReversals`, mirrored.
     No re-award path exists: a disputed match is settled once, a cancelled one
     is final.
-23. **Rule 23.** A manual `admin_adjustment` moves **no** team points, and the
+24. **Rule 24.** A manual `admin_adjustment` moves **no** team points, and the
     team screen says so, so a total that did not move is explained.
 
 ### The two leaderboards
 
-24. **Rule 24.** The player leaderboard is unchanged: same query, same order,
+25. **Rule 25.** The player leaderboard is unchanged: same query, same order,
     same tiebreaks. Nothing about a player's rank depends on their team.
-25. **Rule 25.** The team leaderboard is its own screen: each team's name,
+26. **Rule 26.** The team leaderboard is its own screen: each team's name,
     points, number of players and matches won.
-26. **Rule 26.** The two are never added together. A team total added to each
+27. **Rule 27.** The two are never added together. A team total added to each
     member is a constant per team: it cannot reorder players within a team,
     and it flips both teams wholesale — turning the player leaderboard into a
     measure of which team you joined.
-27. **Rule 27.** Teams are ordered by points, then matches won, then name, and
+28. **Rule 28.** Teams are ordered by points, then matches won, then name, and
     a tie is shown as a tie.
-28. **Rule 28.** "Matches won" is the number of distinct matches whose rows for
+29. **Rule 29.** "Matches won" is the number of distinct matches whose rows for
     that team sum above zero — so a reversal, which cancels the award exactly,
     removes the win along with the points.
-29. **Rule 29.** A player's profile shows their team; the team screen lists its
+30. **Rule 30.** A player's profile shows their team; the team screen lists its
     members with their personal totals. The link between the two leaderboards
     is navigational, never arithmetic.
 
 ### Vocabulary
 
-30. **Rule 30.** «Équipe» means one of the weekend's two camps. The two halves
+31. **Rule 31.** «Équipe» means one of the weekend's two camps. The two halves
     of a *match* are **camps**, and every user-facing string that calls a side
     an «équipe» is reworded: the generated side labels, the two in
     `NewMatchForm`, the game summary on the new-match screen, the three in
     `GameManager`, and the validation message in `game-rules`. A `clash` is the
     exception: its sides **are** the teams, so they are labelled with the team
     names.
-31. **Rule 31.** `games.mode` keeps the stored value `team` for a
+32. **Rule 32.** `games.mode` keeps the stored value `team` for a
     several-players-per-side game. Rewriting those rows is an `UPDATE`, which
     §8 permits — but the old colour reads `mode === 'team'` and would
     mis-render every rewritten row while it is still serving. It is an
@@ -158,7 +168,7 @@ rule survives any future roster.
 
 ### The roster
 
-32. **Rule 32.** Julien and Pierre join the roster (spec 0002): appended
+33. **Rule 33.** Julien and Pierre join the roster (spec 0002): appended
     **last** to the private roster file, then `npm run generate-users` — that
     script rewrites `src/db/seed/users.ts` wholesale and assigns avatars by
     position, so any other placement rotates every later guest's avatar.
@@ -187,9 +197,9 @@ Additive only, and safe for the blue/green overlap (AGENTS.md §8).
   Columns on the player would have kept only the last move and could not say
   which team someone came *from*, and spec 0008's log reports every one.
 - **`team_point_events`** — `id`, `team_id`, `match_id`, `type`
-  (`match_win`, `margin_bonus` or `match_reversal`, and nothing else — rule 28
+  (`match_win`, `margin_bonus` or `match_reversal`, and nothing else — rule 29
   depends on that), `points`, `detail`, `created_by`, `created_at`, with
-  `unique(match_id, team_id, type)` for rule 21. A separate table because `point_events.user_id` is `NOT NULL`
+  `unique(match_id, team_id, type)` for rule 22. A separate table because `point_events.user_id` is `NOT NULL`
   and a team is not a user.
 - **`games.mode`** gains the value `clash`. The column is plain text with no
   constraint, so this is not a schema change at all.
@@ -222,7 +232,7 @@ team's button is presentation, not authorisation.
 | A captain opens the choice screen | Their team is stated, no choice offered | « Tu es le capitaine de {équipe}. » |
 | A match opposing no two teams settles | Player points as usual, no team row | « Pas de points d'équipe : ce match n'oppose pas les deux équipes. » |
 | A `clash` whose sides are not the two full teams | Refused at creation | « Un match d'équipes oppose les deux équipes au complet. » |
-| A `clash` when someone is already in a match | Refused, naming them | « {joueur} est déjà en partie » (the app's existing wording) |
+| A second `clash` while one is live | Refused | « Un match d'équipes est déjà en cours. » |
 | An admin adjusts a player's points | The team total does not move | « Les ajustements manuels ne comptent que pour le joueur. » |
 | `db:seed` before the secret has the new players | Seeder exits non-zero, naming them | — (operator, not guest) |
 
@@ -245,12 +255,15 @@ ones are covered by `src/lib/teams/membership.integration.test.ts` and
 - [x] An admin move may make the teams two apart where a player's own choice may not.
 - [x] A 1 v 1, a 3 v 3 and a `clash` 8 v 7 between the teams each award `pointsPerWin` **once** to the winning team, while every winner is credited the full amount personally.
 - [x] A match between two players of one team, and a match with a mixed side, award player points and no team points.
-- [x] A participant on a side that is not entirely one team stops the match awarding any team points (rule 19).
+- [x] A participant on a side that is not entirely one team stops the match awarding any team points (rule 20).
 - [x] Awarding the same match twice writes one team row, not two.
 - [x] Cancelling a settled match writes one `match_reversal` row per team cancelling the award exactly, both rows visible, and the match leaves that team's "matches won".
 - [x] A `clash` game can be created whatever `playersPerSide` is submitted, and stores two sides and one player per side.
 - [ ] A `duel` or `team` match still refuses a side of the wrong size — no test asserts that refusal, in any suite.
-- [ ] A `clash` is refused when any player is busy, and is `active` with every participant accepted the moment it is created.
+- [ ] A `clash` is `active` with every participant accepted the moment it is created.
+- [ ] A `clash` starts while a darts match is under way, both run in parallel, and neither player is shown as busy because of the clash.
+- [ ] A second `clash` is refused while one is live.
+- [ ] Starting a `clash` notifies every participant except the admin who started it; settling one notifies every participant except whoever validated it.
 - [x] Team standings show points, player count and matches won, ordered by points then matches won then name, ties shown as ties.
 - [x] `getStandings()` returns the same rows in the same order whether or not teams exist.
 - [x] No user-facing string calls a match's side an «équipe», except a `clash`, whose sides carry the team names.
@@ -258,7 +271,14 @@ ones are covered by `src/lib/teams/membership.integration.test.ts` and
 
 ## End-to-end coverage
 
-- `e2e/teams.spec.ts` `@spec-0017` — a player with no team follows a deep link, is sent to the choice screen, chooses, and lands where they were going; the team that is one ahead is offered disabled with its reason; **a captain opening the choice screen is told they are one, and is offered nothing** (rule 7); a match between the two teams moves both leaderboards, the team's by the match's points once and each winner's by the full amount; a match inside one team moves only the player leaderboard.
+- `e2e/clash.spec.ts` `@spec-0017` — an admin starts a clash **while a darts
+  match is already running**: both matches stay live, neither player is shown
+  as busy because of the clash, and a second clash is refused. Every other
+  participant's inbox carries « Le grand match commence ! » and the admin's
+  does not; when the result is validated, every inbox but the validator's
+  carries « Le grand match est terminé ». Asserted from **both sides** — the
+  admin who started it and a player who only received it.
+- `e2e/teams.spec.ts` `@spec-0017` — a player with no team follows a deep link, is sent to the choice screen, chooses, and lands where they were going; the team that is one ahead is offered disabled with its reason; **a captain opening the choice screen is told they are one, and is offered nothing** (rule 9); a match between the two teams moves both leaderboards, the team's by the match's points once and each winner's by the full amount; a match inside one team moves only the player leaderboard.
 
 The existing nine suites must keep passing, so the e2e roster
 (`src/db/seed/users.e2e.ts`) is seeded with teams already assigned: `quentin`
@@ -272,15 +292,25 @@ database and would fail a CI retry, so `e2e/helpers/db.ts` gains a scoped
 ## Out of scope
 
 - A third team, renaming a team, changing a captain, or dissolving one.
-- Balancing by attendance rather than by choice: rule 11 balances who *picked*,
-  and an admin move (rule 16) is the manual answer to who *turned up*.
+- Balancing by attendance rather than by choice: rule 12 balances who *picked*,
+  and an admin move (rule 17) is the manual answer to who *turned up*.
 - Team points for anything that is not a settled match.
 - Changing what a player's own points are worth, or how they are ranked.
-- Per-team notifications (spec 0006 is untouched).
+- Per-team notifications beyond the clash's two events: no digest, no
+  standings alert, nothing on a teammate's win.
 - Raising `playersPerSide` for `duel` and `team` games: `clash` exists so that
   limit does not have to move.
 
 ## Open questions
+
+0. **This spec is 348 lines against a ~250 guideline, and should be split
+   before it is next changed.** The seam is clean: the `clash` mode — its
+   shape, its lack of an invitation, its parallelism and its two
+   notifications — is a feature in its own right, and what is left is the
+   teams themselves. It was not split now because the implementation is
+   already built against these rule numbers, and renumbering has twice left
+   internal cross-references pointing one rule off.
+
 
 1. **Two criteria remain unticked, and both name something no test asserts.**
 
@@ -308,15 +338,6 @@ database and would fail a CI retry, so `e2e/helpers/db.ts` gains a scoped
    phase altogether, and 0004 now says so rather than carving out a survival
    path nobody needs.
 
-3. **A clash notifies nobody when it starts, and the spec does not say what
-   it should.** Rule 4 removes the invitation, so `invitation_received` is
-   wrong. The only other notification spec 0006 has for a match going live is
-   `match_started`, whose body reads « tout le monde a accepté » — which is
-   not true of a clash and would be the app telling a small lie to fifteen
-   people. Nothing is sent: the organiser calls the clash out loud, which is
-   the premise of rule 4. A notification that says something else is a spec
-   0006 change, and 0006 is out of scope here.
-
 4. **"A freshly created clash is active with every participant accepted" is
    proved one level down from the action.** The decision lives in
    `initialStatus()` and `startsAccepted()` in `match-state.ts` — the module
@@ -333,3 +354,4 @@ database and would fail a CI retry, so `e2e/helpers/db.ts` gains a scoped
 | 2026-09-23 | Created | Two teams chosen at first login and balanced as they are chosen; a team ledger that counts matches rather than members, so an uneven roster changes nothing |
 | 2026-09-23 | Implemented | Migration 0004, the team ledger, the choice gate and the two screens; four readings the spec left open are recorded in Open questions |
 | 2026-09-24 | The invitation phase removed from a `clash` (rules 3-6) | An admin-called match needs no confirmation, so the mode-aware decline and expiry paths, `MatchSnapshot.mode` and the three tests that covered them are gone rather than adapted |
+| 2026-09-24 | A clash runs alongside other matches and notifies at both ends (rules 6-7) | Requiring fifteen idle guests meant the set piece could never start; and with no invitation, nothing told the other fourteen it had begun |
