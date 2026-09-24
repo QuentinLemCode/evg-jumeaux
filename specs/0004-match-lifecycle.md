@@ -101,6 +101,12 @@ Terminal states: `completed`, `cancelled`, `expired`.
 
 14. Any participant of an `active` match reports the result: the winning side,
     and — if the game requires scores — one score per side.
+
+    **Except a `clash`** (spec 0017): only an admin manages a clash. Players
+    cannot report, validate, dispute, or cancel a clash. An admin can update
+    intermediate scores while it is active, and settles the clash directly,
+    transitioning it immediately to `completed` without an `awaiting_validation`
+    phase.
 15. The reporter is expected to be on the winning side, and the form defaults to
     that, but a player on a losing side may also report. What matters is who
     validates (rule 18), not who reports.
@@ -279,3 +285,4 @@ None.
 | 2026-09-23 | Rules 2, 12 and 13 carve out the `clash` mode (spec 0017) | A match that invites all fifteen guests cannot be cancelled by one refusal, and its sides are the teams rather than slots the creator fills |
 | 2026-09-24 | A `clash` skips the invitation phase entirely: admin-started, everyone accepted, `active` at once (rules 5, 6, 11-13) | Nobody confirms a match the organiser has already called, and with no pending invitation there is nothing to decline or expire — which removes the mode-aware decline and expiry paths added the day before |
 | 2026-09-24 | A `clash` is outside the busy rule entirely, both ways (rules 7-8, spec 0017) | The set piece involves everybody, so requiring fifteen idle guests meant it could never start — and a darts match in progress must simply keep running alongside it |
+| 2026-09-24 | A `clash` is reported and settled directly by an admin, bypassing player validation and dispute (rule 14, spec 0017) | An admin referees the clash, so validation between players is unnecessary and dispute is impossible |

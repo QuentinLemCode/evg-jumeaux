@@ -67,11 +67,8 @@ rule survives any future roster.
    start.
 
    The one thing that is refused is a **second** `clash` while one is not
-   finished — `active`, `awaiting_validation` **or** `disputed`. Both would
-   claim the same two teams in full, and a team cannot play itself in two
-   places. Not merely `active`: a clash has no deadline and no sweeper, so a
-   disputed one can sit for hours waiting on an admin, and that is exactly
-   where a second would slip through.
+   finished (`active`). Both would claim the same two teams in full, and a team
+   cannot play itself in two places.
 
    The invariant this rests on, worth stating because a singular
    `busyMatchId` silently depends on it: **a player still holds at most one
@@ -86,11 +83,17 @@ rule survives any future roster.
    « Termine ta partie en cours d'abord » — the precise behaviour this rule
    forbids. `ClashForm` must also stop marking busy members and stop disabling
    its own submit button.
-7. **Rule 7.** Starting a `clash` notifies every participant except the admin
-   who started it, and settling one notifies every participant except whoever
-   validated it (spec 0006, rule 9: nobody is told about their own action).
-   Without this nothing tells the other fourteen guests the set piece has
-   begun — a clash has no invitation to arrive.
+7. **Rule 7.** A `clash` is managed exclusively by an admin. It has **no
+   validation phase and cannot be disputed**. Players see that the clash is in
+   progress and see the score, but have no action on it (no reporting, validation,
+   dispute, or cancellation buttons).
+   While a clash is active, an admin can update intermediate scores (visible
+   live to players). When finished, an admin settles the clash directly,
+   declaring the winning side and final scores; the match transitions directly to
+   `completed` and awards points. An admin may also cancel the clash.
+   Starting a clash notifies every participant except the admin who started it;
+   settling one notifies every participant except the admin who settled it
+   (spec 0006, rule 9: nobody is told about their own action).
 
 ### The teams
 
@@ -242,6 +245,9 @@ worth a repair path that can itself be wrong. The old colour cannot render a
 | Choose a team | The authenticated player, once, for themselves (`requireUser`) |
 | Move a player between teams | **Nobody.** The choice is final (rule 17) |
 | Create a `clash` match | `requireAdmin` — it commits every guest at once |
+| Update intermediate scores on a `clash` | `requireAdmin` |
+| Settle a `clash` match directly | `requireAdmin` — transitions directly to `completed`, awards points |
+| Report, validate or dispute a `clash` | **Nobody.** Clash is managed exclusively by admin (rule 7) |
 | Create, rename or re-captain a team | Nobody. Seeded. |
 | Read the team leaderboard | Any authenticated player |
 
@@ -294,8 +300,10 @@ only CI runs (AGENTS.md §4 and §9) — see *Open questions*.
 - [x] A `clash` starts while a darts match is under way, both run in parallel, and neither player is shown as busy because of the clash.
 - [x] A player already in a `clash` can be invited to a darts match and can accept it.
 - [x] A second `clash` is refused while one is `active`.
-- [ ] A second `clash` is refused while one is `awaiting_validation` or `disputed` — the code covers all three states, the test exercises only `active`, and those two are where the review said it would slip through.
-- [x] Starting a `clash` notifies every participant except the admin who started it; settling one notifies every participant except whoever validated it.
+- [ ] A `clash` displays scores live and regular players have no action buttons (cannot report, validate, dispute, or cancel).
+- [ ] An admin can update intermediate scores on an active `clash` while keeping it active.
+- [ ] An admin directly settles an active `clash`, transitioning it to `completed` and awarding points without validation or dispute.
+- [ ] Starting a `clash` notifies every participant except the admin who started it; settling one notifies every participant except the admin who settled it.
 - [x] Team standings show points, player count and matches won, ordered by points then matches won then name, ties shown as ties.
 - [x] `getStandings()` returns the same rows in the same order whether or not teams exist.
 - [x] No user-facing string calls a match's side an «équipe», except a `clash`, whose sides carry the team names.
@@ -307,9 +315,11 @@ only CI runs (AGENTS.md §4 and §9) — see *Open questions*.
   match is already running**: both matches stay live, neither player is shown
   as busy because of the clash, and a second clash is refused. Every other
   participant's inbox carries « Le grand match commence ! » and the admin's
-  does not; when the result is validated, every inbox but the validator's
-  carries « Le grand match est terminé ». Asserted from **both sides** — the
-  admin who started it and a player who only received it.
+  does not; the admin updates intermediate scores live while players see the
+  score update with no action buttons; when the admin settles the match,
+  every inbox but the admin's carries « Le grand match est terminé ». Asserted from
+  **both sides** — the admin who started and settled it, and a player who only
+  watched and received it.
 - `e2e/team-choice.spec.ts` `@spec-0017` — the screen says the choice is
   final before it is confirmed; the eighth choice fills a team and every
   remaining player is placed in the other and finds the notification in their
@@ -395,3 +405,4 @@ database and would fail a CI retry, so `e2e/helpers/db.ts` gains a scoped
 | 2026-09-24 | Implemented: the cap and its sweep, the final choice, the busy carve-out, both clash notifications, and the deletion of every team move | The balance rule made the cap unreachable, and the move was the only thing that could change a team after the fact — removing it is what lets a clash re-derive its teams at settlement |
 | 2026-09-24 | A clash runs alongside other matches and notifies at both ends (rules 6-7) | Requiring fifteen idle guests meant the set piece could never start; and with no invitation, nothing told the other fourteen it had begun |
 | 2026-09-24 | A team fills at eight and the rest are placed automatically; the choice is final for everyone, admins included; a clash needs every player placed (rules 6, 12-17) | The balance rule made the cap unreachable — a team could only hit eight once all fifteen had chosen — so it is replaced rather than added to; and with no move possible, team composition cannot drift once it is set |
+| 2026-09-24 | Clash is admin-managed: live score updates, direct settlement, and no dispute or validation (rule 7) | An admin starts, scores and settles the clash; validation/dispute by players is removed, and players have read-only views with live scores |
