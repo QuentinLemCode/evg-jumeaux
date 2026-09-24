@@ -59,6 +59,11 @@ unreliable on some.
 | Clash started | every participant except the admin who started it | « Le grand match commence ! » |
 | Clash finished | every participant except whoever validated it | « Le grand match est terminé » |
 
+A clash an **admin** settles out of a dispute fires the existing
+« Un admin a tranché » and not « Le grand match est terminé »: nobody validated
+it, so the second row has no one to exclude, and two banners for one event is
+the noise rule 14's single topic per match exists to avoid.
+
 8. A notification carries a title, a body, and a deep link to the screen where
    the player can act — an invitation links to the match screen, not to the home
    page. Landing somewhere that requires navigation defeats a 5-minute deadline.
@@ -85,13 +90,19 @@ one of them is wrong by default:
     It is set per event type and matched to the deadline the message is about.
     An invitation gets 6 minutes, slightly more than the window it announces;
     informational events about a closed window get 10 to 30 minutes; a result
-    or an award gets 12 hours. The library's default is four weeks, which
+    or an award gets 12 hours. **A clash starting gets 10 minutes** — it is an
+    announcement of something happening now, and a phone that wakes an hour
+    later is being told to come to a match that is over; **a clash finishing
+    gets 12 hours**, like every other result. The library's default is four weeks, which
     would buzz somebody's phone the next morning about an invitation that
     died before midnight.
 13. **`Urgency`** decides whether Android's Doze mode defers the message until
     the device next wakes on its own. `high` wakes the radio immediately and
     is reserved for the genuinely time-critical: an invitation, a result
-    awaiting validation, a dispute. Everything else is `normal`, because every
+    awaiting validation, a dispute, **and a clash starting** — fifteen people
+    are being called to the same table at the same moment, which is the most
+    time-critical thing this app does. A clash finishing is a result, so it is
+    `normal`. Everything else is `normal` too, because every
     high-urgency push costs battery and a browser that sees them abused can
     throttle the origin.
 14. **`Topic`** lets the push service replace an undelivered message with a

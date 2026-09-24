@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | implemented |
+| **Status** | ready-for-code |
 | **Owner** | spec agent |
 | **Depends on** | 0001, 0002, 0003, 0004, 0005, 0006, 0008, 0010 |
 | **Ready for code** | yes |
@@ -61,9 +61,26 @@ rule survives any future roster.
    anything. Requiring fifteen idle guests meant the set piece could never
    start.
 
-   The one thing that is refused is a **second** `clash` while one is live —
-   both would claim the same two teams in full, and a team cannot play itself
-   in two places.
+   The one thing that is refused is a **second** `clash` while one is not
+   finished — `active`, `awaiting_validation` **or** `disputed`. Both would
+   claim the same two teams in full, and a team cannot play itself in two
+   places. Not merely `active`: a clash has no deadline and no sweeper, so a
+   disputed one can sit for hours waiting on an admin, and that is exactly
+   where a second would slip through.
+
+   The invariant this rests on, worth stating because a singular
+   `busyMatchId` silently depends on it: **a player still holds at most one
+   non-clash live match.** The carve-out adds a clash beside that, it does not
+   lift the limit.
+
+   Three places decide who is busy, and all three need the exemption:
+   `getBusyUserIds` in `queries/roster.ts` (which joins `matches` only — it
+   needs `games` to see the mode at all), the in-transaction check in
+   `createMatch`, and **`acceptInvitation`'s own separate busy query**. Miss
+   the last and a player in a clash is refused every darts invitation with
+   « Termine ta partie en cours d'abord » — the precise behaviour this rule
+   forbids. `ClashForm` must also stop marking busy members and stop disabling
+   its own submit button.
 7. **Rule 7.** Starting a `clash` notifies every participant except the admin
    who started it, and settling one notifies every participant except whoever
    validated it (spec 0006, rule 9: nobody is told about their own action).
@@ -117,8 +134,15 @@ rule survives any future roster.
     teams**: exactly two sides, every participant of a side being a member of
     one team, and the two sides being different teams. Team membership is what
     counts, not invitation status — a player who declined is still on a team.
+
+    **A `clash` does not re-derive this at settlement.** Its sides *are* the
+    teams, recorded on the match when it is created, and it reads that. An
+    admin is free to move a player (rule 17) while a clash runs for an entire
+    evening; without this, one move would make a side no longer entirely one
+    team and the weekend's set piece would pay **zero** team points, silently,
+    while the player ledger paid out normally.
 21. **Rule 21.** A player with no team earns their personal points normally;
-    their matches award none to any team. Rule 18 is also what stops a team
+    their matches award none to any team. Rule 20 is also what stops a team
     farming itself — two of its players facing each other earn it nothing, and
     the bigger team has more internal pairs to try it with, 28 against 21.
 22. **Rule 22.** Awarding is idempotent: at most one row per
@@ -201,6 +225,10 @@ Additive only, and safe for the blue/green overlap (AGENTS.md §8).
   depends on that), `points`, `detail`, `created_by`, `created_at`, with
   `unique(match_id, team_id, type)` for rule 22. A separate table because `point_events.user_id` is `NOT NULL`
   and a team is not a user.
+- **`match_sides.team_id`** — nullable, referencing `teams(id)`. Set when a
+  `clash` is created and null for every other match. This is what rule 20
+  reads for a clash, so an admin moving a player mid-evening cannot turn the
+  set piece into a zero-point match.
 - **`games.mode`** gains the value `clash`. The column is plain text with no
   constraint, so this is not a schema change at all.
 
@@ -219,7 +247,7 @@ worth a repair path that can itself be wrong. The old colour cannot render a
 | Create, rename or re-captain a team | Nobody. Seeded. |
 | Read the team leaderboard | Any authenticated player |
 
-Rule 10 is re-checked inside the Server Action's transaction. Hiding the full
+Rule 12 is re-checked inside the Server Action's transaction. Hiding the full
 team's button is presentation, not authorisation.
 
 ## Failure cases
@@ -262,7 +290,9 @@ ones are covered by `src/lib/teams/membership.integration.test.ts` and
 - [ ] A `duel` or `team` match still refuses a side of the wrong size — no test asserts that refusal, in any suite.
 - [ ] A `clash` is `active` with every participant accepted the moment it is created.
 - [ ] A `clash` starts while a darts match is under way, both run in parallel, and neither player is shown as busy because of the clash.
-- [ ] A second `clash` is refused while one is live.
+- [ ] A player already in a `clash` can be invited to a darts match and can accept it.
+- [ ] An admin moving a player while a `clash` runs does not change what that clash pays either team.
+- [ ] A second `clash` is refused while one is `active`, `awaiting_validation` **or** `disputed`.
 - [ ] Starting a `clash` notifies every participant except the admin who started it; settling one notifies every participant except whoever validated it.
 - [x] Team standings show points, player count and matches won, ordered by points then matches won then name, ties shown as ties.
 - [x] `getStandings()` returns the same rows in the same order whether or not teams exist.
@@ -338,7 +368,7 @@ database and would fail a CI retry, so `e2e/helpers/db.ts` gains a scoped
    phase altogether, and 0004 now says so rather than carving out a survival
    path nobody needs.
 
-4. **"A freshly created clash is active with every participant accepted" is
+3. **"A freshly created clash is active with every participant accepted" is
    proved one level down from the action.** The decision lives in
    `initialStatus()` and `startsAccepted()` in `match-state.ts` — the module
    that already owns every other status decision — and both are unit-tested
