@@ -398,10 +398,9 @@ describe('a clash', () => {
   it('pays its winning team once when it settles', async () => {
     await m.applyMatchAction(
       CLASH_ID,
-      { type: 'report', userId: 'alice', winningSide: 1, scores: [] },
+      { type: 'settle-clash', adminId: 'alice', winningSide: 1, scores: [] },
       AT + 2,
     );
-    await m.applyMatchAction(CLASH_ID, { type: 'validate', userId: 'bob' }, AT + 3);
 
     const rows = await m.db.select().from(m.schema.teamPointEvents);
     const forClash = rows.filter((row) => row.matchId === CLASH_ID);
