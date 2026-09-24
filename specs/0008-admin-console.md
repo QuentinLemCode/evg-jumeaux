@@ -196,3 +196,5 @@ None.
 |---|---|---|
 | 2026-09-14 | Created | Initial harness and application bootstrap |
 | 2026-09-14 | Added the public admin log (rules 15-21); removed "an admin audit log screen" from Out of scope | Human requirement: full transparency on admin score changes, readable by everyone and not only by admins |
+| 2026-09-23 | Rules 18 and 21: team moves are a fifth kind of intervention, derived from `team_moves` (spec 0017) | An admin moving a player writes no point event and touches no match, so the log could not otherwise see it |
+| 2026-09-24 | Reverted: an admin cannot move a player between teams at all (spec 0017) | A team choice is final for everyone, admins included — so there is no intervention left for the log to carry |

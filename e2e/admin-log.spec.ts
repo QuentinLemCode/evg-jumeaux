@@ -54,8 +54,10 @@ test.describe('The admin log', { tag: ['@spec-0008', '@spec-0007'] }, () => {
     await expect(admin.getByText('Ajustement enregistré.')).toBeVisible();
     expect(pointTotal(PLAYERS.lucas.id)).toBe(30);
 
-    // A player with no admin rights reads the whole thing.
-    const player = await asPlayer(browser, 'thomas');
+    // A player with no admin rights reads the whole thing. Not Thomas: he is
+    // the one guest with no team, and the gate would send him to the choice
+    // screen before he ever saw the log (spec 0017, rule 11).
+    const player = await asPlayer(browser, 'romain');
     await player.goto('/admin-log');
 
     const entry = player.getByTestId('admin-log-entry').first();

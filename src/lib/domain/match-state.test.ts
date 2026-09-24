@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest';
 
 import {
   canAct,
+  initialStatus,
   isInvitationExpired,
   sidesOwingValidation,
+  startsAccepted,
   transition,
   type MatchAction,
 } from './match-state';
@@ -174,6 +176,30 @@ describe('declining an invitation', () => {
       userId: 'ben',
       status: 'declined',
     });
+  });
+});
+
+/**
+ * A clash has no invitation phase at all (spec 0017, rules 4-5): an admin
+ * calls it, everybody is in, and it is `active` from the first millisecond.
+ *
+ * That is why neither `decline` nor `expire` carries a special case for it —
+ * a clash is never `pending`, so neither transition can ever see one.
+ */
+describe('how a match starts', () => {
+  it('leaves a duel and a team game pending, with only the creator accepted', () => {
+    for (const mode of ['duel', 'team'] as const) {
+      expect(initialStatus(mode)).toBe('pending');
+      expect(startsAccepted(mode, 'alice', 'alice')).toBe(true);
+      expect(startsAccepted(mode, 'bob', 'alice')).toBe(false);
+    }
+  });
+
+  it('starts a clash active, with every participant accepted', () => {
+    expect(initialStatus('clash')).toBe('active');
+    expect(startsAccepted('clash', 'alice', 'alice')).toBe(true);
+    expect(startsAccepted('clash', 'bob', 'alice')).toBe(true);
+    expect(startsAccepted('clash', 'ben', 'alice')).toBe(true);
   });
 });
 

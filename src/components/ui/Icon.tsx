@@ -168,6 +168,16 @@ export const AlertIcon = svg(
 
 export const CheckIcon = svg(<path d="M5 12.5l4.5 4.5L19 7" />);
 
+/** Two players, for anything that is about a team rather than a person. */
+export const TeamIcon = svg(
+  <>
+    <circle cx="9" cy="8.5" r="3.2" />
+    <path d="M3.5 19.5c0-3 2.5-4.8 5.5-4.8s5.5 1.8 5.5 4.8" />
+    <path d="M16 5.6a3.2 3.2 0 0 1 0 5.8" />
+    <path d="M17.5 14.9c1.8.6 3 2.2 3 4.6" />
+  </>,
+);
+
 export const BackspaceIcon = svg(
   <>
     <path d="M9 5h10a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9L3 12l6-7Z" />

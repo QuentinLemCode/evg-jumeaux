@@ -23,6 +23,7 @@ No code change lands without a spec change first — see `AGENTS.md` §6.
 | `0014` | [Conversational memory](0014-conversational-memory.md) | implemented | Remembers the thread, asks blocking questions in the chat, resumes from the answer |
 | `0015` | [A staged pipeline the chat can follow](0015-staged-pipeline.md) | superseded by 0016 (bot half) | Stage-by-stage progress in the chat, and the spec is approved by a human before any code is written |
 | `0016` | [A read-only bot](0016-read-only-bot.md) | implemented | The bot reads and never writes: bug reports become prompts, questions are answered from the specs and the data; changes move to Antigravity remote control |
+| `0017` | [Two teams](0017-two-teams.md) | implemented | Two teams, chosen once and for good, filling at half the roster; a team ledger that counts matches, not members |
 
 Status values: `draft` → `ready-for-code` → `implemented` → `superseded`.
 
@@ -48,7 +49,8 @@ Fixed vocabulary — code, UI and specs use these words and no synonyms.
 | **Player** | A seeded user. There is no sign-up. |
 | **Game** | A game *type* ("palet", "rock-paper-scissors"), admin-managed. |
 | **Match** | One instance of a game between two or more sides. |
-| **Side** | A team in a team game, or a single player in a duel. |
+| **Side** | One half of a *match* — several players in a team game, one in a duel. Shown as «Camp 1» / «Camp 2»: it is NOT an «équipe» (spec 0017). |
+| **Team** | One of the weekend's two camps, «équipe Julien» or «équipe Pierre». A player belongs to exactly one, for the whole weekend. |
 | **Invitation** | A player's pending participation in a match. Expires after 5 min. |
 | **Report** | The declaration of the winning side and the scores. |
 | **Validation** | A losing-side player confirming or disputing a report. |

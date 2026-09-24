@@ -35,6 +35,23 @@ describe('validateGameDefinition', () => {
     ).toEqual([]);
   });
 
+  /**
+   * The bug spec 0017 had to correct: the size checks below made a clash
+   * impossible to create, because two teams of 8 and 7 can never satisfy one
+   * `playersPerSide` (rule 2).
+   */
+  it('accepts a clash, whose sides are the two teams and need not match', () => {
+    expect(
+      validateGameDefinition(definition({ mode: 'clash', playersPerSide: 1 })),
+    ).toEqual([]);
+  });
+
+  it('rejects a clash with anything but two sides', () => {
+    expect(
+      fields(validateGameDefinition(definition({ mode: 'clash', sidesCount: 3 }))),
+    ).toContain('sidesCount');
+  });
+
   it('rejects a duel with several players per side', () => {
     expect(fields(validateGameDefinition(definition({ playersPerSide: 2 })))).toContain(
       'playersPerSide',
@@ -108,6 +125,17 @@ describe('normaliseGameDefinition', () => {
     });
     expect(result.marginBonusPerPoint).toBe(0);
     expect(result.marginBonusCap).toBeNull();
+  });
+});
+
+describe('normaliseGameDefinition — a clash', () => {
+  it('stores one player per side and two sides, whatever was submitted', () => {
+    const stored = normaliseGameDefinition({
+      ...definition({ mode: 'clash', playersPerSide: 6, sidesCount: 4 }),
+      requiresScore: false,
+    });
+    expect(stored.playersPerSide).toBe(1);
+    expect(stored.sidesCount).toBe(2);
   });
 });
 

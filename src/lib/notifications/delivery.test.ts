@@ -38,6 +38,31 @@ describe('topicFor', () => {
 });
 
 describe('deliveryFor', () => {
+  it('wakes a sleeping phone for a clash starting, and gives up after 10 minutes', () => {
+    // Fifteen people are being called to one table at one moment, so Doze
+    // must not defer it — and a phone that wakes an hour later would be told
+    // to come to a match that is over (spec 0006, rules 12-13).
+    const policy = deliveryFor(intent('clash_started'));
+    expect(policy.urgency).toBe('high');
+    expect(policy.ttlSeconds).toBe(600);
+  });
+
+  it('treats a clash finishing as the result it is', () => {
+    const policy = deliveryFor(intent('clash_finished'));
+    expect(policy.urgency).toBe('normal');
+    expect(policy.ttlSeconds).toBe(12 * 60 * 60);
+  });
+
+  it('lets an automatic team assignment wait, but not four weeks', () => {
+    // The weekend has not started, so it is not urgent — but it is the only
+    // thing telling that player which team they are in (spec 0017, rule 15).
+    const policy = deliveryFor(intent('team_assigned', null));
+    expect(policy.urgency).toBe('normal');
+    expect(policy.ttlSeconds).toBe(12 * 60 * 60);
+    // No match, so nothing to collapse it onto.
+    expect(policy.topic).toBeUndefined();
+  });
+
   it('wakes a sleeping phone for an invitation', () => {
     const policy = deliveryFor(intent('invitation_received'));
     expect(policy.urgency).toBe('high');

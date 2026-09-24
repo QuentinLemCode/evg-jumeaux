@@ -7,6 +7,7 @@ import {
   text,
   unique,
   uniqueIndex,
+  type AnySQLiteColumn,
 } from 'drizzle-orm/sqlite-core';
 
 // All timestamps are integer Unix milliseconds (AGENTS.md §5). SQLite has no
@@ -24,6 +25,35 @@ export const users = sqliteTable('users', {
   role: text('role', { enum: ['admin', 'user'] }).notNull(),
   pinHash: text('pin_hash').notNull(),
   avatar: text('avatar').notNull(),
+  /**
+   * The weekend's team (spec 0017). Null means "has not chosen yet", which is
+   * where every player but the two captains starts — so it is nullable by
+   * design and not by omission.
+   *
+   * The reference is written lazily and annotated because `teams.captain_id`
+   * points back here: without the explicit return type the two tables infer
+   * each other forever.
+   */
+  teamId: text('team_id').references((): AnySQLiteColumn => teams.id),
+  createdAt: timestamp('created_at').notNull(),
+});
+
+/**
+ * The two teams (spec 0017). Seeded, never created from the app.
+ *
+ * `captainId` is NULLABLE on purpose, and the reason is operational rather
+ * than aesthetic: the migration inserts both rows, it runs against an empty
+ * `users` table on a fresh database, and `foreign_keys` is ON — so naming a
+ * captain there would fail every first deploy. The seeder fills it in once
+ * the players exist (spec 0017, rule 8).
+ */
+export const teams = sqliteTable('teams', {
+  id: text('id').primaryKey(),
+  slug: text('slug').notNull().unique(),
+  name: text('name').notNull(),
+  /** A Confetti accent token, so the two teams differ by colour as well. */
+  accent: text('accent').notNull(),
+  captainId: text('captain_id').references((): AnySQLiteColumn => users.id),
   createdAt: timestamp('created_at').notNull(),
 });
 
@@ -38,7 +68,9 @@ export const games = sqliteTable(
     name: text('name').notNull(),
     description: text('description'),
     icon: text('icon').notNull(),
-    mode: text('mode', { enum: ['duel', 'team'] }).notNull(),
+    // `clash` (spec 0017, rule 1) is a third shape, not a rename of `team`:
+    // its two sides are the two teams in full and need not be the same size.
+    mode: text('mode', { enum: ['duel', 'team', 'clash'] }).notNull(),
     sidesCount: integer('sides_count').notNull(),
     playersPerSide: integer('players_per_side').notNull(),
     pointsPerWin: integer('points_per_win').notNull(),
@@ -138,7 +170,8 @@ export const matches = sqliteTable(
 );
 
 /**
- * A side of a match: a team in a team game, a single player in a duel.
+ * A side of a match: several players in a team game, a single player in a
+ * duel — a **camp**, never an «équipe» (spec 0017, rule 30).
  */
 export const matchSides = sqliteTable(
   'match_sides',
@@ -209,6 +242,45 @@ export const pointEvents = sqliteTable(
     // Makes awarding idempotent by construction rather than by trusting the
     // caller (spec 0005, rule 7).
     unique('point_events_once').on(t.matchId, t.userId, t.type),
+  ],
+);
+
+/**
+ * The TEAM ledger (spec 0017, rules 18-22).
+ *
+ * A separate table rather than a nullable `point_events.user_id`, because
+ * `user_id` is NOT NULL and a team is not a user. Same shape and same
+ * guarantees as the player ledger: append-only, signed, and idempotent by
+ * construction through `unique(match_id, team_id, type)`.
+ *
+ * `match_id` is NOT NULL: only a settled match moves team points. A manual
+ * adjustment is a player's business alone (rule 23).
+ */
+export const teamPointEvents = sqliteTable(
+  'team_point_events',
+  {
+    id: text('id').primaryKey(),
+    teamId: text('team_id')
+      .notNull()
+      .references(() => teams.id),
+    matchId: text('match_id')
+      .notNull()
+      .references(() => matches.id),
+    // Three types and no more: "matches won" counts the matches whose rows
+    // sum above zero, which only holds while nothing else can write here
+    // (rule 28).
+    type: text('type', {
+      enum: ['match_win', 'margin_bonus', 'match_reversal'],
+    }).notNull(),
+    points: integer('points').notNull(),
+    detail: text('detail').notNull(),
+    createdBy: text('created_by').references(() => users.id),
+    createdAt: timestamp('created_at').notNull(),
+  },
+  (t) => [
+    index('team_point_events_team_idx').on(t.teamId),
+    index('team_point_events_match_idx').on(t.matchId),
+    unique('team_point_events_once').on(t.matchId, t.teamId, t.type),
   ],
 );
 
@@ -294,6 +366,8 @@ export type MatchRow = typeof matches.$inferSelect;
 export type MatchSideRow = typeof matchSides.$inferSelect;
 export type MatchParticipantRow = typeof matchParticipants.$inferSelect;
 export type PointEventRow = typeof pointEvents.$inferSelect;
+export type TeamRow = typeof teams.$inferSelect;
+export type TeamPointEventRow = typeof teamPointEvents.$inferSelect;
 export type NotificationRow = typeof notifications.$inferSelect;
 export type PushSubscriptionRow = typeof pushSubscriptions.$inferSelect;
 export type ClientErrorRow = typeof clientErrors.$inferSelect;

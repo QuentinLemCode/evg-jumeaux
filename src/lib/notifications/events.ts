@@ -15,7 +15,10 @@ export type NotificationType =
   | 'result_validated'
   | 'result_disputed'
   | 'match_cancelled'
-  | 'dispute_resolved';
+  | 'dispute_resolved'
+  | 'clash_started'
+  | 'clash_finished'
+  | 'team_assigned';
 
 export type NotificationIntent = {
   userId: string;
@@ -50,10 +53,39 @@ export type NotificationEvent =
   | { kind: 'result_validated'; winningSide: number; pointsByUser: Record<string, number> }
   | { kind: 'result_disputed'; reason: string | null; reporterId: string | null }
   | { kind: 'match_cancelled'; reason: string | null }
-  | { kind: 'dispute_resolved'; outcome: 'completed' | 'cancelled' };
+  | { kind: 'dispute_resolved'; outcome: 'completed' | 'cancelled' }
+  // A clash has no invitation, so nothing else would tell the other fourteen
+  // guests the set piece has begun (spec 0017, rule 7).
+  | { kind: 'clash_started' }
+  | { kind: 'clash_finished'; winningSide: number; pointsByUser: Record<string, number> };
 
 function matchUrl(matchId: string): string {
   return `/matches/${matchId}`;
+}
+
+/**
+ * The players the app placed itself, told which team they are in
+ * (spec 0017, rule 15).
+ *
+ * Its own builder, because it is the one notification that is not about a
+ * match: there is no game, no icon and no side, so `NotifyContext` has
+ * nothing to offer it. It links to the team screen, where the answer to
+ * "who am I with?" actually lives.
+ *
+ * The player whose choice filled the team is not in this list — the caller
+ * excludes them, because they caused the event (spec 0006, rule 9).
+ */
+export function buildTeamAssignedNotifications(
+  assigned: { userId: string; teamName: string }[],
+): NotificationIntent[] {
+  return assigned.map(({ userId, teamName }) => ({
+    userId,
+    type: 'team_assigned' as const,
+    title: `Tu joues dans l’${teamName}`,
+    body: 'L’autre équipe est complète, alors on t’a placé. Bonne chance.',
+    url: '/teams',
+    matchId: null,
+  }));
 }
 
 export function buildNotifications(
@@ -173,5 +205,41 @@ export function buildNotifications(
           ? `Le résultat de ${ctx.gameName} a été arbitré et les points attribués.`
           : `La partie de ${ctx.gameName} a été annulée par un admin.`,
       );
+
+    // Everybody except the admin who called it — `to()` drops the actor, and
+    // the actor here is that admin (spec 0006, rule 9).
+    case 'clash_started': {
+      const left = ctx.sideLabels[1] ?? 'Une équipe';
+      const right = ctx.sideLabels[2] ?? 'l’autre';
+      return to(
+        everyone,
+        'clash_started',
+        `${icon} Le grand match commence !`,
+        `${left} contre ${right}. Tout le monde en piste.`,
+      );
+    }
+
+    // Everybody except whoever validated it. Unlike `result_validated`, which
+    // tells the validator too, a clash's result is announced BY them — so the
+    // one person who already knows is left out (spec 0017, rule 7).
+    case 'clash_finished': {
+      const winner = ctx.sideLabels[event.winningSide] ?? `Camp ${event.winningSide}`;
+      return everyone
+        .filter((userId) => userId !== ctx.actorId)
+        .map((userId) => {
+          const points = event.pointsByUser[userId] ?? 0;
+          return {
+            userId,
+            type: 'clash_finished' as const,
+            title: `${icon} Le grand match est terminé`,
+            body:
+              points > 0
+                ? `${winner} l’emporte. Tu empoches +${points} pts.`
+                : `${winner} l’emporte.`,
+            url,
+            matchId: ctx.matchId,
+          };
+        });
+    }
   }
 }

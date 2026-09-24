@@ -43,24 +43,40 @@ Terminal states: `completed`, `cancelled`, `expired`.
 
 1. Any authenticated player who is not **busy** creates a match by choosing an
    active game, then filling every side with players.
-2. The creator is always a participant, on side 1, and is automatically
-   accepted.
+2. The creator is always a participant, automatically accepted, and on side 1
+   — except in a `clash` (spec 0017), where the sides **are** the two teams
+   and the creator's own team decides which side they are on. The screen
+   orders their team first, so they normally still see themselves in camp 1;
+   the server does not require it, because there the side index is not a slot
+   anybody picks.
 3. The creator picks the other participants from the roster. Players who are
    busy are shown as unavailable and cannot be selected.
 4. For a team game, the creator assigns each participant to a side. The match
    cannot be created until every side has exactly `playersPerSide` players.
 5. On creation the match is `pending`, and each non-creator participant has a
    `pending` invitation. Each of them is notified (0006).
+
+   **Except a `clash`** (spec 0017): an admin starts it, every participant is
+   `accepted` at once, and the match is `active` immediately. Nobody is asked
+   to confirm a match the organiser has already called.
 6. The invitation deadline is **5 minutes after creation**, stored on the match.
-   It is the same deadline for everyone, not per invitation.
+   It is the same deadline for everyone, not per invitation. A `clash` stores
+   one because the column requires it, and nothing ever reads it: there is no
+   invitation to expire.
 
 ### Busy — the one-match-at-a-time rule
 
 7. A player is **busy** when they participate in a match whose status is
    `active`, `awaiting_validation` or `disputed`, **or** when their invitation
    is `accepted` in a `pending` match.
+
+   **A `clash` counts for nothing here** (spec 0017): being in one never makes
+   anybody busy, and being busy never keeps anybody out of one. The weekend's
+   set piece runs *alongside* whatever is on the pétanque court, and a darts
+   match already under way neither blocks it nor is blocked by it.
 8. A busy player cannot create a match, cannot be invited, and cannot accept an
-   invitation. They may still decline one.
+   invitation. They may still decline one. Again, a `clash` is outside this
+   rule in both directions.
 9. A player with several invitations open may therefore accept only the first;
    accepting one leaves the others, which they should decline — the app does
    not decline them automatically, because the other matches may still be
@@ -73,11 +89,13 @@ Terminal states: `completed`, `cancelled`, `expired`.
 11. When the last pending invitation is accepted, the match becomes `active`
     and everyone is notified that it has started.
 12. If any invited player declines, the match becomes `cancelled` immediately.
-    One refusal is enough — there is no partial re-forming.
+    One refusal is enough — there is no partial re-forming. A `clash` has no
+    invitation to decline, so this never applies to one.
 13. When the deadline passes with at least one invitation still pending, the
     match becomes `expired`. Expiry is evaluated both by a background sweep
     every minute and lazily whenever the match is read, so a stale `pending`
-    match is never shown as joinable.
+    match is never shown as joinable. A `clash` is never `pending`, so it
+    cannot expire.
 
 ### Reporting the result
 
@@ -145,7 +163,7 @@ matches
 match_sides
   match_id   text not null references matches(id)
   side_index integer not null   -- 1..sidesCount
-  label      text not null      -- 'Équipe 1' or the single player's name
+  label      text not null      -- 'Camp 1' or the single player's name (0017)
   score      integer            -- null until reported
   validated_at integer          -- null until this side validates
   validated_by text references users(id)
@@ -193,7 +211,7 @@ matches are queried by `user_id`.
 | Validating a match one is not in | 403 | « Tu ne participes pas à cette partie » |
 | Validating one's own report | Reject | « L'autre camp doit valider » |
 | Validating twice for the same side | No-op | (none) |
-| Team has the wrong number of players | Reject at creation | « Il manque des joueurs dans l'équipe X » |
+| A side has the wrong number of players | Reject at creation | « Il manque des joueurs dans le camp X » |
 | Same player on two sides | Reject | « Un joueur ne peut pas être dans deux camps » |
 
 ## Acceptance criteria
@@ -257,3 +275,7 @@ None.
 | Date | Change | Why |
 |---|---|---|
 | 2026-09-14 | Created | Initial harness and application bootstrap |
+| 2026-09-23 | A match's halves are «camps», not «équipes» (spec 0017) | «Équipe» now names one of the weekend's two teams, and both words were landing on the same screen |
+| 2026-09-23 | Rules 2, 12 and 13 carve out the `clash` mode (spec 0017) | A match that invites all fifteen guests cannot be cancelled by one refusal, and its sides are the teams rather than slots the creator fills |
+| 2026-09-24 | A `clash` skips the invitation phase entirely: admin-started, everyone accepted, `active` at once (rules 5, 6, 11-13) | Nobody confirms a match the organiser has already called, and with no pending invitation there is nothing to decline or expire — which removes the mode-aware decline and expiry paths added the day before |
+| 2026-09-24 | A `clash` is outside the busy rule entirely, both ways (rules 7-8, spec 0017) | The set piece involves everybody, so requiring fifteen idle guests meant it could never start — and a darts match in progress must simply keep running alongside it |

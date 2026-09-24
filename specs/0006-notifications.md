@@ -56,6 +56,14 @@ unreliable on some.
 | Result disputed | every admin, and the reporter | « Résultat contesté » |
 | Match cancelled | every participant except the canceller | « Partie annulée » |
 | Admin resolved a dispute | every participant | « Un admin a tranché » |
+| Team assigned automatically | each player placed by the filling of the other team | « Tu joues dans l'équipe Pierre » |
+| Clash started | every participant except the admin who started it | « Le grand match commence ! » |
+| Clash finished | every participant except whoever validated it | « Le grand match est terminé » |
+
+A clash an **admin** settles out of a dispute fires the existing
+« Un admin a tranché » and not « Le grand match est terminé »: nobody validated
+it, so the second row has no one to exclude, and two banners for one event is
+the noise rule 14's single topic per match exists to avoid.
 
 8. A notification carries a title, a body, and a deep link to the screen where
    the player can act — an invitation links to the match screen, not to the home
@@ -83,13 +91,21 @@ one of them is wrong by default:
     It is set per event type and matched to the deadline the message is about.
     An invitation gets 6 minutes, slightly more than the window it announces;
     informational events about a closed window get 10 to 30 minutes; a result
-    or an award gets 12 hours. The library's default is four weeks, which
+    or an award gets 12 hours. **A clash starting gets 10 minutes** — it is an
+    announcement of something happening now, and a phone that wakes an hour
+    later is being told to come to a match that is over; **a clash finishing
+    gets 12 hours**, like every other result; **an automatic team assignment
+    gets 12 hours**, because it holds for the whole weekend and a player who
+    reads it late has lost nothing. The library's default is four weeks, which
     would buzz somebody's phone the next morning about an invitation that
     died before midnight.
 13. **`Urgency`** decides whether Android's Doze mode defers the message until
     the device next wakes on its own. `high` wakes the radio immediately and
     is reserved for the genuinely time-critical: an invitation, a result
-    awaiting validation, a dispute. Everything else is `normal`, because every
+    awaiting validation, a dispute, **and a clash starting** — fifteen people
+    are being called to the same table at the same moment, which is the most
+    time-critical thing this app does. A clash finishing is a result, so it is
+    `normal`. Everything else is `normal` too, because every
     high-urgency push costs battery and a browser that sees them abused can
     throttle the origin.
 14. **`Topic`** lets the push service replace an undelivered message with a
@@ -226,3 +242,4 @@ None.
 | 2026-09-14 | Created | Initial harness and application bootstrap |
 | 2026-09-14 | Added rules 12-16: explicit per-event `TTL`, `Urgency` and `Topic`, and what happens when the phone is asleep or offline | Every one of the three defaults was wrong: a four-week TTL would buzz a dead invitation the next morning, `normal` urgency lets Doze defer a 5-minute deadline, and no topic means a phone that was asleep wakes to a stack of stale banners |
 | 2026-09-14 | Added rule 2b: the iOS install hint moves to the login screen, before sign-in | The installed iOS app has a separate cookie jar, so installing after logging in costs a second PIN entry — and the human asked for an iOS answer that needs no native app |
+| 2026-09-24 | Three events: a clash starting and finishing, and an automatic team assignment (spec 0017) | A clash has no invitation, so nothing else tells the other fourteen guests it has begun — « Match started (all accepted) » is both the wrong trigger and the wrong words |

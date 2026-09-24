@@ -51,14 +51,20 @@ export default async function GamesPage() {
           </EmptyState>
         ) : (
           <ul className="grid gap-2 sm:grid-cols-2">
-            {active.map((game, index) => (
+            {active.map((game, index) => {
+              // A clash runs alongside everything else, so a match in progress
+              // does not grey it out for the admin who can call it
+              // (spec 0017, rule 6).
+              const blocked =
+                busyMatchId !== null && !(game.mode === 'clash' && me.role === 'admin');
+              return (
               <li key={game.id}>
                 <Link
-                  href={busyMatchId ? `/matches/${busyMatchId}` : `/matches/new?game=${game.id}`}
-                  aria-disabled={busyMatchId !== null}
+                  href={blocked ? `/matches/${busyMatchId}` : `/matches/new?game=${game.id}`}
+                  aria-disabled={blocked}
                   className={[
                     'sticker flex h-full items-start gap-3 transition-colors',
-                    busyMatchId ? 'sticker-quiet' : 'hover:bg-bg',
+                    blocked ? 'sticker-quiet' : 'hover:bg-bg',
                     reveal(index).className,
                   ].join(' ')}
                   style={reveal(index).style}
@@ -78,7 +84,9 @@ export default async function GamesPage() {
                       <Badge>
                         {game.mode === 'duel'
                           ? `${game.sidesCount} joueurs`
-                          : `${game.sidesCount} × ${game.playersPerSide} joueurs`}
+                          : game.mode === 'clash'
+                            ? 'Les deux équipes'
+                            : `${game.sidesCount} × ${game.playersPerSide} joueurs`}
                       </Badge>
                       {game.marginBonusEnabled ? (
                         <Badge tone="grape">
@@ -90,7 +98,8 @@ export default async function GamesPage() {
                   </span>
                 </Link>
               </li>
-            ))}
+              );
+            })}
           </ul>
         )}
       </section>

@@ -14,6 +14,7 @@ import { ErrorMessage } from '../ui/Field';
 type Game = {
   id: string;
   name: string;
+  /** `clash` never reaches here: it has its own screen (`ClashForm`). */
   mode: 'duel' | 'team';
   sidesCount: number;
   playersPerSide: number;
@@ -122,7 +123,9 @@ export function NewMatchForm({
                 ].join(' ')}
               >
                 <span className="w-16 shrink-0 text-xs font-semibold tracking-wide text-muted uppercase">
-                  {game.mode === 'duel' ? `Joueur ${sideIndex}` : `Équipe ${sideIndex}`}
+                  {/* «Camp», never «équipe»: that word names one of the
+                      weekend's two teams (spec 0017, rule 30). */}
+                  {game.mode === 'duel' ? `Joueur ${sideIndex}` : `Camp ${sideIndex}`}
                 </span>
                 <span className="flex min-w-0 flex-1 flex-wrap gap-1.5">
                   {players.map((userId) => (
@@ -185,7 +188,7 @@ export function NewMatchForm({
                       <span className="text-xs text-muted">déjà en partie</span>
                     ) : selected ? (
                       <span className="text-xs font-semibold text-coral">
-                        {game.mode === 'duel' ? `Joueur ${side}` : `Équipe ${side}`}
+                        {game.mode === 'duel' ? `Joueur ${side}` : `Camp ${side}`}
                       </span>
                     ) : null}
                   </button>

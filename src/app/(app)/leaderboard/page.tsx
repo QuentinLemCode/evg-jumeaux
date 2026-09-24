@@ -5,6 +5,7 @@ import { MatchSummaryCard } from '@/components/matches/MatchSummaryCard';
 import { Avatar } from '@/components/ui/Avatar';
 import { ButtonLink } from '@/components/ui/Button';
 import { Card, SectionTitle } from '@/components/ui/Card';
+import { ViewSwitch } from '@/components/ui/Chips';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Score } from '@/components/ui/Score';
@@ -94,7 +95,16 @@ export default async function LeaderboardPage() {
             Jouer
           </ButtonLink>
         }
-      />
+      >
+        {/* The two leaderboards are never added together — the link between
+            them is navigational (spec 0017, rule 26). */}
+        <ViewSwitch
+          views={[
+            { href: '/leaderboard', label: 'Joueurs', active: true },
+            { href: '/teams', label: 'Équipes', active: false },
+          ]}
+        />
+      </PageHeader>
 
       {myMatches.length > 0 ? (
         <section>

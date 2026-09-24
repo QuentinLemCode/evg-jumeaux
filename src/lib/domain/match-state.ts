@@ -8,6 +8,7 @@
  * stops a "quick fix" in a UI handler from inventing an eighth state.
  */
 import {
+  type GameMode,
   type MatchSnapshot,
   type MatchStatus,
   type ParticipantSnapshot,
@@ -89,6 +90,33 @@ function participantOf(
   userId: string,
 ): ParticipantSnapshot | undefined {
   return match.participants.find((p) => p.userId === userId);
+}
+
+/**
+ * How a match STARTS (spec 0004, rules 5-6).
+ *
+ * Here rather than in the action, because this module is the only place
+ * allowed to decide a match's status and the first one is still a status.
+ *
+ * A `clash` has no invitation phase at all (spec 0017, rules 4-5): an admin
+ * calls it, everybody is in, and it is `active` from the first millisecond.
+ * Nothing about it can be declined or expire, which is why neither transition
+ * below carries a special case for it.
+ */
+export function initialStatus(mode: GameMode): MatchStatus {
+  return mode === 'clash' ? 'active' : 'pending';
+}
+
+/**
+ * Whether a participant starts already accepted. The creator always does
+ * (spec 0004, rule 2); in a `clash`, so does everybody else.
+ */
+export function startsAccepted(
+  mode: GameMode,
+  userId: string,
+  creatorId: string,
+): boolean {
+  return mode === 'clash' || userId === creatorId;
 }
 
 /**
@@ -188,7 +216,8 @@ export function transition(
       if (!me) return fail('not_a_participant');
       if (me.invitationStatus !== 'pending') return fail('invitation_already_answered');
       // One refusal cancels the match: there is no partial re-forming
-      // (spec 0004, rule 12).
+      // (spec 0004, rule 12). A clash never reaches here — it has no
+      // invitation to decline (spec 0017, rule 5).
       return {
         ok: true,
         nextStatus: 'cancelled',

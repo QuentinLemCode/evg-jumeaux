@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildNotifications, type NotifyContext } from './events';
+import {
+  buildNotifications,
+  buildTeamAssignedNotifications,
+  type NotifyContext,
+} from './events';
 
 const ctx: NotifyContext = {
   matchId: 'm1',
@@ -21,6 +25,35 @@ describe('notification recipients', () => {
   it('never notifies the person who caused the event', () => {
     const intents = buildNotifications({ kind: 'match_started' }, ctx);
     expect(intents.map((i) => i.userId)).toEqual(['bob', 'ben']);
+  });
+
+  /**
+   * A clash has no invitation, so this is the only thing that tells the other
+   * fourteen guests the set piece has begun (spec 0017, rule 7).
+   */
+  it('tells every participant a clash has started, except the admin who called it', () => {
+    const intents = buildNotifications({ kind: 'clash_started' }, ctx);
+    expect(intents.map((i) => i.userId)).toEqual(['bob', 'ben']);
+    expect(intents[0]?.title).toContain('Le grand match commence');
+    // The sides of a clash carry the team names, so the body reads as a
+    // fixture rather than as "Camp 1 contre Camp 2".
+    expect(intents[0]?.body).toContain('Alice');
+    expect(intents[0]?.body).toContain('Bob & Ben');
+  });
+
+  it('tells everybody but the validator that a clash is over', () => {
+    // Unlike `result_validated`, which tells the validator too: here they are
+    // the one person announcing it (spec 0006, rule 9).
+    const intents = buildNotifications(
+      { kind: 'clash_finished', winningSide: 2, pointsByUser: { bob: 12, ben: 12 } },
+      { ...ctx, actorId: 'ben' },
+    );
+    expect(intents.map((i) => i.userId)).toEqual(['alice', 'bob']);
+    expect(intents[0]?.title).toContain('Le grand match est terminé');
+    expect(intents[1]?.body).toContain('+12 pts');
+    // The loser is told who won, without a points line.
+    expect(intents[0]?.body).toContain('Bob & Ben');
+    expect(intents[0]?.body).not.toContain('pts');
   });
 
   it('notifies only the invited players on an invitation', () => {
@@ -110,5 +143,29 @@ describe('notification recipients', () => {
     );
     expect(completed[0]?.body).toContain('points attribués');
     expect(cancelled[0]?.body).toContain('annulée');
+  });
+});
+
+/**
+ * The one notification that is not about a match (spec 0017, rule 15): the
+ * players the app placed itself, told which team they are in. They never
+ * opened the choice screen, so without it they would learn their team from a
+ * leaderboard.
+ */
+describe('a team assigned automatically', () => {
+  it('names the team, and links where the answer lives', () => {
+    const intents = buildTeamAssignedNotifications([
+      { userId: 'bob', teamName: 'Équipe Pierre' },
+      { userId: 'ben', teamName: 'Équipe Pierre' },
+    ]);
+    expect(intents.map((i) => i.userId)).toEqual(['bob', 'ben']);
+    expect(intents[0]?.title).toBe('Tu joues dans l’Équipe Pierre');
+    expect(intents[0]?.url).toBe('/teams');
+    // No match to collapse a push onto, and none to link to.
+    expect(intents[0]?.matchId).toBeNull();
+  });
+
+  it('tells nobody when the choice placed nobody', () => {
+    expect(buildTeamAssignedNotifications([])).toEqual([]);
   });
 });

@@ -10,6 +10,8 @@ import {
   matchSides,
   matches,
   pointEvents,
+  teamPointEvents,
+  teams,
   users,
   type GameRow,
   type MatchRow,
@@ -43,6 +45,14 @@ export type MatchAward = {
   detail: string;
 };
 
+/** What a settled match paid a TEAM, if it opposed the two (spec 0017). */
+export type MatchTeamAward = {
+  teamName: string;
+  type: 'match_win' | 'margin_bonus' | 'match_reversal';
+  points: number;
+  detail: string;
+};
+
 export type MatchView = {
   match: MatchRow;
   game: GameRow;
@@ -51,6 +61,7 @@ export type MatchView = {
   sides: MatchSideView[];
   participants: MatchParticipantView[];
   awards: MatchAward[];
+  teamAwards: MatchTeamAward[];
   snapshot: MatchSnapshot;
 };
 
@@ -94,7 +105,7 @@ export async function getMatchView(
   const row = matchRows[0];
   if (!row) return null;
 
-  const [participantRows, sideRows, awardRows] = await Promise.all([
+  const [participantRows, sideRows, awardRows, teamAwardRows] = await Promise.all([
     db
       .select({
         userId: matchParticipants.userId,
@@ -125,6 +136,17 @@ export async function getMatchView(
       .innerJoin(users, eq(users.id, pointEvents.userId))
       .where(eq(pointEvents.matchId, matchId))
       .orderBy(users.name, pointEvents.createdAt),
+    db
+      .select({
+        teamName: teams.name,
+        type: teamPointEvents.type,
+        points: teamPointEvents.points,
+        detail: teamPointEvents.detail,
+      })
+      .from(teamPointEvents)
+      .innerJoin(teams, eq(teams.id, teamPointEvents.teamId))
+      .where(eq(teamPointEvents.matchId, matchId))
+      .orderBy(teamPointEvents.createdAt),
   ]);
 
   const sides: MatchSideView[] = sideRows.map((side) => ({
@@ -147,6 +169,7 @@ export async function getMatchView(
     sides,
     participants: participantRows,
     awards: awardRows,
+    teamAwards: teamAwardRows,
     snapshot,
   };
 }

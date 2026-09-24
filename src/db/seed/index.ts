@@ -9,10 +9,11 @@ import bcrypt from 'bcryptjs';
 import { eq } from 'drizzle-orm';
 
 import { db } from '../index';
-import { games, users } from '../schema';
+import { games, teams, users } from '../schema';
 import { seedGames } from './games';
+import { seedCaptains, type Captains } from './teams';
 import { seedRoster, type SeedUser } from './users';
-import { DEV_PIN, e2eUsers } from './users.e2e';
+import { DEV_PIN, e2eCaptains, e2eUsers } from './users.e2e';
 
 
 function fail(message: string): never {
@@ -95,8 +96,16 @@ function pinHashesFromEnv(): Map<string, string> {
  * `users.e2e.ts`); everything else gets the real guest list, with each hash
  * resolved from the secret.
  */
+const isE2eRoster = process.env.SEED_ROSTER === 'e2e';
+
+/**
+ * Who captains which team (spec 0017, rule 8). The end-to-end roster has
+ * neither twin in it, so it names its own two.
+ */
+const captains: Captains = isE2eRoster ? e2eCaptains : seedCaptains;
+
 const roster: SeedUser[] = (() => {
-  if (process.env.SEED_ROSTER === 'e2e') {
+  if (isE2eRoster) {
     // The invariant is about the DATABASE, not the mode: the suite runs a
     // production build with NODE_ENV=production on purpose, against a
     // throwaway file that `scripts/e2e-prepare.mjs` creates and deletes.
@@ -165,18 +174,59 @@ async function seed(): Promise<void> {
   validate();
   const now = Date.now();
 
+  // The two teams already exist: the MIGRATION inserts them, with a null
+  // captain, because the deploy migrates and never seeds (spec 0017).
+  const teamRows = await db.select().from(teams);
+  const teamIdBySlug = new Map(teamRows.map((team) => [team.slug, team.id]));
+
   for (const user of roster) {
+    // A pre-assigned team is an end-to-end fixture only: a real guest chooses
+    // their own, and re-seeding must never move somebody who has.
+    const teamId = user.teamSlug ? (teamIdBySlug.get(user.teamSlug) ?? null) : null;
+    if (user.teamSlug && teamId === null) {
+      fail(`user '${user.id}' names team '${user.teamSlug}', which is not seeded`);
+    }
+
     const existing = await db.select().from(users).where(eq(users.id, user.id)).limit(1);
     if (existing.length === 0) {
-      await db.insert(users).values({ ...user, createdAt: now });
+      await db.insert(users).values({
+        id: user.id,
+        name: user.name,
+        role: user.role,
+        avatar: user.avatar,
+        pinHash: user.pinHash,
+        teamId,
+        createdAt: now,
+      });
       console.log(`seed: + user ${user.id}`);
     } else {
       await db
         .update(users)
-        .set({ name: user.name, role: user.role, avatar: user.avatar, pinHash: user.pinHash })
+        .set({
+          name: user.name,
+          role: user.role,
+          avatar: user.avatar,
+          pinHash: user.pinHash,
+          ...(teamId === null ? {} : { teamId }),
+        })
         .where(eq(users.id, user.id));
       console.log(`seed: ~ user ${user.id}`);
     }
+  }
+
+  // The captains, now that the players exist. A team whose captain is not in
+  // this roster keeps a null captain and works exactly as well (rule 8).
+  for (const team of teamRows) {
+    const captainId = captains[team.slug];
+    if (!captainId) continue;
+    if (!roster.some((user) => user.id === captainId)) {
+      console.log(`seed: = team ${team.slug} (captain '${captainId}' not in this roster)`);
+      continue;
+    }
+    await db.update(teams).set({ captainId }).where(eq(teams.id, team.id));
+    // A captain is seeded onto their own team and never chooses (rule 9).
+    await db.update(users).set({ teamId: team.id }).where(eq(users.id, captainId));
+    console.log(`seed: ~ team ${team.slug} captained by ${captainId}`);
   }
 
   const [firstAdmin] = roster.filter((u) => u.role === 'admin');
