@@ -615,4 +615,155 @@ describe('canAct — what the UI may offer', () => {
       canCancel: false,
     });
   });
+
+  it('offers nothing to participants on a clash match', () => {
+    const clash = duel({
+      mode: 'clash',
+      status: 'active',
+      participants: [
+        { userId: 'alice', sideIndex: 1, invitationStatus: 'accepted' },
+        { userId: 'bob', sideIndex: 2, invitationStatus: 'accepted' },
+      ],
+    });
+    expect(canAct(clash, 'alice', NOW)).toEqual({
+      canAccept: false,
+      canDecline: false,
+      canReport: false,
+      canValidate: false,
+      canCancel: false,
+    });
+  });
 });
+
+describe('clash mode — admin-managed lifecycle', () => {
+  function activeClash(): MatchSnapshot {
+    return duel({
+      mode: 'clash',
+      status: 'active',
+      sidesCount: 2,
+      participants: [
+        { userId: 'alice', sideIndex: 1, invitationStatus: 'accepted' },
+        { userId: 'bob', sideIndex: 2, invitationStatus: 'accepted' },
+      ],
+      sides: [
+        { sideIndex: 1, score: 0, validatedAt: null },
+        { sideIndex: 2, score: 0, validatedAt: null },
+      ],
+    });
+  }
+
+  it('rejects player report, validate, and dispute on a clash', () => {
+    const match = activeClash();
+    expect(
+      transition(
+        match,
+        {
+          type: 'report',
+          userId: 'alice',
+          winningSide: 1,
+          scores: [
+            { sideIndex: 1, score: 10 },
+            { sideIndex: 2, score: 5 },
+          ],
+        },
+        NOW,
+      ),
+    ).toMatchObject({ ok: false, code: 'clash_admin_managed' });
+
+    expect(transition(match, { type: 'validate', userId: 'bob' }, NOW)).toMatchObject({
+      ok: false,
+      code: 'clash_admin_managed',
+    });
+
+    expect(
+      transition(match, { type: 'dispute', userId: 'bob', reason: 'nope' }, NOW),
+    ).toMatchObject({
+      ok: false,
+      code: 'clash_admin_managed',
+    });
+  });
+
+  it('allows admin to update intermediate live scores without ending match', () => {
+    const match = activeClash();
+    const result = transition(
+      match,
+      {
+        type: 'update-scores',
+        adminId: 'admin1',
+        scores: [
+          { sideIndex: 1, score: 5 },
+          { sideIndex: 2, score: 5 },
+        ],
+      },
+      NOW,
+    );
+
+    expect(result).toEqual({
+      ok: true,
+      nextStatus: 'active',
+      effects: [
+        {
+          kind: 'set-scores',
+          scores: [
+            { sideIndex: 1, score: 5 },
+            { sideIndex: 2, score: 5 },
+          ],
+        },
+      ],
+    });
+  });
+
+  it('allows admin to settle clash directly and awards points', () => {
+    const match = activeClash();
+    const result = transition(
+      match,
+      {
+        type: 'settle-clash',
+        adminId: 'admin1',
+        winningSide: 1,
+        scores: [
+          { sideIndex: 1, score: 10 },
+          { sideIndex: 2, score: 6 },
+        ],
+      },
+      NOW,
+    );
+
+    expect(result).toEqual({
+      ok: true,
+      nextStatus: 'completed',
+      effects: [
+        {
+          kind: 'set-scores',
+          scores: [
+            { sideIndex: 1, score: 10 },
+            { sideIndex: 2, score: 6 },
+          ],
+        },
+        { kind: 'set-winning-side', sideIndex: 1 },
+        { kind: 'settle', byUserId: 'admin1' },
+        { kind: 'award-points' },
+      ],
+    });
+  });
+
+  it('rejects clash settlement with inconsistent scores', () => {
+    const match = activeClash();
+    const result = transition(
+      match,
+      {
+        type: 'settle-clash',
+        adminId: 'admin1',
+        winningSide: 1,
+        scores: [
+          { sideIndex: 1, score: 5 },
+          { sideIndex: 2, score: 10 },
+        ],
+      },
+      NOW,
+    );
+
+    expect(result).toMatchObject({ ok: false, code: 'inconsistent_scores' });
+  });
+});
+

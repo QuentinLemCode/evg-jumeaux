@@ -9,15 +9,17 @@ import {
   declineInvitation,
   disputeResult,
   reportResult,
+  settleClash,
+  updateClashScores,
   validateResult,
 } from '@/lib/actions/matches';
-import type { MatchStatus } from '@/lib/domain/types';
+import type { GameMode, MatchStatus } from '@/lib/domain/types';
 
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
 import { ErrorMessage, inputClass } from '../ui/Field';
 
-type Side = { sideIndex: number; label: string };
+type Side = { sideIndex: number; label: string; score?: number | null };
 
 type Permissions = {
   canAccept: boolean;
@@ -41,6 +43,7 @@ export function MatchActions({
   mySide,
   permissions,
   isAdmin,
+  gameMode,
 }: {
   matchId: string;
   status: MatchStatus;
@@ -49,13 +52,23 @@ export function MatchActions({
   mySide: number | null;
   permissions: Permissions;
   isAdmin: boolean;
+  gameMode?: GameMode;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [mode, setMode] = useState<'idle' | 'report' | 'dispute' | 'cancel'>('idle');
   const [winningSide, setWinningSide] = useState<number>(mySide ?? sides[0]?.sideIndex ?? 1);
-  const [scores, setScores] = useState<Record<number, string>>({});
+  const [scores, setScores] = useState<Record<number, string>>(() => {
+    const initial: Record<number, string> = {};
+    for (const side of sides) {
+      if (side.score !== null && side.score !== undefined) {
+        initial[side.sideIndex] = String(side.score);
+      }
+    }
+    return initial;
+  });
+  const [scoresSaved, setScoresSaved] = useState(false);
   const [reason, setReason] = useState('');
 
   function run(action: () => Promise<{ ok: boolean; message?: string }>) {
@@ -72,6 +85,10 @@ export function MatchActions({
     });
   }
 
+  if (gameMode === 'clash') {
+    if (!isAdmin || status !== 'active') return null;
+  }
+
   const nothingToDo =
     !permissions.canAccept &&
     !permissions.canDecline &&
@@ -79,7 +96,7 @@ export function MatchActions({
     !permissions.canValidate &&
     !permissions.canCancel;
 
-  if (nothingToDo && mode === 'idle') {
+  if (gameMode !== 'clash' && nothingToDo && mode === 'idle') {
     if (status === 'awaiting_validation') {
       return (
         <Card className="border-grape/40 bg-grape/10">
@@ -107,7 +124,123 @@ export function MatchActions({
       <ErrorMessage>{error}</ErrorMessage>
 
       {mode === 'idle' ? (
-        <div className="space-y-2">
+        gameMode === 'clash' ? (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between border-b border-hairline pb-2">
+              <span className="text-xs font-semibold uppercase tracking-wider text-muted">
+                Gestion du clash (admin)
+              </span>
+              {scoresSaved ? (
+                <span className="text-xs font-medium text-mint">Scores mis à jour</span>
+              ) : null}
+            </div>
+
+            {requiresScore ? (
+              <div className="space-y-2">
+                <p className="text-sm font-medium">Scores en direct</p>
+                {sides.map((side) => (
+                  <label key={side.sideIndex} className="flex items-center gap-3">
+                    <span className="min-w-0 flex-1 truncate text-sm">{side.label}</span>
+                    <input
+                      type="number"
+                      inputMode="numeric"
+                      min={0}
+                      max={999}
+                      value={scores[side.sideIndex] ?? ''}
+                      onChange={(event) => {
+                        setScoresSaved(false);
+                        setScores((current) => ({
+                          ...current,
+                          [side.sideIndex]: event.target.value,
+                        }));
+                      }}
+                      className={`${inputClass} w-24 text-center`}
+                      aria-label={`Score de ${side.label}`}
+                    />
+                  </label>
+                ))}
+                <Button
+                  full
+                  variant="secondary"
+                  disabled={pending}
+                  onClick={() =>
+                    run(async () => {
+                      const res = await updateClashScores({
+                        matchId,
+                        scores: sides.map((s) => ({
+                          sideIndex: s.sideIndex,
+                          score: Number(scores[s.sideIndex] ?? 0),
+                        })),
+                      });
+                      if (res.ok) setScoresSaved(true);
+                      return res;
+                    })
+                  }
+                >
+                  Mettre à jour le score
+                </Button>
+              </div>
+            ) : null}
+
+            <div className="space-y-3 pt-2">
+              <p className="text-sm font-medium">Qui a gagné ?</p>
+              <div className="space-y-2">
+                {sides.map((side) => (
+                  <button
+                    key={side.sideIndex}
+                    type="button"
+                    onClick={() => setWinningSide(side.sideIndex)}
+                    className={[
+                      'tap-target flex w-full items-center gap-3 rounded-xl border px-3 py-3 text-left',
+                      winningSide === side.sideIndex
+                        ? 'border-coral bg-coral/10'
+                        : 'border-border bg-bg-elevated',
+                    ].join(' ')}
+                  >
+                    <span className="flex-1 truncate font-medium">{side.label}</span>
+                    {winningSide === side.sideIndex ? (
+                      <span className="text-sm text-coral">gagnant</span>
+                    ) : null}
+                  </button>
+                ))}
+              </div>
+
+              <Button
+                full
+                size="lg"
+                disabled={pending}
+                onClick={() =>
+                  run(() =>
+                    settleClash({
+                      matchId,
+                      winningSide,
+                      scores: requiresScore
+                        ? sides.map((s) => ({
+                            sideIndex: s.sideIndex,
+                            score: Number(scores[s.sideIndex] ?? 0),
+                          }))
+                        : undefined,
+                    }),
+                  )
+                }
+              >
+                Clôturer le match
+              </Button>
+            </div>
+
+            <div className="pt-2">
+              <Button
+                full
+                variant="ghost"
+                disabled={pending}
+                onClick={() => setMode('cancel')}
+              >
+                Annuler la partie
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-2">
           {permissions.canAccept ? (
             <Button
               full
@@ -169,6 +302,7 @@ export function MatchActions({
             </Button>
           ) : null}
         </div>
+        )
       ) : null}
 
       {mode === 'report' ? (

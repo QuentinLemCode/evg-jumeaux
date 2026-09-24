@@ -79,6 +79,7 @@ export type SideSnapshot = {
  */
 export type MatchSnapshot = {
   id: string;
+  mode?: GameMode;
   status: MatchStatus;
   sidesCount: number;
   invitationExpiresAt: number;

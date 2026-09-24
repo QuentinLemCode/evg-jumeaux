@@ -17,7 +17,7 @@ import {
   type MatchRow,
 } from '@/db/schema';
 import { canAct, isInvitationExpired } from '@/lib/domain/match-state';
-import { isTerminal, type MatchSnapshot, type MatchStatus } from '@/lib/domain/types';
+import { isTerminal, type GameMode, type MatchSnapshot, type MatchStatus } from '@/lib/domain/types';
 
 export type MatchParticipantView = {
   userId: string;
@@ -69,9 +69,11 @@ function toSnapshot(
   match: MatchRow,
   participants: MatchParticipantView[],
   sides: MatchSideView[],
+  mode?: GameMode,
 ): MatchSnapshot {
   return {
     id: match.id,
+    mode,
     status: match.status,
     sidesCount: sides.length,
     invitationExpiresAt: match.invitationExpiresAt,
@@ -158,7 +160,7 @@ export async function getMatchView(
     players: participantRows.filter((p) => p.sideIndex === side.sideIndex),
   }));
 
-  const snapshot = toSnapshot(row.match, participantRows, sides);
+  const snapshot = toSnapshot(row.match, participantRows, sides, row.game.mode);
 
   return {
     match: row.match,

@@ -25,6 +25,8 @@ export type MatchAction =
   | { type: 'validate'; userId: string }
   | { type: 'dispute'; userId: string; reason: string | null }
   | { type: 'cancel'; userId: string; isAdmin: boolean; reason: string | null }
+  | { type: 'update-scores'; adminId: string; scores: SideScore[] }
+  | { type: 'settle-clash'; adminId: string; winningSide: number; scores?: SideScore[] }
   | {
       type: 'resolve';
       adminId: string;
@@ -59,7 +61,8 @@ export type MatchErrorCode =
   | 'own_side_cannot_validate'
   | 'side_already_validated'
   | 'admin_only'
-  | 'not_expired_yet';
+  | 'not_expired_yet'
+  | 'clash_admin_managed';
 
 export type TransitionResult =
   | { ok: true; nextStatus: MatchStatus; effects: MatchEffect[] }
@@ -79,6 +82,7 @@ const MESSAGES: Record<MatchErrorCode, string> = {
   side_already_validated: 'Ton camp a déjà validé',
   admin_only: 'Réservé aux admins',
   not_expired_yet: 'L’invitation n’a pas encore expiré',
+  clash_admin_managed: 'Un match d’équipes est géré par un admin',
 };
 
 function fail(code: MatchErrorCode): TransitionResult {
@@ -160,6 +164,22 @@ function validateScores(
   return null;
 }
 
+function validateLiveScores(
+  match: MatchSnapshot,
+  scores: SideScore[],
+): TransitionResult | null {
+  if (scores.length !== match.sidesCount) return fail('missing_scores');
+  const seen = new Set<number>();
+  for (const { sideIndex, score } of scores) {
+    if (sideIndex < 1 || sideIndex > match.sidesCount) return fail('invalid_winning_side');
+    if (!Number.isInteger(score) || score < 0) return fail('inconsistent_scores');
+    if (seen.has(sideIndex)) return fail('inconsistent_scores');
+    seen.add(sideIndex);
+  }
+  if (seen.size !== match.sidesCount) return fail('missing_scores');
+  return null;
+}
+
 /** The sides that owe a validation: every side except the reporter's. */
 export function sidesOwingValidation(match: MatchSnapshot): number[] {
   if (match.reportedBy === null) return [];
@@ -230,6 +250,7 @@ export function transition(
 
     // ---------------------------------------------------------------- report
     case 'report': {
+      if (match.mode === 'clash') return fail('clash_admin_managed');
       if (match.status === 'awaiting_validation') return fail('already_reported');
       if (match.status !== 'active') return fail('wrong_state');
       if (!participantOf(match, action.userId)) return fail('not_a_participant');
@@ -247,6 +268,7 @@ export function transition(
 
     // -------------------------------------------------------------- validate
     case 'validate': {
+      if (match.mode === 'clash') return fail('clash_admin_managed');
       if (match.status !== 'awaiting_validation') return fail('wrong_state');
       const me = participantOf(match, action.userId);
       if (!me) return fail('not_a_participant');
@@ -274,6 +296,7 @@ export function transition(
 
     // --------------------------------------------------------------- dispute
     case 'dispute': {
+      if (match.mode === 'clash') return fail('clash_admin_managed');
       if (match.status !== 'awaiting_validation') return fail('wrong_state');
       const me = participantOf(match, action.userId);
       if (!me) return fail('not_a_participant');
@@ -324,6 +347,36 @@ export function transition(
       return fail('wrong_state');
     }
 
+    // -------------------------------------------------------- update-scores
+    case 'update-scores': {
+      if (match.status !== 'active') return fail('wrong_state');
+      const invalid = validateLiveScores(match, action.scores);
+      if (invalid) return invalid;
+      return {
+        ok: true,
+        nextStatus: 'active',
+        effects: [{ kind: 'set-scores', scores: action.scores }],
+      };
+    }
+
+    // --------------------------------------------------------- settle-clash
+    case 'settle-clash': {
+      if (match.status !== 'active') return fail('wrong_state');
+      const scores = action.scores ?? [];
+      const invalid = validateScores(match, action.winningSide, scores);
+      if (invalid) return invalid;
+
+      const effects: MatchEffect[] = [
+        { kind: 'set-winning-side', sideIndex: action.winningSide },
+        { kind: 'settle', byUserId: action.adminId },
+        { kind: 'award-points' },
+      ];
+      if (match.requiresScore || scores.length > 0) {
+        effects.unshift({ kind: 'set-scores', scores });
+      }
+      return { ok: true, nextStatus: 'completed', effects };
+    }
+
     // --------------------------------------------------------------- resolve
     case 'resolve': {
       if (match.status !== 'disputed') return fail('wrong_state');
@@ -359,6 +412,15 @@ export function canAct(match: MatchSnapshot, userId: string, now: number): {
   canValidate: boolean;
   canCancel: boolean;
 } {
+  if (match.mode === 'clash') {
+    return {
+      canAccept: false,
+      canDecline: false,
+      canReport: false,
+      canValidate: false,
+      canCancel: false,
+    };
+  }
   const me = participantOf(match, userId);
   const expired = isInvitationExpired(match, now);
   const owed = sidesOwingValidation(match);
