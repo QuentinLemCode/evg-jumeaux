@@ -12,24 +12,30 @@
  * connection, so this belongs in the fast unit suite (`npm test`) rather than
  * in the integration one.
  */
-import { asc, sql } from 'drizzle-orm';
-import { QueryBuilder } from 'drizzle-orm/sqlite-core';
+import Database from 'better-sqlite3';
+import { sql } from 'drizzle-orm';
+import { drizzle } from 'drizzle-orm/better-sqlite3';
 import { describe, expect, it } from 'vitest';
 
+import * as schema from '@/db/schema';
 import { teams, users } from '@/db/schema';
 
-import { TEAM_MEMBERSHIP_JOIN, TEAM_SIZE_FIELDS } from './teams';
+import { teamSizeQuery } from './teams';
 
-/** The same shape `teamSizeQuery()` builds, on a runner that needs no file. */
+/**
+ * The REAL query, rendered. Nothing is executed and no schema is created: an
+ * in-memory handle exists only so `teamSizeQuery` has a runner, and `.toSQL()`
+ * asks Drizzle what it would send.
+ *
+ * The first version of this file rebuilt the query locally instead, with its
+ * own `.leftJoin(...).groupBy(...)`. It passed with the join taken OUT of
+ * `teamSizeQuery` — a test asserting about its own copy, which is the same
+ * shape of mistake as the bug it guards. Measured: removing the join from the
+ * production function now turns this file red.
+ */
 function renderTeamSizeQuery(): string {
-  return new QueryBuilder()
-    .select(TEAM_SIZE_FIELDS)
-    .from(teams)
-    .leftJoin(users, TEAM_MEMBERSHIP_JOIN)
-    .groupBy(teams.id)
-    .orderBy(asc(teams.name))
-    .toSQL()
-    .sql;
+  const handle = drizzle(new Database(':memory:'), { schema });
+  return teamSizeQuery(handle).toSQL().sql;
 }
 
 describe('the team-size query', () => {
@@ -69,7 +75,7 @@ describe('the team-size query', () => {
    * counts the players whose team is their own id: nobody, always.
    */
   it('proves the guard would have caught the subquery it replaced', () => {
-    const broken = new QueryBuilder()
+    const broken = drizzle(new Database(':memory:'), { schema })
       .select({
         teamId: teams.id,
         memberCount: sql<number>`(
