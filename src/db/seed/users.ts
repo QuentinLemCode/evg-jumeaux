@@ -39,7 +39,7 @@ export type RosterEntry = {
  * `teamSlug` is NOT part of `RosterEntry`, and deliberately: `generate-users`
  * rewrites the roster block below wholesale, so anything it does not know how
  * to write would be silently dropped on the next run. Real guests choose
- * their own team in the app (spec 0017, rule 8); only the end-to-end roster
+ * their own team in the app (spec 0017, rule 9); only the end-to-end roster
  * arrives pre-placed, so the nine existing suites are not all sent to the
  * choice screen.
  */

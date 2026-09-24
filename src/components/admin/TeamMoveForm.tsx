@@ -18,7 +18,7 @@ export type MovablePlayer = {
 export type MoveTarget = { teamId: string; name: string };
 
 /**
- * Moving a player between teams (spec 0017, rules 13-16).
+ * Moving a player between teams (spec 0017, rules 14-17).
  *
  * Exempt from the balance rule — it is the tool for fixing a split that
  * attendance, not choice, made lopsided — and it carries no points: the

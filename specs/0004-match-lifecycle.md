@@ -55,8 +55,14 @@ Terminal states: `completed`, `cancelled`, `expired`.
    cannot be created until every side has exactly `playersPerSide` players.
 5. On creation the match is `pending`, and each non-creator participant has a
    `pending` invitation. Each of them is notified (0006).
+
+   **Except a `clash`** (spec 0017): an admin starts it, every participant is
+   `accepted` at once, and the match is `active` immediately. Nobody is asked
+   to confirm a match the organiser has already called.
 6. The invitation deadline is **5 minutes after creation**, stored on the match.
-   It is the same deadline for everyone, not per invitation.
+   It is the same deadline for everyone, not per invitation. A `clash` stores
+   one because the column requires it, and nothing ever reads it: there is no
+   invitation to expire.
 
 ### Busy — the one-match-at-a-time rule
 
@@ -77,21 +83,13 @@ Terminal states: `completed`, `cancelled`, `expired`.
 11. When the last pending invitation is accepted, the match becomes `active`
     and everyone is notified that it has started.
 12. If any invited player declines, the match becomes `cancelled` immediately.
-    One refusal is enough — there is no partial re-forming.
-
-    **Except a `clash`** (spec 0017, rule 5), which invites everyone: one
-    guest going to bed cannot cancel the weekend's set piece. The player is
-    removed from their side and the match goes on; only an emptied side
-    cancels it. They are marked `declined` and paid nothing, having sat it
-    out.
+    One refusal is enough — there is no partial re-forming. A `clash` has no
+    invitation to decline, so this never applies to one.
 13. When the deadline passes with at least one invitation still pending, the
     match becomes `expired`. Expiry is evaluated both by a background sweep
     every minute and lazily whenever the match is read, so a stale `pending`
-    match is never shown as joinable.
-
-    **Except a `clash`**, for the same reason as rule 12: at the deadline the
-    players who never answered are dropped from their side, and the match
-    starts with whoever accepted — unless a side is empty.
+    match is never shown as joinable. A `clash` is never `pending`, so it
+    cannot expire.
 
 ### Reporting the result
 
@@ -273,3 +271,4 @@ None.
 | 2026-09-14 | Created | Initial harness and application bootstrap |
 | 2026-09-23 | A match's halves are «camps», not «équipes» (spec 0017) | «Équipe» now names one of the weekend's two teams, and both words were landing on the same screen |
 | 2026-09-23 | Rules 2, 12 and 13 carve out the `clash` mode (spec 0017) | A match that invites all fifteen guests cannot be cancelled by one refusal, and its sides are the teams rather than slots the creator fills |
+| 2026-09-24 | A `clash` skips the invitation phase entirely: admin-started, everyone accepted, `active` at once (rules 5, 6, 11-13) | Nobody confirms a match the organiser has already called, and with no pending invitation there is nothing to decline or expire — which removes the mode-aware decline and expiry paths added the day before |

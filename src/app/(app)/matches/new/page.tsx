@@ -41,7 +41,9 @@ export default async function NewMatchPage({
       <PageHeader
         title={isClash ? 'Le match des deux équipes' : 'Nouvelle partie'}
         subtitle={
-          isClash ? 'Les deux équipes au complet.' : 'Choisis tes adversaires.'
+          isClash
+            ? 'Les deux équipes au complet, et ça démarre tout de suite.'
+            : 'Choisis tes adversaires.'
         }
       />
 
@@ -54,7 +56,7 @@ export default async function NewMatchPage({
             <h1 className="text-lg font-bold">{game.name}</h1>
             <p className="text-sm text-muted">
               {/* «Camp» for a side of a match; «équipe» is one of the
-                  weekend's two teams (spec 0017, rule 29). */}
+                  weekend's two teams (spec 0017, rule 30). */}
               {game.mode === 'duel'
                 ? `${game.sidesCount} joueurs, chacun pour soi`
                 : game.mode === 'clash'

@@ -8,6 +8,7 @@
  * stops a "quick fix" in a UI handler from inventing an eighth state.
  */
 import {
+  type GameMode,
   type MatchSnapshot,
   type MatchStatus,
   type ParticipantSnapshot,
@@ -92,18 +93,30 @@ function participantOf(
 }
 
 /**
- * The reason a clash is cancelled when nobody is left on one of its sides
- * (spec 0017, rule 5). Shown to the players as-is.
+ * How a match STARTS (spec 0004, rules 5-6).
+ *
+ * Here rather than in the action, because this module is the only place
+ * allowed to decide a match's status and the first one is still a status.
+ *
+ * A `clash` has no invitation phase at all (spec 0017, rules 4-5): an admin
+ * calls it, everybody is in, and it is `active` from the first millisecond.
+ * Nothing about it can be declined or expire, which is why neither transition
+ * below carries a special case for it.
  */
-const EMPTY_SIDE_REASON = 'Match annulé : plus personne dans un camp';
+export function initialStatus(mode: GameMode): MatchStatus {
+  return mode === 'clash' ? 'active' : 'pending';
+}
 
-/** Whether every side of the match still holds at least one player. */
-function everySideStillHasSomebody(
-  match: MatchSnapshot,
-  remaining: ParticipantSnapshot[],
+/**
+ * Whether a participant starts already accepted. The creator always does
+ * (spec 0004, rule 2); in a `clash`, so does everybody else.
+ */
+export function startsAccepted(
+  mode: GameMode,
+  userId: string,
+  creatorId: string,
 ): boolean {
-  const sidesLeft = new Set(remaining.map((p) => p.sideIndex));
-  return sidesLeft.size >= match.sidesCount;
+  return mode === 'clash' || userId === creatorId;
 }
 
 /**
@@ -172,31 +185,6 @@ export function transition(
       const effects: MatchEffect[] = action.byUserId
         ? [{ kind: 'force-expire', byUserId: action.byUserId }]
         : [];
-
-      // A clash is the weekend's set piece: it is announced, and it does not
-      // die because one guest left their phone in a pocket. The lapsed
-      // invitations are removed from their side and it proceeds — unless a
-      // side is left with nobody (spec 0017, rule 5).
-      if (match.mode === 'clash') {
-        for (const participant of match.participants) {
-          if (participant.invitationStatus === 'pending') {
-            effects.push({
-              kind: 'set-invitation',
-              userId: participant.userId,
-              status: 'declined',
-            });
-          }
-        }
-        const remaining = match.participants.filter(
-          (p) => p.invitationStatus === 'accepted',
-        );
-        if (!everySideStillHasSomebody(match, remaining)) {
-          effects.push({ kind: 'cancel', userId: null, reason: EMPTY_SIDE_REASON });
-          return { ok: true, nextStatus: 'cancelled', effects };
-        }
-        return { ok: true, nextStatus: 'active', effects };
-      }
-
       return { ok: true, nextStatus: 'expired', effects };
     }
 
@@ -227,44 +215,14 @@ export function transition(
       const me = participantOf(match, action.userId);
       if (!me) return fail('not_a_participant');
       if (me.invitationStatus !== 'pending') return fail('invitation_already_answered');
-      const declined: MatchEffect = {
-        kind: 'set-invitation',
-        userId: action.userId,
-        status: 'declined',
-      };
-
-      // A clash survives a refusal: the player is removed from their side and
-      // it proceeds, because re-forming fifteen people around one absence is
-      // not a thing anybody is going to do (spec 0017, rule 5). Every other
-      // match is cancelled by one refusal — there is no partial re-forming
-      // (spec 0004, rule 12).
-      if (match.mode === 'clash') {
-        const remaining = match.participants.filter(
-          (p) => p.userId !== action.userId && p.invitationStatus !== 'declined',
-        );
-        if (!everySideStillHasSomebody(match, remaining)) {
-          return {
-            ok: true,
-            nextStatus: 'cancelled',
-            effects: [
-              declined,
-              { kind: 'cancel', userId: action.userId, reason: EMPTY_SIDE_REASON },
-            ],
-          };
-        }
-        const stillPending = remaining.filter((p) => p.invitationStatus === 'pending');
-        return {
-          ok: true,
-          nextStatus: stillPending.length === 0 ? 'active' : 'pending',
-          effects: [declined],
-        };
-      }
-
+      // One refusal cancels the match: there is no partial re-forming
+      // (spec 0004, rule 12). A clash never reaches here — it has no
+      // invitation to decline (spec 0017, rule 5).
       return {
         ok: true,
         nextStatus: 'cancelled',
         effects: [
-          declined,
+          { kind: 'set-invitation', userId: action.userId, status: 'declined' },
           { kind: 'cancel', userId: action.userId, reason: 'Invitation refusée' },
         ],
       };
@@ -405,25 +363,20 @@ export function canAct(match: MatchSnapshot, userId: string, now: number): {
   const expired = isInvitationExpired(match, now);
   const owed = sidesOwingValidation(match);
   const mySide = me ? match.sides.find((s) => s.sideIndex === me.sideIndex) : undefined;
-  const playing = me !== undefined && me.invitationStatus !== 'declined';
   return {
     canAccept:
       match.status === 'pending' && !expired && me?.invitationStatus === 'pending',
     canDecline:
       match.status === 'pending' && !expired && me?.invitationStatus === 'pending',
-    // A player who declined has been removed from their side — in a clash
-    // the match carries on without them, so they report nothing and validate
-    // nothing (spec 0017, rule 5).
-    canReport: match.status === 'active' && playing,
+    canReport: match.status === 'active' && me !== undefined,
     canValidate:
       match.status === 'awaiting_validation' &&
-      playing &&
       me !== undefined &&
       owed.includes(me.sideIndex) &&
       !mySide?.validatedAt,
     canCancel:
       !isTerminal(match.status) &&
       (match.status === 'pending' || match.status === 'active') &&
-      playing,
+      me !== undefined,
   };
 }

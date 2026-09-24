@@ -51,7 +51,7 @@ export default async function PlayerPage({ params }: { params: Promise<{ id: str
               <Badge tone="coral">#{standing.rank} au classement</Badge>
               {/* The player's team, linked to the team screen — the tie
                   between the two leaderboards is navigational and never
-                  arithmetic (spec 0017, rule 28). */}
+                  arithmetic (spec 0017, rule 29). */}
               {team ? (
                 <Link href="/teams" data-testid="player-team">
                   <Badge tone="sky">

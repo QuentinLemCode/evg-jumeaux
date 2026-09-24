@@ -1,5 +1,5 @@
 /**
- * Joining a team, and being moved between them (spec 0017, rules 9-16).
+ * Joining a team, and being moved between them (spec 0017, rules 10-17).
  *
  * Not a Server Action file on purpose: the two writes below are the part that
  * has to be right, and a `'use server'` module cannot be driven from a test.
@@ -9,7 +9,7 @@
  *
  *   counting the teams and writing the choice cannot be two statements, or two
  *   players choosing while level both pass the check, both join the same team,
- *   and leave a gap of two that rule 10 can never close.
+ *   and leave a gap of two that rule 11 can never close.
  */
 import { eq, isNotNull, sql } from 'drizzle-orm';
 
@@ -38,10 +38,10 @@ export function teamSizes(tx: Tx): TeamSize[] {
 }
 
 /**
- * A player joining a team of their own accord (rules 9-12).
+ * A player joining a team of their own accord (rules 10-13).
  *
  * Writes no `team_moves` row: only an admin's move is an intervention, and
- * only interventions belong in the public log (rule 14).
+ * only interventions belong in the public log (rule 15).
  */
 export function chooseTeam(userId: string, teamId: string): MembershipResult {
   return db.transaction((tx): MembershipResult => {
@@ -51,7 +51,7 @@ export function chooseTeam(userId: string, teamId: string): MembershipResult {
       .where(eq(users.id, userId))
       .get();
     if (!me) return { ok: false, message: 'Joueur inconnu' };
-    // Rule 13: a player cannot change team once chosen. Only an admin can.
+    // Rule 14: a player cannot change team once chosen. Only an admin can.
     if (me.teamId !== null) {
       return { ok: false, message: 'Tu as déjà une équipe — seul un admin peut te déplacer' };
     }
@@ -77,12 +77,12 @@ export function chooseTeam(userId: string, teamId: string): MembershipResult {
 }
 
 /**
- * An admin moving — or assigning — a player (rules 13-16).
+ * An admin moving — or assigning — a player (rules 14-17).
  *
  * Exempt from the balance rule: this is the tool for fixing a split that
- * attendance, not choice, made lopsided (rule 15). It carries no points
+ * attendance, not choice, made lopsided (rule 16). It carries no points
  * either: the player keeps theirs and the old team keeps what it earned
- * (rule 16).
+ * (rule 17).
  */
 export function movePlayerToTeam(input: {
   userId: string;
@@ -108,7 +108,7 @@ export function movePlayerToTeam(input: {
     if (!destination) return { ok: false, message: 'Cette équipe n’existe pas' };
 
     // A captain is seeded onto their own team and cannot leave it, by
-    // themselves or by an admin (rule 7).
+    // themselves or by an admin (rule 8).
     const captained = tx
       .select({ id: teams.id })
       .from(teams)

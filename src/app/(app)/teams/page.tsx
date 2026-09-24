@@ -16,12 +16,12 @@ import { getTeamStandings } from '@/lib/queries/teams';
 export const dynamic = 'force-dynamic';
 
 /**
- * The team leaderboard (spec 0017, rules 24-28).
+ * The team leaderboard (spec 0017, rules 25-29).
  *
  * Its own screen, and never added to the player one: a team total added to
  * each of its members cannot reorder anybody inside a team and flips both
  * teams wholesale, which would turn the player leaderboard into a measure of
- * which team you joined (rule 25). The link between the two is navigational.
+ * which team you joined (rule 26). The link between the two is navigational.
  */
 export default async function TeamsPage() {
   const me = await requireUser('/teams');
@@ -147,7 +147,7 @@ export default async function TeamsPage() {
               Seules les parties qui opposent les deux équipes comptent : deux joueurs
               de la même équipe ne rapportent rien.
             </li>
-            {/* Rule 22: a total that did not move has to be explained. */}
+            {/* Rule 23: a total that did not move has to be explained. */}
             <li>Les ajustements manuels ne comptent que pour le joueur.</li>
           </ul>
         </Card>

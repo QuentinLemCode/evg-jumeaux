@@ -14,13 +14,13 @@ import { ErrorMessage } from '../ui/Field';
 
 /**
  * Starting a clash: the two teams, in full, against each other
- * (spec 0017, rules 3-4).
+ * (spec 0017, rules 3-6).
  *
- * There is nothing to pick. A clash is not "a team game with bigger sides" —
- * its sides ARE the teams, so the only decision left is whether to send the
- * invitations. Everybody has to be free of any other match, which is the
- * price of the weekend's set piece and is stated here rather than discovered
- * on submit.
+ * There is nothing to pick and nobody to wait for. A clash is not "a team
+ * game with bigger sides" — its sides ARE the teams, and it has no invitation
+ * phase: the admin calls it and it is live. The one thing that can stop it is
+ * somebody already being in another match, which is stated here rather than
+ * discovered on submit.
  */
 export function ClashForm({ gameId, sides }: { gameId: string; sides: ClashSide[] }) {
   const router = useRouter();
@@ -89,10 +89,10 @@ export function ClashForm({ gameId, sides }: { gameId: string; sides: ClashSide[
 
       <p className="text-sm text-muted">
         {busy.length === 0
-          ? `${total} joueurs invités d’un coup. Chacun accepte depuis son téléphone.`
+          ? `${total} joueurs, et la partie démarre tout de suite : personne n’a à confirmer.`
           : `${busy.map((member) => member.name).join(', ')} ${
               busy.length > 1 ? 'sont déjà en partie' : 'est déjà en partie'
-            } — il faut attendre.`}
+            } — il faut attendre qu’ils aient fini.`}
       </p>
 
       {/* Primary action at the bottom, in thumb reach (spec 0009, rule 7). */}

@@ -44,7 +44,7 @@ CREATE TABLE `teams` (
 CREATE UNIQUE INDEX `teams_slug_unique` ON `teams` (`slug`);--> statement-breakpoint
 ALTER TABLE `users` ADD `team_id` text REFERENCES teams(id);--> statement-breakpoint
 --
--- The two teams (spec 0017, rule 6 and Data model).
+-- The two teams (spec 0017, rule 7 and Data model).
 --
 -- Inserted HERE, with a NULL captain, and not by the seeder: the deploy
 -- migrates and never seeds, so the rows have to exist before anybody can

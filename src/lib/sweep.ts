@@ -21,10 +21,7 @@ export async function sweepExpiredMatches(now = Date.now()): Promise<string[]> {
   const expired: string[] = [];
   for (const { id } of overdue) {
     const result = await applyMatchAction(id, { type: 'expire' }, now);
-    // A clash does not expire: the lapsed invitations are dropped and it
-    // starts with whoever accepted (spec 0017, rule 5). Only count what
-    // actually died, or the log says something untrue.
-    if (result.ok && result.status === 'expired') expired.push(id);
+    if (result.ok) expired.push(id);
   }
   return expired;
 }

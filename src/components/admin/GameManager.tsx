@@ -45,7 +45,7 @@ type Draft = {
 
 /**
  * «Camp» and not «équipe» for a side of a match: «équipe» now names one of
- * the weekend's two teams (spec 0017, rule 29).
+ * the weekend's two teams (spec 0017, rule 30).
  */
 const MODE_LABELS: Record<GameMode, string> = {
   duel: 'Chacun pour soi',

@@ -55,7 +55,7 @@ export type AdminLogEntry = {
   subject: string;
   /**
    * A short factual suffix to the subject, where the subject alone does not
-   * say what changed — a team move's «from → to» (spec 0017, rule 13).
+   * say what changed — a team move's «from → to» (spec 0017, rule 14).
    */
   trajectory: string | null;
   targetUserId: string | null;
@@ -101,7 +101,7 @@ export async function listAdminLog(
     .where(eq(pointEvents.type, 'admin_adjustment'))
     .orderBy(desc(pointEvents.createdAt));
 
-  // --- players moved between teams (spec 0017, rule 13) --------------------
+  // --- players moved between teams (spec 0017, rule 14) --------------------
   //
   // The only intervention that writes no point and touches no match, which is
   // exactly why it needs rows of its own: two columns on the player would
@@ -203,7 +203,7 @@ export async function listAdminLog(
       adminName: row.adminName ?? 'Un admin',
       adminId: row.adminId,
       // A move carries no points: the player keeps theirs and the old team
-      // keeps what it earned (spec 0017, rule 16).
+      // keeps what it earned (spec 0017, rule 17).
       points: 0,
       affected: 1,
       reason: row.reason,

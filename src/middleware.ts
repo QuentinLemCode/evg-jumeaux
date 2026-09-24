@@ -33,7 +33,7 @@ const PROTECTED = [
 
 /**
  * Stamps the pathname on the request so the `(app)` layout can send a player
- * with no team to the choice screen and then back here (spec 0017, rule 9).
+ * with no team to the choice screen and then back here (spec 0017, rule 10).
  */
 function withPathname(request: NextRequest, pathname: string) {
   const headers = new Headers(request.headers);

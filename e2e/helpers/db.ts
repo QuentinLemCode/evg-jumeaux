@@ -259,7 +259,7 @@ export function teamSlugOf(userId: string): string | null {
   }
 }
 
-/** What the team ledger sums to for a team, by slug (spec 0017, rule 24). */
+/** What the team ledger sums to for a team, by slug (spec 0017, rule 25). */
 export function teamPointTotal(slug: string): number {
   const db = open();
   try {

@@ -15,6 +15,7 @@ import { db } from '@/db';
 import { games, matchParticipants, matchSides, matches, teams, users } from '@/db/schema';
 import { requireUserAction } from '@/lib/auth/guards';
 import { scoringRulesFor } from '@/lib/domain/game-rules';
+import { initialStatus, startsAccepted } from '@/lib/domain/match-state';
 import { INVITATION_TTL_MS } from '@/lib/domain/types';
 import { applyMatchAction } from '@/lib/matches/apply';
 import {
@@ -36,7 +37,7 @@ const createSchema = z.object({
  * "Alice & Anna" reads better than "Camp 1"; past 3 players it does not.
  *
  * Never «Équipe»: that word now names one of the weekend's two teams, and a
- * side of a match is a **camp** (spec 0017, rule 29). The one exception is a
+ * side of a match is a **camp** (spec 0017, rule 30). The one exception is a
  * clash, whose sides really are the teams — it passes their names in.
  */
 function sideLabel(names: string[], sideIndex: number): string {
@@ -55,9 +56,9 @@ type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 /**
  * A clash's sides must be exactly the two teams, in full (spec 0017, rule 3).
  *
- * Membership is what is checked, and it is checked at creation: nobody has
- * accepted anything yet, and rule 5 lets people drop out afterwards without
- * the match ceasing to be a clash.
+ * Membership at creation is what is checked, and it is the whole check: from
+ * the moment it exists the clash is `active` with everybody in it, so there
+ * is no later point at which its shape could change.
  *
  * Returns the two teams by side, or the message to refuse with.
  */
@@ -146,9 +147,9 @@ export async function createMatch(input: {
       }
 
       // The creator is always a participant, on side 1 (spec 0004, rule 2).
-      // A clash is the exception and has to be: its sides ARE the two teams,
-      // so the creator sits on their own team's side and adding them to side 1
-      // would break the very membership rule 3 checks.
+      // A clash is the exception, and 0004 rule 2 now says so: its sides ARE
+      // the two teams, so the creator sits on their own team's side and
+      // adding them to side 1 would break the membership rule 3 checks.
       const withCreator =
         isClash || assignments.some((a) => a.userId === me.id)
           ? assignments
@@ -165,7 +166,7 @@ export async function createMatch(input: {
         }
       }
       // Side labels: the players' names, or the team names for a clash
-      // (spec 0017, rule 29).
+      // (spec 0017, rule 30).
       let clashTeamNames: Map<number, string> | null = null;
 
       if (isClash) {
@@ -222,7 +223,11 @@ export async function createMatch(input: {
           id: matchId,
           gameId: game.id,
           createdBy: me.id,
-          status: 'pending',
+          // A clash starts `active`: it has no invitation phase at all
+          // (spec 0017, rule 4; spec 0004, rule 5).
+          status: initialStatus(game.mode),
+          // Stored because the column requires it. Nothing reads it for a
+          // clash — there is no invitation to expire (spec 0004, rule 6).
           invitationExpiresAt: now + INVITATION_TTL_MS,
           rulePointsPerWin: rules.pointsPerWin,
           ruleMarginBonusPerPoint: rules.marginBonusPerPoint,
@@ -268,16 +273,20 @@ export async function createMatch(input: {
 
       tx.insert(matchParticipants)
         .values(
-          withCreator.map((a) => ({
-            matchId,
-            userId: a.userId,
-            sideIndex: a.sideIndex,
-            // The creator is pre-accepted (spec 0004, rule 2).
-            invitationStatus: (a.userId === me.id ? 'accepted' : 'pending') as
-              | 'accepted'
-              | 'pending',
-            respondedAt: a.userId === me.id ? now : null,
-          })),
+          withCreator.map((a) => {
+            // The creator is pre-accepted (spec 0004, rule 2) — and in a
+            // clash so is everybody else (spec 0017, rule 4).
+            const accepted = startsAccepted(game.mode, a.userId, me.id);
+            return {
+              matchId,
+              userId: a.userId,
+              sideIndex: a.sideIndex,
+              invitationStatus: (accepted ? 'accepted' : 'pending') as
+                | 'accepted'
+                | 'pending',
+              respondedAt: accepted ? now : null,
+            };
+          }),
         )
         .run();
 
@@ -287,19 +296,25 @@ export async function createMatch(input: {
       return {
         ok: true,
         matchId,
-        intents: buildNotifications(
-          { kind: 'invitation_received', invitedUserIds: invited },
-          {
-            matchId,
-            gameName: game.name,
-            gameIcon: game.icon,
-            actorId: me.id,
-            actorName: me.name,
-            participants: withCreator,
-            sideLabels: Object.fromEntries(sides.map((s) => [s.sideIndex, s.label])),
-            adminIds: [],
-          },
-        ),
+        // Nobody is invited to a clash, so nobody is notified of an
+        // invitation: it is called in the room, and the only notification
+        // spec 0006 has for a live match says "tout le monde a accepté",
+        // which would be a lie here (spec 0017, rule 4).
+        intents: isClash
+          ? []
+          : buildNotifications(
+              { kind: 'invitation_received', invitedUserIds: invited },
+              {
+                matchId,
+                gameName: game.name,
+                gameIcon: game.icon,
+                actorId: me.id,
+                actorName: me.name,
+                participants: withCreator,
+                sideLabels: Object.fromEntries(sides.map((s) => [s.sideIndex, s.label])),
+                adminIds: [],
+              },
+            ),
       };
     });
 

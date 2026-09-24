@@ -56,7 +56,7 @@ test.describe('The admin log', { tag: ['@spec-0008', '@spec-0007'] }, () => {
 
     // A player with no admin rights reads the whole thing. Not Thomas: he is
     // the one guest with no team, and the gate would send him to the choice
-    // screen before he ever saw the log (spec 0017, rule 9).
+    // screen before he ever saw the log (spec 0017, rule 10).
     const player = await asPlayer(browser, 'romain');
     await player.goto('/admin-log');
 

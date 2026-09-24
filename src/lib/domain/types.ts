@@ -39,7 +39,7 @@ export type PointEventType =
 
 /**
  * The team ledger's types (spec 0017). Deliberately a subset of the player
- * one: an `admin_adjustment` moves no team points (rule 22), and rule 27
+ * one: an `admin_adjustment` moves no team points (rule 23), and rule 28
  * counts a team's wins from these rows alone.
  */
 export type TeamPointEventType = 'match_win' | 'margin_bonus' | 'match_reversal';
@@ -80,12 +80,6 @@ export type SideSnapshot = {
 export type MatchSnapshot = {
   id: string;
   status: MatchStatus;
-  /**
-   * The game's mode. The machine needs it for exactly one reason: a `clash`
-   * survives a decline, where every other match is cancelled by one
-   * (spec 0017, rule 5 against spec 0004, rule 12).
-   */
-  mode: GameMode;
   sidesCount: number;
   invitationExpiresAt: number;
   requiresScore: boolean;

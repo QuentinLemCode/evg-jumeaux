@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest';
 
 import {
   canAct,
+  initialStatus,
   isInvitationExpired,
   sidesOwingValidation,
+  startsAccepted,
   transition,
   type MatchAction,
 } from './match-state';
@@ -15,7 +17,6 @@ function duel(overrides: Partial<MatchSnapshot> = {}): MatchSnapshot {
   return {
     id: 'm1',
     status: 'pending',
-    mode: 'duel',
     sidesCount: 2,
     invitationExpiresAt: NOW + INVITATION_TTL_MS,
     requiresScore: true,
@@ -179,119 +180,26 @@ describe('declining an invitation', () => {
 });
 
 /**
- * A clash is the one match a refusal does not kill (spec 0017, rule 5). It is
- * the weekend's set piece, announced in advance, and re-forming fifteen people
- * around one absence is not something anybody is going to do.
+ * A clash has no invitation phase at all (spec 0017, rules 4-5): an admin
+ * calls it, everybody is in, and it is `active` from the first millisecond.
+ *
+ * That is why neither `decline` nor `expire` carries a special case for it —
+ * a clash is never `pending`, so neither transition can ever see one.
  */
-describe('a clash, which survives its refusals', () => {
-  function clash(overrides: Partial<MatchSnapshot> = {}): MatchSnapshot {
-    return duel({
-      mode: 'clash',
-      participants: [
-        { userId: 'alice', sideIndex: 1, invitationStatus: 'accepted' },
-        { userId: 'anna', sideIndex: 1, invitationStatus: 'pending' },
-        { userId: 'bob', sideIndex: 2, invitationStatus: 'pending' },
-        { userId: 'ben', sideIndex: 2, invitationStatus: 'pending' },
-      ],
-      ...overrides,
-    });
-  }
-
-  it('carries on when one player refuses', () => {
-    const result = transition(clash(), { type: 'decline', userId: 'ben' }, NOW);
-    expect(result).toMatchObject({ ok: true, nextStatus: 'pending' });
-    if (!result.ok) throw new Error('unreachable');
-    expect(result.effects).toEqual([
-      { kind: 'set-invitation', userId: 'ben', status: 'declined' },
-    ]);
+describe('how a match starts', () => {
+  it('leaves a duel and a team game pending, with only the creator accepted', () => {
+    for (const mode of ['duel', 'team'] as const) {
+      expect(initialStatus(mode)).toBe('pending');
+      expect(startsAccepted(mode, 'alice', 'alice')).toBe(true);
+      expect(startsAccepted(mode, 'bob', 'alice')).toBe(false);
+    }
   });
 
-  it('starts when the refusal was the last answer owed', () => {
-    const result = transition(
-      clash({
-        participants: [
-          { userId: 'alice', sideIndex: 1, invitationStatus: 'accepted' },
-          { userId: 'bob', sideIndex: 2, invitationStatus: 'accepted' },
-          { userId: 'ben', sideIndex: 2, invitationStatus: 'pending' },
-        ],
-      }),
-      { type: 'decline', userId: 'ben' },
-      NOW,
-    );
-    expect(result).toMatchObject({ ok: true, nextStatus: 'active' });
-  });
-
-  it('is cancelled when the refusal empties a side', () => {
-    const result = transition(
-      clash({
-        participants: [
-          { userId: 'alice', sideIndex: 1, invitationStatus: 'accepted' },
-          { userId: 'bob', sideIndex: 2, invitationStatus: 'pending' },
-        ],
-      }),
-      { type: 'decline', userId: 'bob' },
-      NOW,
-    );
-    expect(result).toMatchObject({ ok: true, nextStatus: 'cancelled' });
-    if (!result.ok) throw new Error('unreachable');
-    expect(result.effects).toContainEqual({
-      kind: 'cancel',
-      userId: 'bob',
-      reason: 'Match annulé : plus personne dans un camp',
-    });
-  });
-
-  it('drops the lapsed invitations at the deadline and starts anyway', () => {
-    const result = transition(
-      clash({
-        participants: [
-          { userId: 'alice', sideIndex: 1, invitationStatus: 'accepted' },
-          { userId: 'anna', sideIndex: 1, invitationStatus: 'pending' },
-          { userId: 'bob', sideIndex: 2, invitationStatus: 'accepted' },
-          { userId: 'ben', sideIndex: 2, invitationStatus: 'pending' },
-        ],
-      }),
-      { type: 'expire' },
-      NOW + INVITATION_TTL_MS + 1,
-    );
-    expect(result).toMatchObject({ ok: true, nextStatus: 'active' });
-    if (!result.ok) throw new Error('unreachable');
-    // Removed from their side: they are not paid for a match they sat out.
-    expect(result.effects).toEqual([
-      { kind: 'set-invitation', userId: 'anna', status: 'declined' },
-      { kind: 'set-invitation', userId: 'ben', status: 'declined' },
-    ]);
-  });
-
-  it('is cancelled at the deadline when nobody on a side accepted', () => {
-    const result = transition(
-      clash({
-        participants: [
-          { userId: 'alice', sideIndex: 1, invitationStatus: 'accepted' },
-          { userId: 'bob', sideIndex: 2, invitationStatus: 'pending' },
-        ],
-      }),
-      { type: 'expire' },
-      NOW + INVITATION_TTL_MS + 1,
-    );
-    expect(result).toMatchObject({ ok: true, nextStatus: 'cancelled' });
-  });
-
-  it('offers nothing to a player who was removed from their side', () => {
-    const acted = canAct(
-      clash({
-        status: 'active',
-        participants: [
-          { userId: 'alice', sideIndex: 1, invitationStatus: 'accepted' },
-          { userId: 'bob', sideIndex: 2, invitationStatus: 'accepted' },
-          { userId: 'ben', sideIndex: 2, invitationStatus: 'declined' },
-        ],
-      }),
-      'ben',
-      NOW,
-    );
-    expect(acted.canReport).toBe(false);
-    expect(acted.canCancel).toBe(false);
+  it('starts a clash active, with every participant accepted', () => {
+    expect(initialStatus('clash')).toBe('active');
+    expect(startsAccepted('clash', 'alice', 'alice')).toBe(true);
+    expect(startsAccepted('clash', 'bob', 'alice')).toBe(true);
+    expect(startsAccepted('clash', 'ben', 'alice')).toBe(true);
   });
 });
 

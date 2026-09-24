@@ -71,7 +71,7 @@ beforeAll(async () => {
   const { users, teams, games } = m.schema;
 
   // The two teams come from the MIGRATION, with a null captain, against an
-  // empty `users` table — which is the point of doing it there (rule 6).
+  // empty `users` table — which is the point of doing it there (rule 7).
   const seeded = await m.db.select().from(teams);
   expect(seeded.map((team) => team.id).sort()).toEqual([JULIEN, PIERRE]);
   expect(seeded.every((team) => team.captainId === null)).toBe(true);
@@ -276,7 +276,7 @@ describe('what a match pays a team', () => {
 
   it('writes one row per (match, team, type), however often it is awarded', async () => {
     // Awarding twice is what a retry or a double submission looks like. The
-    // unique index is the guarantee, not the caller's care (rule 20) — this
+    // unique index is the guarantee, not the caller's care (rule 21) — this
     // is the same insert `applyEffects` performs, run a second time.
     await m.db
       .insert(m.schema.teamPointEvents)
@@ -320,14 +320,14 @@ describe('what a match pays a team', () => {
       .select()
       .from(m.schema.teamPointEvents);
     const forMatch = rows.filter((row) => row.matchId === 'match-across');
-    // Both rows stay: the history shows the award and its reversal (rule 21).
+    // Both rows stay: the history shows the award and its reversal (rule 22).
     expect(forMatch).toHaveLength(2);
     expect(forMatch.reduce((sum, row) => sum + row.points, 0)).toBe(0);
 
     const standings = await m.getTeamStandings();
     const julien = standings.find((team) => team.teamId === JULIEN);
     expect(julien?.points).toBe(0);
-    // And the win goes with the points (rule 27).
+    // And the win goes with the points (rule 28).
     expect(julien?.matchesWon).toBe(0);
   });
 });

@@ -53,15 +53,6 @@ function loadSnapshot(tx: Tx, matchId: string): MatchSnapshot | null {
   const match = tx.select().from(matches).where(eq(matches.id, matchId)).get();
   if (!match) return null;
 
-  // The mode, because a clash answers a decline differently from every other
-  // match (spec 0017, rule 5). It is the game's, not the match's: nothing
-  // about a decline is a scoring rule, so there is nothing to snapshot.
-  const game = tx
-    .select({ mode: games.mode })
-    .from(games)
-    .where(eq(games.id, match.gameId))
-    .get();
-
   const participants = tx
     .select()
     .from(matchParticipants)
@@ -72,7 +63,6 @@ function loadSnapshot(tx: Tx, matchId: string): MatchSnapshot | null {
   return {
     id: match.id,
     status: match.status,
-    mode: game?.mode ?? 'duel',
     sidesCount: sides.length,
     invitationExpiresAt: match.invitationExpiresAt,
     requiresScore: match.ruleRequiresScore,
@@ -222,13 +212,10 @@ function applyEffects(
           gameName: game.name,
           winningSide,
           sides: sideScores,
-          // A player who declined was removed from their side and did not
-          // play, so they are paid nothing — which only ever happens in a
-          // clash, the one match a refusal does not cancel (spec 0017,
-          // rule 5).
-          participants: participants
-            .filter((p) => p.invitationStatus !== 'declined')
-            .map((p) => ({ userId: p.userId, sideIndex: p.sideIndex })),
+          participants: participants.map((p) => ({
+            userId: p.userId,
+            sideIndex: p.sideIndex,
+          })),
         });
 
         if (awards.length > 0) {
@@ -252,9 +239,9 @@ function applyEffects(
             .run();
         }
 
-        // The TEAM ledger (spec 0017, rules 17-20). Keyed off team MEMBERSHIP
-        // and not off who accepted: a player who declined is still on a team,
-        // and their side still belongs to it.
+        // The TEAM ledger (spec 0017, rules 18-21). Keyed off team MEMBERSHIP
+        // and not off invitation status: whether somebody accepted says
+        // nothing about which team their side belongs to (rule 19).
         const memberships = tx
           .select({ id: users.id, teamId: users.teamId })
           .from(users)
@@ -293,7 +280,7 @@ function applyEffects(
               })),
             )
             // One row per (match, team, type), exactly as the player ledger
-            // does it (rule 20).
+            // does it (rule 21).
             .onConflictDoNothing()
             .run();
         }
@@ -331,7 +318,7 @@ function applyEffects(
         }
 
         // The same, mirrored, for the teams the match paid (spec 0017,
-        // rule 21). The award rows stay: the history shows both, and the
+        // rule 22). The award rows stay: the history shows both, and the
         // match leaves that team's "matches won" because the two cancel out.
         const teamAwarded = tx
           .select({ teamId: teamPointEvents.teamId, points: teamPointEvents.points })
@@ -481,12 +468,7 @@ export async function applyMatchAction(
         );
       }
       if (action.type === 'expire') {
-        // Not always 'expired': a clash whose invitations lapse proceeds with
-        // whoever accepted (spec 0017, rule 5).
-        return {
-          result: { ok: true, status: expire.ok ? expire.nextStatus : 'expired' },
-          intents,
-        };
+        return { result: { ok: true, status: 'expired' }, intents };
       }
       // Run the original action against the pre-expiry snapshot so the player
       // gets "l'invitation a expiré" rather than a generic wrong-state error.
