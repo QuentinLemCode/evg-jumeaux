@@ -10,7 +10,7 @@
  *   1. **who may join which team** (rule 12) — the cap, re-checked inside the
  *      choice transaction and never only in the UI, and whom the choice that
  *      fills a team sweeps up with it (rule 13);
- *   2. **what a match owes a team** (rules 19-23) — awarded ONCE to the
+ *   2. **what a match owes a team** (rules 18-22) — awarded ONCE to the
  *      winning team, and only when the match opposes the two teams.
  *
  * The second is the whole reason this spec exists. `computeAwards` pays every
@@ -130,7 +130,7 @@ export function playersSweptUpBy(options: {
 
 export type TeamParticipant = {
   sideIndex: number;
-  /** The player's team, or null when they never chose one (rule 21). */
+  /** The player's team, or null when they never chose one (rule 20). */
   teamId: string | null;
 };
 
@@ -140,7 +140,7 @@ export type TeamAwardInput = {
   winningSide: number;
   sides: { sideIndex: number; score: number | null }[];
   /**
-   * EVERY participant of the match, declined invitations included: rule 20
+   * EVERY participant of the match, declined invitations included: rule 19
    * keys off team membership, not off who turned up.
    */
   participants: TeamParticipant[];
@@ -156,13 +156,13 @@ export type TeamAward = {
 
 /**
  * The two teams a match opposes, by side — or null when it opposes none
- * (rule 20).
+ * (rule 19).
  *
  * "Opposes the two teams" means exactly: two sides, every participant of a
  * side belonging to one and the same team, and the two sides being different
  * teams. Anything else — a mixed side, a player with no team, two players of
  * the same team facing each other — earns nobody anything, which is also what
- * stops a team farming itself with its own internal pairs (rule 21).
+ * stops a team farming itself with its own internal pairs (rule 20).
  */
 export function opposingTeams(
   participants: TeamParticipant[],
@@ -190,7 +190,7 @@ export function opposingTeams(
 
 /**
  * The team ledger rows a settled match produces: `pointsPerWin` ONCE to the
- * winning team, plus the margin bonus once where the game has one (rule 19).
+ * winning team, plus the margin bonus once where the game has one (rule 18).
  * Not once per winner — that is the arithmetic this spec exists to avoid.
  */
 export function computeTeamAwards(input: TeamAwardInput): TeamAward[] {
@@ -224,7 +224,7 @@ export function computeTeamAwards(input: TeamAwardInput): TeamAward[] {
 
 /**
  * The compensating rows for a cancelled match — one per team the match
- * awarded anything, worth the exact negative of it (rule 23). The award rows
+ * awarded anything, worth the exact negative of it (rule 22). The award rows
  * stay, so the history shows both. `computeReversals`, mirrored.
  */
 export function computeTeamReversals(

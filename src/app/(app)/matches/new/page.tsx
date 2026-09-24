@@ -58,7 +58,7 @@ export default async function NewMatchPage({
             <h1 className="text-lg font-bold">{game.name}</h1>
             <p className="text-sm text-muted">
               {/* «Camp» for a side of a match; «équipe» is one of the
-                  weekend's two teams (spec 0017, rule 31). */}
+                  weekend's two teams (spec 0017, rule 30). */}
               {game.mode === 'duel'
                 ? `${game.sidesCount} joueurs, chacun pour soi`
                 : game.mode === 'clash'

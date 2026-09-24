@@ -239,9 +239,9 @@ function applyEffects(
             .run();
         }
 
-        // The TEAM ledger (spec 0017, rules 19-22). Keyed off team MEMBERSHIP
+        // The TEAM ledger (spec 0017, rules 18-21). Keyed off team MEMBERSHIP
         // and not off invitation status: whether somebody accepted says
-        // nothing about which team their side belongs to (rule 20).
+        // nothing about which team their side belongs to (rule 19).
         const memberships = tx
           .select({ id: users.id, teamId: users.teamId })
           .from(users)
@@ -280,7 +280,7 @@ function applyEffects(
               })),
             )
             // One row per (match, team, type), exactly as the player ledger
-            // does it (rule 22).
+            // does it (rule 21).
             .onConflictDoNothing()
             .run();
         }
@@ -318,7 +318,7 @@ function applyEffects(
         }
 
         // The same, mirrored, for the teams the match paid (spec 0017,
-        // rule 23). The award rows stay: the history shows both, and the
+        // rule 22). The award rows stay: the history shows both, and the
         // match leaves that team's "matches won" because the two cancel out.
         const teamAwarded = tx
           .select({ teamId: teamPointEvents.teamId, points: teamPointEvents.points })

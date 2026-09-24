@@ -232,7 +232,7 @@ describe('what a match pays a team', () => {
 
   it('writes one row per (match, team, type), however often it is awarded', async () => {
     // Awarding twice is what a retry or a double submission looks like. The
-    // unique index is the guarantee, not the caller's care (rule 22) — this
+    // unique index is the guarantee, not the caller's care (rule 21) — this
     // is the same insert `applyEffects` performs, run a second time.
     await m.db
       .insert(m.schema.teamPointEvents)
@@ -277,14 +277,14 @@ describe('what a match pays a team', () => {
       .select()
       .from(m.schema.teamPointEvents);
     const forMatch = rows.filter((row) => row.matchId === 'match-across');
-    // Both rows stay: the history shows the award and its reversal (rule 23).
+    // Both rows stay: the history shows the award and its reversal (rule 22).
     expect(forMatch).toHaveLength(2);
     expect(forMatch.reduce((sum, row) => sum + row.points, 0)).toBe(0);
 
     const standings = await m.getTeamStandings();
     const julien = standings.find((team) => team.teamId === JULIEN);
     expect(julien?.points).toBe(0);
-    // And the win goes with the points (rule 29).
+    // And the win goes with the points (rule 28).
     expect(julien?.matchesWon).toBe(0);
   });
 });
@@ -405,7 +405,7 @@ describe('a clash', () => {
 
     const rows = await m.db.select().from(m.schema.teamPointEvents);
     const forClash = rows.filter((row) => row.matchId === CLASH_ID);
-    // Once for the whole side, whatever its size (rule 19).
+    // Once for the whole side, whatever its size (rule 18).
     expect(forClash).toHaveLength(1);
     expect(forClash[0]).toMatchObject({ teamId: JULIEN, type: 'match_win', points: 25 });
   });

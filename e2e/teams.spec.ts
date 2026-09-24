@@ -85,15 +85,19 @@ test.describe('Choosing a team', { tag: '@spec-0017' }, () => {
     await page.waitForURL(/\/team-choice\?next=%2Fhistory$/);
     await expect(page.getByRole('heading', { name: 'Choisis ton camp' })).toBeVisible();
 
-    // Julien is two players ahead, so it is offered DISABLED, naming itself
-    // and the reason (rule 14) — never silently absent.
+    // Nine players, so a team is full at five and Julien is seeded at
+    // exactly that: it is offered DISABLED, naming itself and the reason
+    // (rule 16) — never silently absent.
     const julien = page.locator('[data-team="julien"]');
     const pierre = page.locator('[data-team="pierre"]');
     await expect(julien).toBeDisabled();
-    await expect(julien).toContainText('a déjà un joueur d’avance');
+    await expect(julien).toContainText('est complète');
     await expect(pierre).toBeEnabled();
 
+    // Picking is not joining: the choice is final, so it takes a second,
+    // deliberate action (rule 17).
     await pierre.click();
+    await page.getByTestId('confirm-team').click();
 
     // …and the guest lands where they were going all along (rule 11).
     await page.waitForURL(/\/history$/);
@@ -107,7 +111,7 @@ test.describe('Choosing a team', { tag: '@spec-0017' }, () => {
 
     await expect(player.getByTestId('team-option')).toHaveCount(0);
     await expect(player.getByText('Équipe Julien').first()).toBeVisible();
-    await expect(player.getByText(/On ne change pas d’équipe/)).toBeVisible();
+    await expect(player.getByText(/le choix était définitif/i)).toBeVisible();
   });
 
   test('a captain is told they are one, and is offered nothing', async ({ browser }) => {
@@ -145,7 +149,7 @@ test.describe('What a match moves', { tag: '@spec-0017' }, () => {
     await expect(julien).toContainText('5 joueurs');
     await expect(julien).toContainText('1 partie gagnée');
 
-    // The two leaderboards are never added together (rule 27).
+    // The two leaderboards are never added together (rule 26).
     await player.getByRole('link', { name: 'Joueurs' }).click();
     const row = player.getByTestId('standing').filter({ hasText: PLAYERS.antoine.name });
     await expect(row).toHaveAttribute('data-points', '21');

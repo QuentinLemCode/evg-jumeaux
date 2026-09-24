@@ -171,7 +171,7 @@ export const matches = sqliteTable(
 
 /**
  * A side of a match: several players in a team game, a single player in a
- * duel — a **camp**, never an «équipe» (spec 0017, rule 31).
+ * duel — a **camp**, never an «équipe» (spec 0017, rule 30).
  */
 export const matchSides = sqliteTable(
   'match_sides',
@@ -246,7 +246,7 @@ export const pointEvents = sqliteTable(
 );
 
 /**
- * The TEAM ledger (spec 0017, rules 19-23).
+ * The TEAM ledger (spec 0017, rules 18-22).
  *
  * A separate table rather than a nullable `point_events.user_id`, because
  * `user_id` is NOT NULL and a team is not a user. Same shape and same
@@ -254,7 +254,7 @@ export const pointEvents = sqliteTable(
  * construction through `unique(match_id, team_id, type)`.
  *
  * `match_id` is NOT NULL: only a settled match moves team points. A manual
- * adjustment is a player's business alone (rule 24).
+ * adjustment is a player's business alone (rule 23).
  */
 export const teamPointEvents = sqliteTable(
   'team_point_events',
@@ -268,7 +268,7 @@ export const teamPointEvents = sqliteTable(
       .references(() => matches.id),
     // Three types and no more: "matches won" counts the matches whose rows
     // sum above zero, which only holds while nothing else can write here
-    // (rule 29).
+    // (rule 28).
     type: text('type', {
       enum: ['match_win', 'margin_bonus', 'match_reversal'],
     }).notNull(),

@@ -124,7 +124,7 @@ export function NewMatchForm({
               >
                 <span className="w-16 shrink-0 text-xs font-semibold tracking-wide text-muted uppercase">
                   {/* «Camp», never «équipe»: that word names one of the
-                      weekend's two teams (spec 0017, rule 31). */}
+                      weekend's two teams (spec 0017, rule 30). */}
                   {game.mode === 'duel' ? `Joueur ${sideIndex}` : `Camp ${sideIndex}`}
                 </span>
                 <span className="flex min-w-0 flex-1 flex-wrap gap-1.5">

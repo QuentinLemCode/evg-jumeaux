@@ -37,7 +37,7 @@ const createSchema = z.object({
  * "Alice & Anna" reads better than "Camp 1"; past 3 players it does not.
  *
  * Never «Équipe»: that word now names one of the weekend's two teams, and a
- * side of a match is a **camp** (spec 0017, rule 31). The one exception is a
+ * side of a match is a **camp** (spec 0017, rule 30). The one exception is a
  * clash, whose sides really are the teams — it passes their names in.
  */
 function sideLabel(names: string[], sideIndex: number): string {
@@ -185,7 +185,7 @@ export async function createMatch(input: {
         }
       }
       // Side labels: the players' names, or the team names for a clash
-      // (spec 0017, rule 31).
+      // (spec 0017, rule 30).
       let clashTeamNames: Map<number, string> | null = null;
 
       if (isClash) {

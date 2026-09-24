@@ -1,7 +1,7 @@
 import { expect, test, type Browser, type Page } from '@playwright/test';
 
-import { PLAYERS, login } from './helpers/auth';
-import { matchStatus, resetVolatileState } from './helpers/db';
+import { DEV_PIN, PLAYERS, login, pickPlayer, typePin } from './helpers/auth';
+import { clearTeamFor, matchStatus, resetVolatileState, teamSlugOf } from './helpers/db';
 
 /**
  * The weekend's set piece (spec 0017, rules 3-7).
@@ -19,6 +19,29 @@ async function asPlayer(browser: Browser, player: keyof typeof PLAYERS): Promise
   const page = await context.newPage();
   await login(page, player);
   return page;
+}
+
+/**
+ * A clash cannot start while anybody is still without a team (rule 6), and
+ * the seeded roster leaves Thomas unplaced on purpose — so he chooses one,
+ * through the screen a guest uses, before any of this can run. Cleared first,
+ * because a choice survives `resetVolatileState()` and a CI retry would
+ * otherwise find him already placed.
+ */
+async function placeEverybody(browser: Browser): Promise<void> {
+  clearTeamFor(PLAYERS.thomas.id);
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  await page.goto('/');
+  await pickPlayer(page, PLAYERS.thomas.name);
+  await typePin(page, DEV_PIN);
+  await page.waitForURL(/\/team-choice/);
+  // Julien is at the cap of five, so Pierre is the one team open to him.
+  await page.locator('[data-team="pierre"]').click();
+  await page.getByTestId('confirm-team').click();
+  await page.waitForURL(/\/leaderboard$/);
+  expect(teamSlugOf(PLAYERS.thomas.id)).toBe('pierre');
+  await page.close();
 }
 
 const CLASH_GAME = 'Le grand match';
@@ -65,6 +88,7 @@ test.beforeEach(() => resetVolatileState());
 
 test.describe('The clash', { tag: '@spec-0017' }, () => {
   test('starts beside a running match and blocks nobody', async ({ browser }) => {
+    await placeEverybody(browser);
     const admin = await asPlayer(browser, 'quentin');
     const antoine = await asPlayer(browser, 'antoine');
     const lucas = await asPlayer(browser, 'lucas');
@@ -106,6 +130,7 @@ test.describe('The clash', { tag: '@spec-0017' }, () => {
   });
 
   test('tells everybody but the validator when it is over', async ({ browser }) => {
+    await placeEverybody(browser);
     const admin = await asPlayer(browser, 'quentin');
     const lucas = await asPlayer(browser, 'lucas');
     const romain = await asPlayer(browser, 'romain');

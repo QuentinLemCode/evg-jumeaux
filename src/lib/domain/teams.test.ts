@@ -170,7 +170,7 @@ describe('playersSweptUpBy (rule 13)', () => {
   });
 });
 
-describe('opposingTeams (rule 20)', () => {
+describe('opposingTeams (rule 19)', () => {
   it('maps each side to its team when the match opposes the two', () => {
     const teams = opposingTeams([
       { sideIndex: 1, teamId: JULIEN },
@@ -219,7 +219,7 @@ describe('opposingTeams (rule 20)', () => {
   });
 });
 
-describe('computeTeamAwards (rules 19-21)', () => {
+describe('computeTeamAwards (rules 18-20)', () => {
   it('pays the winning team once in a 1 v 1', () => {
     expect(computeTeamAwards(duel())).toEqual([
       { teamId: JULIEN, type: 'match_win', points: 10, detail: 'Victoire — Palet' },
@@ -325,7 +325,7 @@ describe('computeTeamAwards (rules 19-21)', () => {
   });
 });
 
-describe('computeTeamReversals (rule 23)', () => {
+describe('computeTeamReversals (rule 22)', () => {
   it('is the exact negative of what the match paid, one row per team', () => {
     expect(
       computeTeamReversals(
@@ -350,7 +350,7 @@ describe('computeTeamReversals (rule 23)', () => {
   });
 });
 
-describe('the team standings (rules 28-29)', () => {
+describe('the team standings (rules 27-28)', () => {
   const julien = { teamId: JULIEN, name: 'Équipe Julien', points: 30, matchesWon: 3 };
   const pierre = { teamId: PIERRE, name: 'Équipe Pierre', points: 30, matchesWon: 2 };
 
