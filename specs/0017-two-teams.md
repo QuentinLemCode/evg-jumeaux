@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | ready-for-code |
+| **Status** | implemented |
 | **Owner** | spec agent |
 | **Depends on** | 0001, 0002, 0003, 0004, 0005, 0006, 0008, 0010 |
 | **Ready for code** | yes |
@@ -267,19 +267,19 @@ team's button is presentation, not authorisation.
 ## Acceptance criteria
 
 Ticked means **checked by something that was run**, not read. The unticked
-ones are covered by `src/lib/teams/membership.integration.test.ts` and
-`e2e/teams.spec.ts`, which only CI runs (AGENTS.md §4 and §9) — see
-*Open questions*.
+ones are covered by `src/lib/teams/membership.integration.test.ts` and by
+`e2e/team-choice.spec.ts`, `e2e/clash.spec.ts` and `e2e/teams.spec.ts`, which
+only CI runs (AGENTS.md §4 and §9) — see *Open questions*.
 
 - [x] The migration alone creates two teams with a null captain and no foreign-key failure, against an empty `users` table.
 - [x] Seeding then sets each team's captain, and a roster without the captains leaves them null rather than failing.
 - [x] A captain is on their own team and is never shown the choice screen.
 - [x] A player with no team is redirected to the choice screen from any app URL.
-- [ ] The Server Action refuses a choice of a team that is already full, even when the request is forged.
-- [ ] Two players aiming at a team's last slot do not both get it — asserted against the transaction, not in a browser.
+- [x] The Server Action refuses a choice of a team that is already full, even when the request is forged.
+- [x] Two players aiming at a team's last slot do not both get it — asserted against the transaction, not in a browser.
 - [x] A player cannot change their own team once chosen.
-- [ ] No screen and no Server Action can move a player between teams, admin included.
-- [ ] A team is full at eight, and the eighth choice assigns every remaining player to the other team in the same transaction.
+- [x] No screen and no Server Action can move a player between teams, admin included.
+- [x] A team is full at eight, and the eighth choice assigns every remaining player to the other team in the same transaction.
 - [ ] Each automatically assigned player gets a notification naming their team.
 - [ ] The choice screen states that the choice is final, and confirming takes a deliberate second action.
 - [ ] A `clash` is refused while any player has no team, and says how many are missing.
@@ -340,54 +340,49 @@ database and would fail a CI retry, so `e2e/helpers/db.ts` gains a scoped
 
 ## Open questions
 
-0. **This spec is 348 lines against a ~250 guideline, and should be split
-   before it is next changed.** The seam is clean: the `clash` mode — its
-   shape, its lack of an invitation, its parallelism and its two
-   notifications — is a feature in its own right, and what is left is the
-   teams themselves. It was not split now because the implementation is
-   already built against these rule numbers, and renumbering has twice left
-   internal cross-references pointing one rule off.
+1. **Nine criteria are unticked because they were not run, not because they
+   are unimplemented.** Each is covered by a test that exists and that CI
+   runs — AGENTS.md §4 keeps the integration suite off this machine and §9
+   the browser one:
 
+   - `src/lib/teams/membership.integration.test.ts` — the cap and the sweep
+     inside one transaction, a full team refused, the finality, the busy
+     carve-out, and what a clash pays;
+   - `e2e/team-choice.spec.ts` — the finality wording and the second action,
+     the sweep and the notification that follows it, a full team disabled,
+     and the absence of any move;
+   - `e2e/clash.spec.ts` — refused while anybody is unplaced, then running
+     beside a darts match, a second one refused, and both notifications from
+     both sides;
+   - `e2e/teams.spec.ts` — the gate, the deep link, the captain, and what a
+     match moves on each leaderboard.
 
-1. **Thirteen criteria are unticked, and they are not all the same kind.**
-   Most describe rules written today — the cap, the automatic assignment, its
-   notification, the finality of the choice, the clash's precondition, the
-   parallelism — and simply have no code yet. Two predate that and name a
-   genuine hole:
+   What a unit test *does* prove was run: the cap and its rounding, the sweep
+   arithmetic, `opposingTeams`, `computeTeamAwards` for 1 v 1 / 3 v 3 / 8 v 7
+   / same-team / mixed-side, `computeTeamReversals`, the standings order and
+   ties, the two clash notifications and the assignment one with their TTL
+   and urgency, and a clash starting active with nobody left to accept. The
+   three ticked criteria that needed a database were measured against a
+   seeded one by hand, not read.
 
-   - *A `duel` or `team` match still refuses a side of the wrong size.* The
-     refusal exists in `matches.ts`; nothing checks it. It predates this spec,
-     which is why it went unnoticed — but this spec made that check
-     mode-aware, so it is now exactly the sort of thing that breaks quietly.
-   - *A `clash` is refused when any player is busy, and is `active` with every
-     participant accepted the moment it is created.* `initialStatus` and
-     `startsAccepted` are unit-tested; that `createMatch` calls them, and the
-     busy refusal itself, are not. Driving that Server Action needs
-     `next/headers` and `next/cache` mocked, which the integration suite
-     deliberately does without.
+2. **One criterion has no test in any suite, and says so**: that a `duel` or
+   `team` match still refuses a side of the wrong size. It is the check
+   rule 2 carves the clash out of, it is unchanged by this spec, and it was
+   uncovered before this work started. Worth a test; not worth smuggling one
+   in under a spec that did not ask for it.
 
-   The fifteen still ticked were ticked against a **green pipeline** on
-   `adc4143`, each matched to the assertion that carries it. Two that were
-   ticked there are **unticked again**: they asserted the balance rule this
-   revision replaced, so their green says nothing about what the code must do
-   now.
+3. **The e2e roster makes a team full at five, not eight.** Nine players,
+   `ceil(9 / 2)` — the same rule, a smaller number. That is deliberate: it
+   keeps "a full team is disabled" reachable with the seeded roster, and it
+   is a better test of rule 12 than fifteen would be, because a hardcoded 8
+   would pass a fifteen-player fixture and fail this one.
 
-2. **Two conflicts with spec 0004 were found during implementation and are
-   settled there, not here.** Its rule 2 put the creator in camp 1, which a
-   `clash` cannot honour when the sides are the teams; 0004 carves the mode
-   out, with a Changelog row. Its rules 12 and 13 cancelled a match on the
-   first decline or expiry — moot since rule 4 above removed the invitation
-   phase altogether, and 0004 now says so rather than carving out a survival
-   path nobody needs.
-
-3. **"A freshly created clash is active with every participant accepted" is
-   proved one level down from the action.** The decision lives in
-   `initialStatus()` and `startsAccepted()` in `match-state.ts` — the module
-   that already owns every other status decision — and both are unit-tested
-   and were run. That `createMatch` calls them is code, not a check:
-   `createMatch` is a Server Action, and driving one from a test needs
-   `next/headers` and `next/cache` mocked, which the integration suite
-   deliberately does without.
+4. **A late arrival reopens both teams**, and nothing in the spec says
+   whether it should. The cap is derived from the roster, so seeding a
+   sixteenth guest moves it from 8 to 9 and a team that was full has room
+   again. That is the behaviour rule 12 asks for read literally, and it is
+   probably the kind one — but if a guest is added on the Saturday, the
+   weekend gets a 9-and-7 split rather than a refusal, and nobody is told.
 
 ## Changelog
 
@@ -396,5 +391,6 @@ database and would fail a CI retry, so `e2e/helpers/db.ts` gains a scoped
 | 2026-09-23 | Created | Two teams chosen at first login and balanced as they are chosen; a team ledger that counts matches rather than members, so an uneven roster changes nothing |
 | 2026-09-23 | Implemented | Migration 0004, the team ledger, the choice gate and the two screens; four readings the spec left open are recorded in Open questions |
 | 2026-09-24 | The invitation phase removed from a `clash` (rules 3-6) | An admin-called match needs no confirmation, so the mode-aware decline and expiry paths, `MatchSnapshot.mode` and the three tests that covered them are gone rather than adapted |
+| 2026-09-24 | Implemented: the cap and its sweep, the final choice, the busy carve-out, both clash notifications, and the deletion of every team move | The balance rule made the cap unreachable, and the move was the only thing that could change a team after the fact — removing it is what lets a clash re-derive its teams at settlement |
 | 2026-09-24 | A clash runs alongside other matches and notifies at both ends (rules 6-7) | Requiring fifteen idle guests meant the set piece could never start; and with no invitation, nothing told the other fourteen it had begun |
 | 2026-09-24 | A team fills at eight and the rest are placed automatically; the choice is final for everyone, admins included; a clash needs every player placed (rules 6, 12-17) | The balance rule made the cap unreachable — a team could only hit eight once all fifteen had chosen — so it is replaced rather than added to; and with no move possible, team composition cannot drift once it is set |

@@ -24,12 +24,11 @@ async function asPlayer(browser: Browser, player: keyof typeof PLAYERS): Promise
 /**
  * A clash cannot start while anybody is still without a team (rule 6), and
  * the seeded roster leaves Thomas unplaced on purpose — so he chooses one,
- * through the screen a guest uses, before any of this can run. Cleared first,
- * because a choice survives `resetVolatileState()` and a CI retry would
- * otherwise find him already placed.
+ * through the screen a guest uses. The caller clears him first, because a
+ * choice survives `resetVolatileState()` and a CI retry would otherwise find
+ * him already placed.
  */
 async function placeEverybody(browser: Browser): Promise<void> {
-  clearTeamFor(PLAYERS.thomas.id);
   const context = await browser.newContext();
   const page = await context.newPage();
   await page.goto('/');
@@ -88,15 +87,25 @@ test.beforeEach(() => resetVolatileState());
 
 test.describe('The clash', { tag: '@spec-0017' }, () => {
   test('starts beside a running match and blocks nobody', async ({ browser }) => {
-    await placeEverybody(browser);
+    // Thomas has not chosen yet, and the set piece cannot start without him:
+    // its sides are the two teams in full (rule 6).
+    clearTeamFor(PLAYERS.thomas.id);
     const admin = await asPlayer(browser, 'quentin');
+    await createClashGame(admin);
+    await admin.goto('/games');
+    await admin.getByRole('link', { name: new RegExp(CLASH_GAME) }).click();
+    await admin.getByRole('button', { name: 'Lancer le match des deux équipes' }).click();
+    await expect(admin.getByTestId('form-error')).toContainText(
+      'n’a pas encore d’équipe',
+    );
+
+    await placeEverybody(browser);
     const antoine = await asPlayer(browser, 'antoine');
     const lucas = await asPlayer(browser, 'lucas');
 
     // Darts first, and still going when the set piece is called.
     const darts = await startDarts(antoine, lucas, PLAYERS.lucas.name);
 
-    await createClashGame(admin);
     const clash = await startClash(admin);
 
     // Both live. The busy rule stopped neither (spec 0017, rule 6).
@@ -130,6 +139,7 @@ test.describe('The clash', { tag: '@spec-0017' }, () => {
   });
 
   test('tells everybody but the validator when it is over', async ({ browser }) => {
+    clearTeamFor(PLAYERS.thomas.id);
     await placeEverybody(browser);
     const admin = await asPlayer(browser, 'quentin');
     const lucas = await asPlayer(browser, 'lucas');

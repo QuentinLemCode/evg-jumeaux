@@ -27,7 +27,7 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
   const view = await getMatchView(id);
   if (!view) notFound();
 
-  const { match, game, effectiveStatus, sides, awards } = view;
+  const { match, game, effectiveStatus, sides, awards, teamAwards } = view;
   const permissions = actionsFor(view, me.id);
   const mySide = view.participants.find((p) => p.userId === me.id)?.sideIndex ?? null;
 
@@ -148,6 +148,40 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
                 </li>
               ))}
             </ul>
+          </Card>
+        </section>
+      ) : null}
+
+      {effectiveStatus === 'completed' ? (
+        <section>
+          <SectionTitle>Points d’équipe</SectionTitle>
+          <Card reveal={3}>
+            {teamAwards.length > 0 ? (
+              <ul className="divide-y divide-hairline">
+                {teamAwards.map((award, index) => (
+                  <li
+                    key={`${award.teamName}-${award.type}-${index}`}
+                    className="flex items-baseline gap-3 py-2 first:pt-0 last:pb-0"
+                  >
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-medium">
+                        {award.teamName}
+                      </span>
+                      <span className="block text-xs text-muted">
+                        {POINT_TYPE_LABELS[award.type] ?? award.type} · {award.detail}
+                      </span>
+                    </span>
+                    <Delta points={award.points} size="sm" />
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              // A total that did not move has to be explained, or it reads as
+              // a bug (spec 0017, failure cases).
+              <p className="text-sm text-muted">
+                Pas de points d’équipe : ce match n’oppose pas les deux équipes.
+              </p>
+            )}
           </Card>
         </section>
       ) : null}

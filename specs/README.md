@@ -23,7 +23,7 @@ No code change lands without a spec change first — see `AGENTS.md` §6.
 | `0014` | [Conversational memory](0014-conversational-memory.md) | implemented | Remembers the thread, asks blocking questions in the chat, resumes from the answer |
 | `0015` | [A staged pipeline the chat can follow](0015-staged-pipeline.md) | superseded by 0016 (bot half) | Stage-by-stage progress in the chat, and the spec is approved by a human before any code is written |
 | `0016` | [A read-only bot](0016-read-only-bot.md) | implemented | The bot reads and never writes: bug reports become prompts, questions are answered from the specs and the data; changes move to Antigravity remote control |
-| `0017` | [Two teams](0017-two-teams.md) | ready-for-code | Two teams chosen at first login and balanced as they are chosen; a team ledger that counts matches, not members |
+| `0017` | [Two teams](0017-two-teams.md) | implemented | Two teams, chosen once and for good, filling at half the roster; a team ledger that counts matches, not members |
 
 Status values: `draft` → `ready-for-code` → `implemented` → `superseded`.
 
