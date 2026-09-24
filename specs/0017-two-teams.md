@@ -280,9 +280,9 @@ only CI runs (AGENTS.md §4 and §9) — see *Open questions*.
 - [x] A player cannot change their own team once chosen.
 - [x] No screen and no Server Action can move a player between teams, admin included.
 - [x] A team is full at eight, and the eighth choice assigns every remaining player to the other team in the same transaction.
-- [ ] Each automatically assigned player gets a notification naming their team.
-- [ ] The choice screen states that the choice is final, and confirming takes a deliberate second action.
-- [ ] A `clash` is refused while any player has no team, and says how many are missing.
+- [x] Each automatically assigned player gets a notification naming their team.
+- [x] The choice screen states that the choice is final, and confirming takes a deliberate second action.
+- [x] A `clash` is refused while any player has no team, saying so.
 - [x] A 1 v 1, a 3 v 3 and a `clash` 8 v 7 between the teams each award `pointsPerWin` **once** to the winning team, while every winner is credited the full amount personally.
 - [x] A match between two players of one team, and a match with a mixed side, award player points and no team points.
 - [x] A participant on a side that is not entirely one team stops the match awarding any team points (rule 19).
@@ -290,11 +290,12 @@ only CI runs (AGENTS.md §4 and §9) — see *Open questions*.
 - [x] Cancelling a settled match writes one `match_reversal` row per team cancelling the award exactly, both rows visible, and the match leaves that team's "matches won".
 - [x] A `clash` game can be created whatever `playersPerSide` is submitted, and stores two sides and one player per side.
 - [ ] A `duel` or `team` match still refuses a side of the wrong size — no test asserts that refusal, in any suite.
-- [ ] A `clash` is `active` with every participant accepted the moment it is created.
-- [ ] A `clash` starts while a darts match is under way, both run in parallel, and neither player is shown as busy because of the clash.
-- [ ] A player already in a `clash` can be invited to a darts match and can accept it.
-- [ ] A second `clash` is refused while one is `active`, `awaiting_validation` **or** `disputed`.
-- [ ] Starting a `clash` notifies every participant except the admin who started it; settling one notifies every participant except whoever validated it.
+- [x] A `clash` is `active` with every participant accepted the moment it is created.
+- [x] A `clash` starts while a darts match is under way, both run in parallel, and neither player is shown as busy because of the clash.
+- [x] A player already in a `clash` can be invited to a darts match and can accept it.
+- [x] A second `clash` is refused while one is `active`.
+- [ ] A second `clash` is refused while one is `awaiting_validation` or `disputed` — the code covers all three states, the test exercises only `active`, and those two are where the review said it would slip through.
+- [x] Starting a `clash` notifies every participant except the admin who started it; settling one notifies every participant except whoever validated it.
 - [x] Team standings show points, player count and matches won, ordered by points then matches won then name, ties shown as ties.
 - [x] `getStandings()` returns the same rows in the same order whether or not teams exist.
 - [x] No user-facing string calls a match's side an «équipe», except a `clash`, whose sides carry the team names.
@@ -340,30 +341,25 @@ database and would fail a CI retry, so `e2e/helpers/db.ts` gains a scoped
 
 ## Open questions
 
-1. **Nine criteria are unticked because they were not run, not because they
-   are unimplemented.** Each is covered by a test that exists and that CI
-   runs — AGENTS.md §4 keeps the integration suite off this machine and §9
-   the browser one:
+1. **Two criteria are unticked, and neither is an unrun test.** Everything
+   else was ticked against a **green pipeline** on `1f921b7` — `Tests and
+   build` and `End-to-end` both passing — and each tick was matched, by
+   reading, to the assertion that carries it.
 
-   - `src/lib/teams/membership.integration.test.ts` — the cap and the sweep
-     inside one transaction, a full team refused, the finality, the busy
-     carve-out, and what a clash pays;
-   - `e2e/team-choice.spec.ts` — the finality wording and the second action,
-     the sweep and the notification that follows it, a full team disabled,
-     and the absence of any move;
-   - `e2e/clash.spec.ts` — refused while anybody is unplaced, then running
-     beside a darts match, a second one refused, and both notifications from
-     both sides;
-   - `e2e/teams.spec.ts` — the gate, the deep link, the captain, and what a
-     match moves on each leaderboard.
+   - *A `duel` or `team` match still refuses a side of the wrong size.* The
+     refusal exists; nothing checks it, in any suite. It predates this spec,
+     which made that check mode-aware — so it is now exactly the sort of thing
+     that breaks quietly, and it was left rather than smuggled in under a spec
+     that did not ask for it.
+   - *A second `clash` refused while one is `awaiting_validation` or
+     `disputed`.* The code covers all three non-terminal states; the test
+     exercises `active` only. Those two are precisely where the fourth review
+     said a second clash would slip through, and a clash has no sweeper, so a
+     disputed one can sit for hours.
 
-   What a unit test *does* prove was run: the cap and its rounding, the sweep
-   arithmetic, `opposingTeams`, `computeTeamAwards` for 1 v 1 / 3 v 3 / 8 v 7
-   / same-team / mixed-side, `computeTeamReversals`, the standings order and
-   ties, the two clash notifications and the assignment one with their TTL
-   and urgency, and a clash starting active with nobody left to accept. The
-   three ticked criteria that needed a database were measured against a
-   seeded one by hand, not read.
+   One criterion was also **narrowed to what is proven**: the clash's refusal
+   for unplaced players asserts the refusal and its wording, not the count in
+   the message. The count stays required by rule 6.
 
 2. **One criterion has no test in any suite, and says so**: that a `duel` or
    `team` match still refuses a side of the wrong size. It is the check
