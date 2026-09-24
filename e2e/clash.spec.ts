@@ -165,8 +165,8 @@ test.describe('The clash', { tag: '@spec-0017' }, () => {
 
     // Regular player sees updated score.
     await lucas.reload();
-    await expect(lucas.getByText('10')).toBeVisible();
-    await expect(lucas.getByText('7')).toBeVisible();
+    await expect(lucas.getByText('10', { exact: true })).toBeVisible();
+    await expect(lucas.getByText('7', { exact: true })).toBeVisible();
 
     // Admin settles the clash directly: selects winning team and closes the match.
     await admin.getByRole('button', { name: /Équipe Julien/ }).click();
