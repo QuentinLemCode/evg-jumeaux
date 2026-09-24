@@ -7,8 +7,9 @@
  *
  * Two decisions live in this file and nowhere else:
  *
- *   1. **who may join which team** (rule 12) — the balance rule, re-checked
- *      inside the choice transaction, never only in the UI;
+ *   1. **who may join which team** (rule 12) — the cap, re-checked inside the
+ *      choice transaction and never only in the UI, and whom the choice that
+ *      fills a team sweeps up with it (rule 13);
  *   2. **what a match owes a team** (rules 19-23) — awarded ONCE to the
  *      winning team, and only when the match opposes the two teams.
  *
@@ -28,32 +29,55 @@ export type TeamSize = {
 };
 
 /**
- * Rule 11: a player may join a team whose current size is **less than or
- * equal to** every other team's. Seeded one captain each, the two therefore
- * never differ by more than one, and nobody has to know the final roster.
+ * How many players a team holds when it is full: **half the roster, rounded
+ * up** (rule 12) — eight of fifteen.
  *
- * Written over a list rather than a pair on purpose — a third team would be a
- * spec change, but it would not be a silently wrong arithmetic.
+ * Derived, never written down. Fifteen is this weekend's number and the next
+ * one will not be, and a hardcoded 8 against a roster of twelve would put
+ * eight on one side and four on the other while both still looked open.
+ *
+ * Rounding up is also what makes the pair exhaustive: `ceil + floor === total`,
+ * so the moment one team fills, the other has room for exactly everybody left
+ * (rule 13) and can never overflow.
  */
-export function canJoinTeam(teamId: string, teams: TeamSize[]): boolean {
+export function teamCapacity(totalPlayers: number): number {
+  return Math.ceil(totalPlayers / 2);
+}
+
+/**
+ * Rule 12: below the cap a player may join **either** team. The choice is
+ * theirs, not the arithmetic's.
+ *
+ * The rule this replaces — "join only the team that is not ahead" — held the
+ * gap at one, which meant a team could only reach the cap once all fifteen
+ * had chosen. The cap was unreachable, and the automatic assignment it exists
+ * to trigger was dead code.
+ */
+export function canJoinTeam(
+  teamId: string,
+  teams: TeamSize[],
+  capacity: number,
+): boolean {
   const target = teams.find((team) => team.teamId === teamId);
   if (!target) return false;
-  return teams
-    .filter((team) => team.teamId !== teamId)
-    .every((other) => target.memberCount <= other.memberCount);
+  return target.memberCount < capacity;
 }
 
 /**
  * Why a team cannot be joined, in French, shown ON the disabled button — a
- * team that is simply missing from the screen reads as a bug (rule 14).
+ * team that is simply missing from the screen reads as a bug (rule 16).
  */
-export function joinBlockedReason(teamId: string, teams: TeamSize[]): string | null {
-  if (canJoinTeam(teamId, teams)) return null;
+export function joinBlockedReason(
+  teamId: string,
+  teams: TeamSize[],
+  capacity: number,
+): string | null {
+  if (canJoinTeam(teamId, teams, capacity)) return null;
   const target = teams.find((team) => team.teamId === teamId);
   if (!target) return 'Cette équipe n’existe pas.';
   const other = teams.find((team) => team.teamId !== teamId);
   if (!other) return 'Cette équipe est complète.';
-  return `${target.name} a déjà un joueur d’avance — rejoins ${other.name}.`;
+  return `${target.name} est complète — rejoins ${other.name}.`;
 }
 
 /** What the choice screen renders: both teams, each with its verdict. */
@@ -62,12 +86,44 @@ export type TeamChoiceOption = TeamSize & {
   blockedReason: string | null;
 };
 
-export function teamChoiceOptions(teams: TeamSize[]): TeamChoiceOption[] {
+export function teamChoiceOptions(
+  teams: TeamSize[],
+  capacity: number,
+): TeamChoiceOption[] {
   return teams.map((team) => ({
     ...team,
-    joinable: canJoinTeam(team.teamId, teams),
-    blockedReason: joinBlockedReason(team.teamId, teams),
+    joinable: canJoinTeam(team.teamId, teams, capacity),
+    blockedReason: joinBlockedReason(team.teamId, teams, capacity),
   }));
+}
+
+/**
+ * Who a choice sweeps up with it: when a choice fills a team, **everybody
+ * still without one joins the other**, there and then (rule 13).
+ *
+ * Fifteen players cannot split evenly, so somebody has to be placed by the
+ * app rather than by themselves — and it becomes inevitable the moment one
+ * team is full, because there is nowhere else for the rest to go. Doing it
+ * then beats waiting on stragglers who are asleep.
+ *
+ * Pure, and separate from the write, so the arithmetic can be argued with in
+ * a test rather than in a transaction.
+ */
+export function playersSweptUpBy(options: {
+  /** The team the chooser is joining, with its size BEFORE the choice. */
+  chosen: TeamSize;
+  other: TeamSize;
+  capacity: number;
+  /** Everybody still without a team, the chooser already excluded. */
+  unplaced: string[];
+}): { teamId: string; teamName: string; userIds: string[] } | null {
+  if (options.chosen.memberCount + 1 < options.capacity) return null;
+  if (options.unplaced.length === 0) return null;
+  return {
+    teamId: options.other.teamId,
+    teamName: options.other.name,
+    userIds: options.unplaced,
+  };
 }
 
 // ---------------------------------------------------------------- the ledger

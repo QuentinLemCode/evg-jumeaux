@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildNotifications, type NotifyContext } from './events';
+import {
+  buildNotifications,
+  buildTeamAssignedNotifications,
+  type NotifyContext,
+} from './events';
 
 const ctx: NotifyContext = {
   matchId: 'm1',
@@ -139,5 +143,29 @@ describe('notification recipients', () => {
     );
     expect(completed[0]?.body).toContain('points attribués');
     expect(cancelled[0]?.body).toContain('annulée');
+  });
+});
+
+/**
+ * The one notification that is not about a match (spec 0017, rule 15): the
+ * players the app placed itself, told which team they are in. They never
+ * opened the choice screen, so without it they would learn their team from a
+ * leaderboard.
+ */
+describe('a team assigned automatically', () => {
+  it('names the team, and links where the answer lives', () => {
+    const intents = buildTeamAssignedNotifications([
+      { userId: 'bob', teamName: 'Équipe Pierre' },
+      { userId: 'ben', teamName: 'Équipe Pierre' },
+    ]);
+    expect(intents.map((i) => i.userId)).toEqual(['bob', 'ben']);
+    expect(intents[0]?.title).toBe('Tu joues dans l’Équipe Pierre');
+    expect(intents[0]?.url).toBe('/teams');
+    // No match to collapse a push onto, and none to link to.
+    expect(intents[0]?.matchId).toBeNull();
+  });
+
+  it('tells nobody when the choice placed nobody', () => {
+    expect(buildTeamAssignedNotifications([])).toEqual([]);
   });
 });

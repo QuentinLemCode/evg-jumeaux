@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "576a354e-9bd7-4b6f-8a67-f0416e9f83e1",
+  "id": "0ffe1b09-3805-4c21-8d95-f5aef08f265b",
   "prevId": "d8833256-bbc6-4aa6-a27d-8c6080478c70",
   "tables": {
     "client_errors": {
@@ -1103,133 +1103,6 @@
           "tableTo": "users",
           "columnsFrom": [
             "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
-    "team_moves": {
-      "name": "team_moves",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "user_id": {
-          "name": "user_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "from_team_id": {
-          "name": "from_team_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "to_team_id": {
-          "name": "to_team_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "reason": {
-          "name": "reason",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "moved_by": {
-          "name": "moved_by",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        }
-      },
-      "indexes": {
-        "team_moves_user_idx": {
-          "name": "team_moves_user_idx",
-          "columns": [
-            "user_id"
-          ],
-          "isUnique": false
-        },
-        "team_moves_created_at_idx": {
-          "name": "team_moves_created_at_idx",
-          "columns": [
-            "created_at"
-          ],
-          "isUnique": false
-        }
-      },
-      "foreignKeys": {
-        "team_moves_user_id_users_id_fk": {
-          "name": "team_moves_user_id_users_id_fk",
-          "tableFrom": "team_moves",
-          "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "team_moves_from_team_id_teams_id_fk": {
-          "name": "team_moves_from_team_id_teams_id_fk",
-          "tableFrom": "team_moves",
-          "tableTo": "teams",
-          "columnsFrom": [
-            "from_team_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "team_moves_to_team_id_teams_id_fk": {
-          "name": "team_moves_to_team_id_teams_id_fk",
-          "tableFrom": "team_moves",
-          "tableTo": "teams",
-          "columnsFrom": [
-            "to_team_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "team_moves_moved_by_users_id_fk": {
-          "name": "team_moves_moved_by_users_id_fk",
-          "tableFrom": "team_moves",
-          "tableTo": "users",
-          "columnsFrom": [
-            "moved_by"
           ],
           "columnsTo": [
             "id"

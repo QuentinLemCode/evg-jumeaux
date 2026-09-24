@@ -15,8 +15,6 @@ import {
   matchSides,
   matches,
   pointEvents,
-  teamMoves,
-  teams,
   users,
 } from '@/db/schema';
 
@@ -25,7 +23,6 @@ export const ADMIN_LOG_TYPES = [
   'dispute_settled',
   'match_cancelled',
   'force_expired',
-  'team_move',
 ] as const;
 
 export type AdminLogType = (typeof ADMIN_LOG_TYPES)[number];
@@ -35,7 +32,6 @@ export const ADMIN_LOG_LABELS: Record<AdminLogType, string> = {
   dispute_settled: 'Contestation tranchée',
   match_cancelled: 'Partie annulée',
   force_expired: 'Invitation expirée',
-  team_move: 'Joueur déplacé',
 };
 
 export type AdminLogEntry = {
@@ -53,11 +49,6 @@ export type AdminLogEntry = {
   /** The derived fact, shown when there is no stated reason. */
   derived: string | null;
   subject: string;
-  /**
-   * A short factual suffix to the subject, where the subject alone does not
-   * say what changed — a team move's «from → to» (spec 0017, rule 15).
-   */
-  trajectory: string | null;
   targetUserId: string | null;
   matchId: string | null;
   gameName: string | null;
@@ -80,8 +71,6 @@ export async function listAdminLog(
 ): Promise<AdminLogEntry[]> {
   const admins = db.select().from(users).as('admins');
   const targets = db.select().from(users).as('targets');
-  const fromTeams = db.select().from(teams).as('from_teams');
-  const toTeams = db.select().from(teams).as('to_teams');
 
   // --- manual adjustments ---------------------------------------------------
   const adjustmentRows = await db
@@ -100,30 +89,6 @@ export async function listAdminLog(
     .innerJoin(targets, eq(targets.id, pointEvents.userId))
     .where(eq(pointEvents.type, 'admin_adjustment'))
     .orderBy(desc(pointEvents.createdAt));
-
-  // --- players moved between teams (spec 0017, rule 15) --------------------
-  //
-  // The only intervention that writes no point and touches no match, which is
-  // exactly why it needs rows of its own: two columns on the player would
-  // have kept the last move and forgotten every one before it.
-  const moveRows = await db
-    .select({
-      id: teamMoves.id,
-      at: teamMoves.createdAt,
-      reason: teamMoves.reason,
-      adminId: teamMoves.movedBy,
-      adminName: admins.name,
-      targetUserId: teamMoves.userId,
-      targetName: targets.name,
-      fromName: fromTeams.name,
-      toName: toTeams.name,
-    })
-    .from(teamMoves)
-    .leftJoin(admins, eq(admins.id, teamMoves.movedBy))
-    .innerJoin(targets, eq(targets.id, teamMoves.userId))
-    .leftJoin(fromTeams, eq(fromTeams.id, teamMoves.fromTeamId))
-    .innerJoin(toTeams, eq(toTeams.id, teamMoves.toTeamId))
-    .orderBy(desc(teamMoves.createdAt));
 
   // --- interventions on matches --------------------------------------------
   const matchRows = await db
@@ -188,36 +153,11 @@ export async function listAdminLog(
     reason: row.reason,
     derived: null,
     subject: row.targetName,
-    trajectory: null,
     targetUserId: row.targetUserId,
     matchId: null,
     gameName: null,
     gameIcon: null,
   }));
-
-  entries.push(
-    ...moveRows.map((row) => ({
-      key: `team-move:${row.id}`,
-      type: 'team_move' as const,
-      at: row.at,
-      adminName: row.adminName ?? 'Un admin',
-      adminId: row.adminId,
-      // A move carries no points: the player keeps theirs and the old team
-      // keeps what it earned (spec 0017, rule 18).
-      points: 0,
-      affected: 1,
-      reason: row.reason,
-      derived: null,
-      subject: row.targetName,
-      trajectory: row.fromName
-        ? `${row.fromName} → ${row.toName}`
-        : `sans équipe → ${row.toName}`,
-      targetUserId: row.targetUserId,
-      matchId: null,
-      gameName: null,
-      gameIcon: null,
-    })),
-  );
 
   for (const row of matchRows) {
     const match = row.match;
@@ -248,7 +188,6 @@ export async function listAdminLog(
         reason: match.resolutionNote,
         derived: match.resolutionNote ? null : 'Décision enregistrée sans motif',
         subject,
-        trajectory: null,
         targetUserId: null,
         matchId: match.id,
         gameName: row.gameName,
@@ -269,7 +208,6 @@ export async function listAdminLog(
         reason: match.cancelReason,
         derived: reversed.total === 0 ? 'Aucun point n’avait été attribué' : null,
         subject,
-        trajectory: null,
         targetUserId: null,
         matchId: match.id,
         gameName: row.gameName,
@@ -292,7 +230,6 @@ export async function listAdminLog(
         // instead (spec 0008, rule 18).
         derived: 'Invitation jamais acceptée, forcée à expirer',
         subject,
-        trajectory: null,
         targetUserId: null,
         matchId: match.id,
         gameName: row.gameName,
@@ -321,10 +258,5 @@ export async function countAdminLog(): Promise<number> {
         and(isNotNull(matches.cancelledBy), isNotNull(matches.reportedAt)),
       ),
     );
-  const moveRows = await db
-    .select({ count: sql<number>`count(*)` })
-    .from(teamMoves);
-  return (
-    adjustments + Number(matchRows[0]?.count ?? 0) + Number(moveRows[0]?.count ?? 0)
-  );
+  return adjustments + Number(matchRows[0]?.count ?? 0);
 }

@@ -48,7 +48,6 @@ export function resetVolatileState(): void {
       DELETE FROM notifications;
       DELETE FROM point_events;
       DELETE FROM team_point_events;
-      DELETE FROM team_moves;
       DELETE FROM match_participants;
       DELETE FROM match_sides;
       DELETE FROM matches;

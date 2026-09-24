@@ -60,6 +60,10 @@ const POLICIES: Record<NotificationType, { ttlSeconds: number; urgency: PushUrge
   dispute_resolved: { ttlSeconds: 12 * HOUR, urgency: 'normal' },
   // A result like any other.
   clash_finished: { ttlSeconds: 12 * HOUR, urgency: 'normal' },
+  // Not time-critical — the weekend has not started — but it must still
+  // arrive: it is how a player who never opened the choice screen learns
+  // which team they are in (spec 0017, rule 15).
+  team_assigned: { ttlSeconds: 12 * HOUR, urgency: 'normal' },
 };
 
 /**

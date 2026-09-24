@@ -58,37 +58,6 @@ export const teams = sqliteTable('teams', {
 });
 
 /**
- * Every admin move of a player between teams (spec 0017, rule 15).
- *
- * Append-only, one row per move. Two columns on the player would have kept
- * only the last move and could not say which team someone came *from*, and
- * the public admin log reports every one of them (spec 0008, rule 21).
- */
-export const teamMoves = sqliteTable(
-  'team_moves',
-  {
-    id: text('id').primaryKey(),
-    userId: text('user_id')
-      .notNull()
-      .references(() => users.id),
-    /** Null when the player had not chosen yet: an admin may also assign. */
-    fromTeamId: text('from_team_id').references(() => teams.id),
-    toTeamId: text('to_team_id')
-      .notNull()
-      .references(() => teams.id),
-    reason: text('reason').notNull(),
-    movedBy: text('moved_by')
-      .notNull()
-      .references(() => users.id),
-    createdAt: timestamp('created_at').notNull(),
-  },
-  (t) => [
-    index('team_moves_user_idx').on(t.userId),
-    index('team_moves_created_at_idx').on(t.createdAt),
-  ],
-);
-
-/**
  * A game *type* ("Palet"), not an instance of one (spec 0003).
  */
 export const games = sqliteTable(
@@ -398,7 +367,6 @@ export type MatchSideRow = typeof matchSides.$inferSelect;
 export type MatchParticipantRow = typeof matchParticipants.$inferSelect;
 export type PointEventRow = typeof pointEvents.$inferSelect;
 export type TeamRow = typeof teams.$inferSelect;
-export type TeamMoveRow = typeof teamMoves.$inferSelect;
 export type TeamPointEventRow = typeof teamPointEvents.$inferSelect;
 export type NotificationRow = typeof notifications.$inferSelect;
 export type PushSubscriptionRow = typeof pushSubscriptions.$inferSelect;

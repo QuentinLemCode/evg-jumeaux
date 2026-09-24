@@ -7,7 +7,7 @@
  * then delegates the decision to the state machine via `applyMatchAction`.
  * None of them writes `matches.status` themselves (AGENTS.md §5).
  */
-import { and, eq, inArray, ne, sql } from 'drizzle-orm';
+import { and, eq, inArray, isNull, ne, sql } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
@@ -67,6 +67,25 @@ function resolveClashSides(
   assignments: Assignment[],
   creatorId: string,
 ): { ok: true; teamNames: Map<number, string> } | { ok: false; message: string } {
+  // Nobody may be left out of the set piece: its sides are the two teams in
+  // full, and a player nobody has placed belongs to neither. The refusal
+  // counts them, because "not yet" is useless without "waiting on three
+  // people" (spec 0017, rule 6).
+  const unplaced = tx
+    .select({ id: users.id })
+    .from(users)
+    .where(isNull(users.teamId))
+    .all();
+  if (unplaced.length > 0) {
+    return {
+      ok: false,
+      message:
+        unplaced.length === 1
+          ? '1 joueur n’a pas encore d’équipe'
+          : `${unplaced.length} joueurs n’ont pas encore d’équipe`,
+    };
+  }
+
   if (!assignments.some((a) => a.userId === creatorId)) {
     return { ok: false, message: 'Tu ne fais partie d’aucune des deux équipes' };
   }

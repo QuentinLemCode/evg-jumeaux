@@ -178,16 +178,6 @@ export const TeamIcon = svg(
   </>,
 );
 
-/** A swap, for a player moved from one team to the other. */
-export const SwapIcon = svg(
-  <>
-    <path d="M4 8.5h13" />
-    <path d="M13.5 5 17 8.5 13.5 12" />
-    <path d="M20 15.5H7" />
-    <path d="M10.5 12 7 15.5 10.5 19" />
-  </>,
-);
-
 export const BackspaceIcon = svg(
   <>
     <path d="M9 5h10a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9L3 12l6-7Z" />

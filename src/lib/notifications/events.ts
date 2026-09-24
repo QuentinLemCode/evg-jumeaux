@@ -17,7 +17,8 @@ export type NotificationType =
   | 'match_cancelled'
   | 'dispute_resolved'
   | 'clash_started'
-  | 'clash_finished';
+  | 'clash_finished'
+  | 'team_assigned';
 
 export type NotificationIntent = {
   userId: string;
@@ -60,6 +61,31 @@ export type NotificationEvent =
 
 function matchUrl(matchId: string): string {
   return `/matches/${matchId}`;
+}
+
+/**
+ * The players the app placed itself, told which team they are in
+ * (spec 0017, rule 15).
+ *
+ * Its own builder, because it is the one notification that is not about a
+ * match: there is no game, no icon and no side, so `NotifyContext` has
+ * nothing to offer it. It links to the team screen, where the answer to
+ * "who am I with?" actually lives.
+ *
+ * The player whose choice filled the team is not in this list — the caller
+ * excludes them, because they caused the event (spec 0006, rule 9).
+ */
+export function buildTeamAssignedNotifications(
+  assigned: { userId: string; teamName: string }[],
+): NotificationIntent[] {
+  return assigned.map(({ userId, teamName }) => ({
+    userId,
+    type: 'team_assigned' as const,
+    title: `Tu joues dans l’${teamName}`,
+    body: 'L’autre équipe est complète, alors on t’a placé. Bonne chance.',
+    url: '/teams',
+    matchId: null,
+  }));
 }
 
 export function buildNotifications(

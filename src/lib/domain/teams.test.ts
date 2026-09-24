@@ -7,7 +7,9 @@ import {
   computeTeamReversals,
   joinBlockedReason,
   opposingTeams,
+  playersSweptUpBy,
   rankTeamStandings,
+  teamCapacity,
   teamChoiceOptions,
   type TeamAwardInput,
   type TeamSize,
@@ -56,54 +58,115 @@ function duel(overrides: Partial<TeamAwardInput> = {}): TeamAwardInput {
   };
 }
 
-describe('canJoinTeam — the balance rule (rule 12)', () => {
-  it('offers both teams when they are level', () => {
-    expect(canJoinTeam(JULIEN, sizes(1, 1))).toBe(true);
-    expect(canJoinTeam(PIERRE, sizes(1, 1))).toBe(true);
-  });
-
-  it('refuses the team that is already a player ahead', () => {
-    expect(canJoinTeam(JULIEN, sizes(2, 1))).toBe(false);
-    expect(canJoinTeam(PIERRE, sizes(2, 1))).toBe(true);
+describe('teamCapacity (rule 12)', () => {
+  it('is half the roster, rounded up', () => {
+    expect(teamCapacity(15)).toBe(8);
+    expect(teamCapacity(16)).toBe(8);
+    expect(teamCapacity(9)).toBe(5);
   });
 
   /**
-   * The shape of the concurrency case (rule 13). Two players choosing while
-   * level both see both buttons; the first one through the transaction makes
-   * the count 2-1, and the second is then refused BY THIS FUNCTION — which is
-   * why counting and writing have to happen inside one transaction.
+   * Why rounded up rather than down: the pair has to be exhaustive. When one
+   * team fills, the other must hold exactly everybody left over — one seat
+   * too few and rule 13 would have nowhere to put somebody.
    */
-  it('refuses the second of two choices made at level pegging', () => {
-    const level = sizes(1, 1);
-    expect(canJoinTeam(JULIEN, level)).toBe(true);
-    // …the first choice lands, and the counts are re-read:
-    expect(canJoinTeam(JULIEN, sizes(2, 1))).toBe(false);
-  });
-
-  it('refuses a team that does not exist', () => {
-    expect(canJoinTeam('team-ghost', sizes(1, 1))).toBe(false);
+  it('leaves the other team room for exactly everybody else', () => {
+    for (const total of [2, 9, 14, 15, 16, 31]) {
+      expect(teamCapacity(total) + Math.floor(total / 2)).toBe(total);
+    }
   });
 });
 
-describe('joinBlockedReason (rule 14)', () => {
-  it('says nothing when the team can be joined', () => {
-    expect(joinBlockedReason(JULIEN, sizes(1, 1))).toBeNull();
+describe('canJoinTeam — the cap (rule 12)', () => {
+  const CAP = 8;
+
+  it('lets a player join either team while both have room', () => {
+    // Explicitly including the team that is ahead: below the cap the choice
+    // is the player's, not the arithmetic's.
+    expect(canJoinTeam(JULIEN, sizes(7, 2), CAP)).toBe(true);
+    expect(canJoinTeam(PIERRE, sizes(7, 2), CAP)).toBe(true);
   });
 
-  it('names the team and the one to join instead', () => {
-    expect(joinBlockedReason(JULIEN, sizes(2, 1))).toBe(
-      'Équipe Julien a déjà un joueur d’avance — rejoins Équipe Pierre.',
+  it('refuses a full team', () => {
+    expect(canJoinTeam(JULIEN, sizes(8, 2), CAP)).toBe(false);
+    expect(canJoinTeam(PIERRE, sizes(8, 2), CAP)).toBe(true);
+  });
+
+  /**
+   * The shape of the concurrency case (rule 14). Two players aiming at the
+   * last slot both see it open; the first one through the transaction makes
+   * the count 8, and the second is then refused BY THIS FUNCTION — which is
+   * why reading and writing have to happen inside one transaction.
+   */
+  it('refuses the second of two players taking the last slot', () => {
+    expect(canJoinTeam(JULIEN, sizes(7, 3), CAP)).toBe(true);
+    expect(canJoinTeam(JULIEN, sizes(8, 3), CAP)).toBe(false);
+  });
+
+  it('refuses a team that does not exist', () => {
+    expect(canJoinTeam('team-ghost', sizes(1, 1), CAP)).toBe(false);
+  });
+});
+
+describe('joinBlockedReason (rule 16)', () => {
+  it('says nothing when the team can be joined', () => {
+    expect(joinBlockedReason(JULIEN, sizes(7, 1), 8)).toBeNull();
+  });
+
+  it('names the full team and the one to join instead', () => {
+    expect(joinBlockedReason(JULIEN, sizes(8, 1), 8)).toBe(
+      'Équipe Julien est complète — rejoins Équipe Pierre.',
     );
   });
 });
 
 describe('teamChoiceOptions', () => {
-  it('always returns both teams, one of them disabled with its reason', () => {
-    const options = teamChoiceOptions(sizes(2, 1));
+  it('always returns both teams, the full one disabled with its reason', () => {
+    const options = teamChoiceOptions(sizes(8, 1), 8);
     expect(options).toHaveLength(2);
     expect(options.map((option) => option.joinable)).toEqual([false, true]);
-    expect(options[0]?.blockedReason).toContain('un joueur d’avance');
+    expect(options[0]?.blockedReason).toContain('est complète');
     expect(options[1]?.blockedReason).toBeNull();
+  });
+});
+
+describe('playersSweptUpBy (rule 13)', () => {
+  const unplaced = ['dave', 'erin', 'frank'];
+
+  it('places everybody left the moment a choice fills a team', () => {
+    const sweep = playersSweptUpBy({
+      chosen: { teamId: JULIEN, name: 'Équipe Julien', memberCount: 7 },
+      other: { teamId: PIERRE, name: 'Équipe Pierre', memberCount: 4 },
+      capacity: 8,
+      unplaced,
+    });
+    expect(sweep).toEqual({
+      teamId: PIERRE,
+      teamName: 'Équipe Pierre',
+      userIds: unplaced,
+    });
+  });
+
+  it('places nobody while the team still has room', () => {
+    expect(
+      playersSweptUpBy({
+        chosen: { teamId: JULIEN, name: 'Équipe Julien', memberCount: 6 },
+        other: { teamId: PIERRE, name: 'Équipe Pierre', memberCount: 4 },
+        capacity: 8,
+        unplaced,
+      }),
+    ).toBeNull();
+  });
+
+  it('places nobody when the filling choice was the last one owed', () => {
+    expect(
+      playersSweptUpBy({
+        chosen: { teamId: JULIEN, name: 'Équipe Julien', memberCount: 7 },
+        other: { teamId: PIERRE, name: 'Équipe Pierre', memberCount: 7 },
+        capacity: 8,
+        unplaced: [],
+      }),
+    ).toBeNull();
   });
 });
 

@@ -24,7 +24,6 @@ type Modules = {
   db: typeof import('@/db').db;
   schema: typeof import('@/db/schema');
   chooseTeam: typeof import('./membership').chooseTeam;
-  movePlayerToTeam: typeof import('./membership').movePlayerToTeam;
   applyMatchAction: typeof import('@/lib/matches/apply').applyMatchAction;
   getTeamStandings: typeof import('@/lib/queries/teams').getTeamStandings;
   getStandings: typeof import('@/lib/queries/leaderboard').getStandings;
@@ -62,7 +61,6 @@ beforeAll(async () => {
     db: dbModule.db,
     schema: await import('@/db/schema'),
     chooseTeam: (await import('./membership')).chooseTeam,
-    movePlayerToTeam: (await import('./membership')).movePlayerToTeam,
     applyMatchAction: (await import('@/lib/matches/apply')).applyMatchAction,
     getTeamStandings: (await import('@/lib/queries/teams')).getTeamStandings,
     getStandings: (await import('@/lib/queries/leaderboard')).getStandings,
@@ -116,103 +114,59 @@ afterAll(() => {
   rmSync(workdir, { recursive: true, force: true });
 });
 
+/**
+ * Five players, so a team is full at three: `ceil(5 / 2)` (rule 12). The cap
+ * is derived, so the fixture does not have to be fifteen people to exercise
+ * the rule that matters.
+ */
 describe('choosing a team', () => {
+  it('lets a player join while both teams have room', () => {
+    // Julien: alice. Pierre: bob. Nobody is ahead, and below the cap the
+    // choice is the player's either way.
+    expect(m.chooseTeam('carol', JULIEN)).toEqual({ ok: true, assigned: [] });
+  });
+
   /**
-   * The criterion the spec insists is asserted against the TRANSACTION and
-   * not in a browser: two choices made from level pegging leave the teams one
-   * apart, never two. The second one reads the count the first one wrote,
-   * because reading and writing are the same transaction.
+   * Rules 13-14, and the criterion the spec insists is asserted against the
+   * TRANSACTION rather than in a browser. Dave's choice is the one that fills
+   * Julien, and in the same transaction it places Erin — the only player
+   * left — in Pierre. Two players cannot both take that last slot, because
+   * the second one reads the count the first one wrote.
    */
-  it('leaves the teams one apart when two players choose while level', () => {
-    expect(m.chooseTeam('carol', JULIEN)).toEqual({ ok: true });
-    // Dave aims at the same team, which is now a player ahead.
+  it('places everybody left the moment a choice fills a team', async () => {
     expect(m.chooseTeam('dave', JULIEN)).toEqual({
+      ok: true,
+      assigned: [{ userId: 'erin', teamId: PIERRE, teamName: 'Équipe Pierre' }],
+    });
+
+    // Three, which is the cap — never four.
+    const standings = await m.getTeamStandings();
+    expect(standings.find((team) => team.teamId === JULIEN)?.playerCount).toBe(3);
+    expect(standings.find((team) => team.teamId === PIERRE)?.playerCount).toBe(2);
+  });
+
+  it('refuses the player it just placed, because the choice is final', () => {
+    // Erin never chose, and still cannot choose now (rule 17).
+    expect(m.chooseTeam('erin', JULIEN).ok).toBe(false);
+    expect(m.chooseTeam('carol', PIERRE).ok).toBe(false);
+  });
+
+  /**
+   * A full team is normally unreachable by then — the sweep leaves nobody to
+   * face one. It becomes reachable when a guest is added to the roster after
+   * the fact, which is exactly when a forged request would find it: the
+   * screen would show the button disabled, and the action must refuse it
+   * regardless.
+   */
+  it('refuses a full team even when nothing on screen offered it', async () => {
+    await m.db.insert(m.schema.users).values(player('late', null));
+
+    // Six players now, so the cap is still three, and Julien is at it.
+    expect(m.chooseTeam('late', JULIEN)).toEqual({
       ok: false,
       message: 'Quelqu’un vient de rejoindre cette équipe. Prends l’autre.',
     });
-    expect(m.chooseTeam('dave', PIERRE)).toEqual({ ok: true });
-  });
-
-  it('refuses a second choice from the same player', () => {
-    const result = m.chooseTeam('carol', PIERRE);
-    expect(result.ok).toBe(false);
-  });
-
-  it('writes no team_moves row for a player choosing for themselves', async () => {
-    const rows = await m.db.select().from(m.schema.teamMoves);
-    expect(rows).toHaveLength(0);
-  });
-});
-
-describe('an admin moving a player', () => {
-  it('records the move, both teams and the reason', async () => {
-    expect(
-      m.movePlayerToTeam({
-        userId: 'carol',
-        teamId: PIERRE,
-        reason: 'Arrivée samedi, équipe en sous-effectif',
-        movedBy: 'alice',
-        now: NOW + 1,
-      }),
-    ).toEqual({ ok: true });
-
-    const rows = await m.db.select().from(m.schema.teamMoves);
-    expect(rows).toHaveLength(1);
-    expect(rows[0]).toMatchObject({
-      userId: 'carol',
-      fromTeamId: JULIEN,
-      toTeamId: PIERRE,
-      movedBy: 'alice',
-    });
-  });
-
-  it('may leave the teams two apart, where a choice may not', async () => {
-    // Julien: alice. Pierre: bob, dave, carol. Moving Erin makes it 1 v 4.
-    expect(
-      m.movePlayerToTeam({
-        userId: 'erin',
-        teamId: PIERRE,
-        reason: 'Joue avec ses potes',
-        movedBy: 'alice',
-        now: NOW + 2,
-      }),
-    ).toEqual({ ok: true });
-
-    const standings = await m.getTeamStandings();
-    const pierre = standings.find((team) => team.teamId === PIERRE);
-    expect(pierre?.playerCount).toBe(4);
-  });
-
-  it('refuses to move a captain', () => {
-    const result = m.movePlayerToTeam({
-      userId: 'bob',
-      teamId: JULIEN,
-      reason: 'Pour voir',
-      movedBy: 'alice',
-      now: NOW + 3,
-    });
-    expect(result).toEqual({ ok: false, message: 'Un capitaine ne quitte pas son équipe' });
-  });
-
-  it('moves no point, and both moves show in the admin log with a delta of 0', async () => {
-    const points = await m.db.select().from(m.schema.pointEvents);
-    expect(points).toHaveLength(0);
-
-    const entries = await m.listAdminLog('team_move');
-    expect(entries).toHaveLength(2);
-    expect(entries.every((entry) => entry.points === 0)).toBe(true);
-  });
-
-  it('shows two successive moves of the same player', async () => {
-    m.movePlayerToTeam({
-      userId: 'carol',
-      teamId: JULIEN,
-      reason: 'Retour chez les siens',
-      movedBy: 'alice',
-      now: NOW + 4,
-    });
-    const entries = await m.listAdminLog('team_move');
-    expect(entries.filter((entry) => entry.targetUserId === 'carol')).toHaveLength(2);
+    expect(m.chooseTeam('late', PIERRE)).toEqual({ ok: true, assigned: [] });
   });
 });
 
@@ -260,7 +214,7 @@ describe('what a match pays a team', () => {
   }
 
   it('pays the winning team once, and the winner in full', async () => {
-    // Carol is back on Julien; Bob captains Pierre.
+    // Carol chose Julien; Bob captains Pierre.
     await playMatch({ id: 'match-across', left: 'carol', right: 'bob', at: NOW + 10 });
 
     const standings = await m.getTeamStandings();
@@ -302,7 +256,8 @@ describe('what a match pays a team', () => {
   });
 
   it('pays no team when the two players share one', async () => {
-    await playMatch({ id: 'match-inside', left: 'bob', right: 'dave', at: NOW + 20 });
+    // Bob and Erin are both Pierre: Erin was placed there by the sweep.
+    await playMatch({ id: 'match-inside', left: 'bob', right: 'erin', at: NOW + 20 });
 
     const rows = await m.db.select().from(m.schema.teamPointEvents);
     expect(rows.some((row) => row.matchId === 'match-inside')).toBe(false);
@@ -368,9 +323,8 @@ describe('a clash', () => {
       updatedAt: AT,
     });
 
-    // Julien: alice, carol. Pierre: bob, dave, erin. Created the way
-    // `createMatch` creates one: active at once, everybody accepted, and the
-    // teams recorded on the sides.
+    // Julien: alice, carol, dave. Pierre: bob, erin, late. Created the way
+    // `createMatch` creates one: active at once and everybody accepted.
     await m.db.insert(matches).values({
       id: CLASH_ID,
       gameId: 'game-clash',
@@ -392,15 +346,16 @@ describe('a clash', () => {
     await m.db.insert(matchParticipants).values([
       { matchId: CLASH_ID, userId: 'alice', sideIndex: 1, invitationStatus: 'accepted', respondedAt: AT },
       { matchId: CLASH_ID, userId: 'carol', sideIndex: 1, invitationStatus: 'accepted', respondedAt: AT },
+      { matchId: CLASH_ID, userId: 'dave', sideIndex: 1, invitationStatus: 'accepted', respondedAt: AT },
       { matchId: CLASH_ID, userId: 'bob', sideIndex: 2, invitationStatus: 'accepted', respondedAt: AT },
-      { matchId: CLASH_ID, userId: 'dave', sideIndex: 2, invitationStatus: 'accepted', respondedAt: AT },
       { matchId: CLASH_ID, userId: 'erin', sideIndex: 2, invitationStatus: 'accepted', respondedAt: AT },
+      { matchId: CLASH_ID, userId: 'late', sideIndex: 2, invitationStatus: 'accepted', respondedAt: AT },
     ]);
   });
 
   it('makes nobody busy, so the evening carries on around it', async () => {
     const busy = await m.getBusyUserIds(AT);
-    for (const player of ['alice', 'carol', 'bob', 'dave', 'erin']) {
+    for (const player of ['alice', 'carol', 'dave', 'bob', 'erin', 'late']) {
       expect(busy.has(player), `${player} should be free`).toBe(false);
     }
   });
@@ -437,6 +392,7 @@ describe('a clash', () => {
     expect(busy.has('alice')).toBe(false);
     expect(busy.has('bob')).toBe(false);
     expect(busy.has('erin')).toBe(false);
+    expect(busy.has('late')).toBe(false);
   });
 
   it('pays its winning team once when it settles', async () => {

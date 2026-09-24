@@ -1,24 +1,43 @@
 /**
- * Joining a team, and being moved between them (spec 0017, rules 11-18).
+ * Joining a team (spec 0017, rules 11-17).
  *
- * Not a Server Action file on purpose: the two writes below are the part that
- * has to be right, and a `'use server'` module cannot be driven from a test.
- * `src/lib/actions/teams.ts` is the thin authenticated wrapper over these.
+ * Not a Server Action file on purpose: the write below is the part that has
+ * to be right, and a `'use server'` module cannot be driven from a test.
+ * `src/lib/actions/teams.ts` is the thin authenticated wrapper over it.
  *
- * Both run in ONE transaction, and that is the whole design:
+ * There is exactly one write here, and there will never be a second: the
+ * choice is final (rule 17). Nobody moves a player afterwards — not the
+ * player, not an admin — so a team's composition cannot drift once it is set,
+ * and the settlement of a clash can re-derive from membership safely.
  *
- *   counting the teams and writing the choice cannot be two statements, or two
- *   players choosing while level both pass the check, both join the same team,
- *   and leave a gap of two that rule 12 can never close.
+ * Everything it does happens in ONE transaction (rule 14):
+ *
+ *   reading the sizes, writing the choice, and placing whoever is left when
+ *   that choice fills a team. Split them and two players aiming at the last
+ *   slot both pass the check, and the team ends up nine.
  */
-import { eq } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 
 import { db, type Tx } from '@/db';
-import { teamMoves, teams, users } from '@/db/schema';
-import { canJoinTeam, type TeamSize } from '@/lib/domain/teams';
+import { users } from '@/db/schema';
+import {
+  canJoinTeam,
+  playersSweptUpBy,
+  teamCapacity,
+  type TeamSize,
+} from '@/lib/domain/teams';
 import { teamSizeQuery } from '@/lib/queries/teams';
 
-export type MembershipResult = { ok: true } | { ok: false; message: string };
+/** One player the app placed rather than asked (rule 13). */
+export type TeamAssignment = {
+  userId: string;
+  teamId: string;
+  teamName: string;
+};
+
+export type ChoiceResult =
+  | { ok: true; assigned: TeamAssignment[] }
+  | { ok: false; message: string };
 
 /**
  * Every team with its current size, read INSIDE the caller's transaction —
@@ -36,33 +55,39 @@ export function teamSizes(tx: Tx): TeamSize[] {
 }
 
 /**
- * A player joining a team of their own accord (rules 11-14).
+ * A player joining a team of their own accord (rules 11-14), and the
+ * assignment that may follow it.
  *
- * Writes no `team_moves` row: only an admin's move is an intervention, and
- * only interventions belong in the public log (rule 16).
+ * Returns whom it placed, so the caller can tell them (rule 15). It does not
+ * notify anybody itself: that is network I/O, and it must not hold a write
+ * lock or be able to roll back a choice somebody just made.
  */
-export function chooseTeam(userId: string, teamId: string): MembershipResult {
-  return db.transaction((tx): MembershipResult => {
-    const me = tx
+export function chooseTeam(userId: string, teamId: string): ChoiceResult {
+  return db.transaction((tx): ChoiceResult => {
+    // The whole roster, because the cap is derived from its size (rule 12)
+    // and because whoever is left unplaced is read from the same snapshot.
+    const roster = tx
       .select({ id: users.id, teamId: users.teamId })
       .from(users)
-      .where(eq(users.id, userId))
-      .get();
+      .all();
+
+    const me = roster.find((player) => player.id === userId);
     if (!me) return { ok: false, message: 'Joueur inconnu' };
-    // Rule 14: a player cannot change team once chosen. Only an admin can.
+    // Rule 17: the choice is final, for everybody, with no exception to grant.
     if (me.teamId !== null) {
-      return { ok: false, message: 'Tu as déjà une équipe — seul un admin peut te déplacer' };
+      return { ok: false, message: 'Tu as déjà une équipe, et le choix est définitif' };
     }
 
     const sizes = teamSizes(tx);
-    if (!sizes.some((team) => team.teamId === teamId)) {
-      return { ok: false, message: 'Cette équipe n’existe pas' };
-    }
+    const chosen = sizes.find((team) => team.teamId === teamId);
+    if (!chosen) return { ok: false, message: 'Cette équipe n’existe pas' };
+
+    const capacity = teamCapacity(roster.length);
 
     // Re-checked HERE, inside the transaction, and not merely in the screen
-    // that hid the button: hiding a button is presentation, not
+    // that disabled the button: hiding a control is presentation, never
     // authorisation (spec 0017, Authorisation).
-    if (!canJoinTeam(teamId, sizes)) {
+    if (!canJoinTeam(teamId, sizes, capacity)) {
       return {
         ok: false,
         message: 'Quelqu’un vient de rejoindre cette équipe. Prends l’autre.',
@@ -70,68 +95,35 @@ export function chooseTeam(userId: string, teamId: string): MembershipResult {
     }
 
     tx.update(users).set({ teamId }).where(eq(users.id, userId)).run();
-    return { ok: true };
-  });
-}
 
-/**
- * An admin moving — or assigning — a player (rules 15-18).
- *
- * Exempt from the balance rule: this is the tool for fixing a split that
- * attendance, not choice, made lopsided (rule 17). It carries no points
- * either: the player keeps theirs and the old team keeps what it earned
- * (rule 18).
- */
-export function movePlayerToTeam(input: {
-  userId: string;
-  teamId: string;
-  reason: string;
-  movedBy: string;
-  now?: number;
-}): MembershipResult {
-  const now = input.now ?? Date.now();
-  return db.transaction((tx): MembershipResult => {
-    const target = tx
-      .select({ id: users.id, teamId: users.teamId })
-      .from(users)
-      .where(eq(users.id, input.userId))
-      .get();
-    if (!target) return { ok: false, message: 'Joueur inconnu' };
+    const other = sizes.find((team) => team.teamId !== teamId);
+    if (!other) return { ok: true, assigned: [] };
 
-    const destination = tx
-      .select({ id: teams.id })
-      .from(teams)
-      .where(eq(teams.id, input.teamId))
-      .get();
-    if (!destination) return { ok: false, message: 'Cette équipe n’existe pas' };
+    const sweep = playersSweptUpBy({
+      chosen,
+      other,
+      capacity,
+      unplaced: roster
+        .filter((player) => player.teamId === null && player.id !== userId)
+        .map((player) => player.id),
+    });
+    if (!sweep) return { ok: true, assigned: [] };
 
-    // A captain is seeded onto their own team and cannot leave it, by
-    // themselves or by an admin (rule 9).
-    const captained = tx
-      .select({ id: teams.id })
-      .from(teams)
-      .where(eq(teams.captainId, input.userId))
-      .get();
-    if (captained) {
-      return { ok: false, message: 'Un capitaine ne quitte pas son équipe' };
-    }
-
-    if (target.teamId === input.teamId) {
-      return { ok: false, message: 'Ce joueur est déjà dans cette équipe' };
-    }
-
-    tx.insert(teamMoves)
-      .values({
-        id: crypto.randomUUID(),
-        userId: input.userId,
-        fromTeamId: target.teamId,
-        toTeamId: input.teamId,
-        reason: input.reason,
-        movedBy: input.movedBy,
-        createdAt: now,
-      })
+    // The same transaction: this choice and these placements are one event,
+    // and a crash between them would leave a full team beside players nobody
+    // ever placed (rule 14).
+    tx.update(users)
+      .set({ teamId: sweep.teamId })
+      .where(inArray(users.id, sweep.userIds))
       .run();
-    tx.update(users).set({ teamId: input.teamId }).where(eq(users.id, input.userId)).run();
-    return { ok: true };
+
+    return {
+      ok: true,
+      assigned: sweep.userIds.map((placed) => ({
+        userId: placed,
+        teamId: sweep.teamId,
+        teamName: sweep.teamName,
+      })),
+    };
   });
 }

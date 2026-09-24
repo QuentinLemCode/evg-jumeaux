@@ -5,8 +5,8 @@ import { Card } from '@/components/ui/Card';
 import { TeamIcon } from '@/components/ui/Icon';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { requireUser } from '@/lib/auth/guards';
-import { teamChoiceOptions } from '@/lib/domain/teams';
-import { getPlayerTeam, listTeams } from '@/lib/queries/teams';
+import { teamCapacity, teamChoiceOptions } from '@/lib/domain/teams';
+import { countPlayers, getPlayerTeam, listTeams } from '@/lib/queries/teams';
 import { safeDestination } from '@/lib/request-path';
 
 export const dynamic = 'force-dynamic';
@@ -28,7 +28,14 @@ export default async function TeamChoicePage({
   const me = await requireUser('/team-choice');
   const destination = safeDestination(next) ?? '/leaderboard';
 
-  const [mine, teams] = await Promise.all([getPlayerTeam(me.id), listTeams()]);
+  const [mine, teams, totalPlayers] = await Promise.all([
+    getPlayerTeam(me.id),
+    listTeams(),
+    countPlayers(),
+  ]);
+  // Derived from the roster, never written down: a team is full at half of it
+  // (spec 0017, rule 12).
+  const capacity = teamCapacity(totalPlayers);
 
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center px-5 py-10">
@@ -54,7 +61,7 @@ export default async function TeamChoicePage({
             <p className="mt-3 text-sm leading-snug text-muted">
               {mine.isCaptain
                 ? 'Un capitaine reste dans son équipe tout le week-end.'
-                : 'On ne change pas d’équipe en cours de route. Un admin peut le faire, avec un motif, et ça se voit dans le journal.'}
+                : 'Le choix était définitif : on ne change pas d’équipe, et personne ne peut te déplacer.'}
             </p>
           </Card>
 
@@ -68,10 +75,10 @@ export default async function TeamChoicePage({
         <>
           <PageHeader
             title="Choisis ton camp"
-            subtitle="Une équipe pour tout le week-end. On ne peut pas en changer après."
+            subtitle="Une équipe pour tout le week-end, et on n’en change pas."
           />
           <TeamChoice
-            teams={teamChoiceOptions(teams).map((option) => {
+            teams={teamChoiceOptions(teams, capacity).map((option) => {
               const team = teams.find((entry) => entry.teamId === option.teamId);
               return {
                 ...option,
@@ -82,8 +89,8 @@ export default async function TeamChoicePage({
             next={destination}
           />
           <p className="mt-6 text-center text-xs text-faint">
-            Les deux équipes restent à un joueur près : si l’une prend de
-            l’avance, elle attend.
+            Une équipe est complète à {capacity} joueurs. Quand la première se
+            remplit, tous les indécis rejoignent l’autre.
           </p>
         </>
       )}

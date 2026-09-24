@@ -98,6 +98,16 @@ export async function listTeams(): Promise<TeamOption[]> {
   return rows.map((row) => ({ ...row, memberCount: Number(row.memberCount) }));
 }
 
+/**
+ * How many players the weekend has. The cap on a team is half of it, rounded
+ * up (rule 12) — derived from the roster rather than written down, because
+ * the next weekend will not have fifteen.
+ */
+export async function countPlayers(): Promise<number> {
+  const rows = await db.select({ count: sql<number>`count(*)` }).from(users);
+  return Number(rows[0]?.count ?? 0);
+}
+
 /** A player's team, for the gate and for their profile (rules 11 and 30). */
 export async function getPlayerTeam(userId: string): Promise<PlayerTeam | null> {
   const rows = await db
@@ -230,37 +240,6 @@ export async function getTeamStandings(): Promise<TeamStanding[]> {
   });
 
   return rankTeamStandings(standings);
-}
-
-export type PlayerWithTeam = {
-  id: string;
-  name: string;
-  teamId: string | null;
-  teamName: string | null;
-  isCaptain: boolean;
-};
-
-/** The roster with each player's team, for the admin's move form (rule 15). */
-export async function listPlayersWithTeams(): Promise<PlayerWithTeam[]> {
-  const rows = await db
-    .select({
-      id: users.id,
-      name: users.name,
-      teamId: users.teamId,
-      teamName: teams.name,
-      captainId: teams.captainId,
-    })
-    .from(users)
-    .leftJoin(teams, eq(teams.id, users.teamId))
-    .orderBy(asc(users.name));
-
-  return rows.map((row) => ({
-    id: row.id,
-    name: row.name,
-    teamId: row.teamId,
-    teamName: row.teamName ?? null,
-    isCaptain: row.captainId === row.id,
-  }));
 }
 
 export type ClashMember = {

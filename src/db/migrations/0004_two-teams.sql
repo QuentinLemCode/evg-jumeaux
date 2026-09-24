@@ -1,19 +1,3 @@
-CREATE TABLE `team_moves` (
-	`id` text PRIMARY KEY NOT NULL,
-	`user_id` text NOT NULL,
-	`from_team_id` text,
-	`to_team_id` text NOT NULL,
-	`reason` text NOT NULL,
-	`moved_by` text NOT NULL,
-	`created_at` integer NOT NULL,
-	FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE no action,
-	FOREIGN KEY (`from_team_id`) REFERENCES `teams`(`id`) ON UPDATE no action ON DELETE no action,
-	FOREIGN KEY (`to_team_id`) REFERENCES `teams`(`id`) ON UPDATE no action ON DELETE no action,
-	FOREIGN KEY (`moved_by`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE no action
-);
---> statement-breakpoint
-CREATE INDEX `team_moves_user_idx` ON `team_moves` (`user_id`);--> statement-breakpoint
-CREATE INDEX `team_moves_created_at_idx` ON `team_moves` (`created_at`);--> statement-breakpoint
 CREATE TABLE `team_point_events` (
 	`id` text PRIMARY KEY NOT NULL,
 	`team_id` text NOT NULL,
