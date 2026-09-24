@@ -29,6 +29,7 @@ type Modules = {
   getTeamStandings: typeof import('@/lib/queries/teams').getTeamStandings;
   getStandings: typeof import('@/lib/queries/leaderboard').getStandings;
   listAdminLog: typeof import('@/lib/queries/admin-log').listAdminLog;
+  getBusyUserIds: typeof import('@/lib/queries/roster').getBusyUserIds;
 };
 
 let m: Modules;
@@ -66,12 +67,13 @@ beforeAll(async () => {
     getTeamStandings: (await import('@/lib/queries/teams')).getTeamStandings,
     getStandings: (await import('@/lib/queries/leaderboard')).getStandings,
     listAdminLog: (await import('@/lib/queries/admin-log')).listAdminLog,
+    getBusyUserIds: (await import('@/lib/queries/roster')).getBusyUserIds,
   };
 
   const { users, teams, games } = m.schema;
 
   // The two teams come from the MIGRATION, with a null captain, against an
-  // empty `users` table — which is the point of doing it there (rule 7).
+  // empty `users` table — which is the point of doing it there (rule 8).
   const seeded = await m.db.select().from(teams);
   expect(seeded.map((team) => team.id).sort()).toEqual([JULIEN, PIERRE]);
   expect(seeded.every((team) => team.captainId === null)).toBe(true);
@@ -276,7 +278,7 @@ describe('what a match pays a team', () => {
 
   it('writes one row per (match, team, type), however often it is awarded', async () => {
     // Awarding twice is what a retry or a double submission looks like. The
-    // unique index is the guarantee, not the caller's care (rule 21) — this
+    // unique index is the guarantee, not the caller's care (rule 22) — this
     // is the same insert `applyEffects` performs, run a second time.
     await m.db
       .insert(m.schema.teamPointEvents)
@@ -320,14 +322,141 @@ describe('what a match pays a team', () => {
       .select()
       .from(m.schema.teamPointEvents);
     const forMatch = rows.filter((row) => row.matchId === 'match-across');
-    // Both rows stay: the history shows the award and its reversal (rule 22).
+    // Both rows stay: the history shows the award and its reversal (rule 23).
     expect(forMatch).toHaveLength(2);
     expect(forMatch.reduce((sum, row) => sum + row.points, 0)).toBe(0);
 
     const standings = await m.getTeamStandings();
     const julien = standings.find((team) => team.teamId === JULIEN);
     expect(julien?.points).toBe(0);
-    // And the win goes with the points (rule 28).
+    // And the win goes with the points (rule 29).
     expect(julien?.matchesWon).toBe(0);
+  });
+});
+
+/**
+ * The clash, which runs alongside everything else (spec 0017, rule 6).
+ *
+ * This needs a database: the busy carve-out is a join to `games`, and no pure
+ * function can be wrong about a join that is not there.
+ */
+describe('a clash', () => {
+  const CLASH_ID = 'match-clash';
+  const DUEL_ID = 'match-duel-parallel';
+  const AT = NOW + 100;
+
+  beforeAll(async () => {
+    const { games, matches, matchSides, matchParticipants } = m.schema;
+
+    await m.db.insert(games).values({
+      id: 'game-clash',
+      slug: 'le-grand-match',
+      name: 'Le grand match',
+      description: null,
+      icon: '🏆',
+      mode: 'clash',
+      sidesCount: 2,
+      playersPerSide: 1,
+      pointsPerWin: 25,
+      marginBonusEnabled: false,
+      marginBonusPerPoint: 0,
+      marginBonusCap: null,
+      requiresScore: false,
+      isActive: true,
+      createdBy: 'alice',
+      createdAt: AT,
+      updatedAt: AT,
+    });
+
+    // Julien: alice, carol. Pierre: bob, dave, erin. Created the way
+    // `createMatch` creates one: active at once, everybody accepted, and the
+    // teams recorded on the sides.
+    await m.db.insert(matches).values({
+      id: CLASH_ID,
+      gameId: 'game-clash',
+      createdBy: 'alice',
+      status: 'active',
+      invitationExpiresAt: AT + 5 * 60_000,
+      rulePointsPerWin: 25,
+      ruleMarginBonusPerPoint: 0,
+      ruleMarginBonusCap: null,
+      ruleRequiresScore: false,
+      winningSide: null,
+      createdAt: AT,
+      updatedAt: AT,
+    });
+    await m.db.insert(matchSides).values([
+      { matchId: CLASH_ID, sideIndex: 1, label: 'Équipe Julien', score: null, validatedAt: null, validatedBy: null },
+      { matchId: CLASH_ID, sideIndex: 2, label: 'Équipe Pierre', score: null, validatedAt: null, validatedBy: null },
+    ]);
+    await m.db.insert(matchParticipants).values([
+      { matchId: CLASH_ID, userId: 'alice', sideIndex: 1, invitationStatus: 'accepted', respondedAt: AT },
+      { matchId: CLASH_ID, userId: 'carol', sideIndex: 1, invitationStatus: 'accepted', respondedAt: AT },
+      { matchId: CLASH_ID, userId: 'bob', sideIndex: 2, invitationStatus: 'accepted', respondedAt: AT },
+      { matchId: CLASH_ID, userId: 'dave', sideIndex: 2, invitationStatus: 'accepted', respondedAt: AT },
+      { matchId: CLASH_ID, userId: 'erin', sideIndex: 2, invitationStatus: 'accepted', respondedAt: AT },
+    ]);
+  });
+
+  it('makes nobody busy, so the evening carries on around it', async () => {
+    const busy = await m.getBusyUserIds(AT);
+    for (const player of ['alice', 'carol', 'bob', 'dave', 'erin']) {
+      expect(busy.has(player), `${player} should be free`).toBe(false);
+    }
+  });
+
+  it('does not stop an ordinary match running in parallel', async () => {
+    const { matches, matchSides, matchParticipants } = m.schema;
+    await m.db.insert(matches).values({
+      id: DUEL_ID,
+      gameId: 'game-palet',
+      createdBy: 'carol',
+      status: 'active',
+      invitationExpiresAt: AT + 5 * 60_000,
+      rulePointsPerWin: 10,
+      ruleMarginBonusPerPoint: 0,
+      ruleMarginBonusCap: null,
+      ruleRequiresScore: false,
+      winningSide: null,
+      createdAt: AT,
+      updatedAt: AT,
+    });
+    await m.db.insert(matchSides).values([
+      { matchId: DUEL_ID, sideIndex: 1, label: 'Carol', score: null, validatedAt: null, validatedBy: null },
+      { matchId: DUEL_ID, sideIndex: 2, label: 'Dave', score: null, validatedAt: null, validatedBy: null },
+    ]);
+    await m.db.insert(matchParticipants).values([
+      { matchId: DUEL_ID, userId: 'carol', sideIndex: 1, invitationStatus: 'accepted', respondedAt: AT },
+      { matchId: DUEL_ID, userId: 'dave', sideIndex: 2, invitationStatus: 'accepted', respondedAt: AT },
+    ]);
+
+    // The duel DOES make its two players busy; the clash still makes nobody.
+    const busy = await m.getBusyUserIds(AT);
+    expect(busy.get('carol')).toBe(DUEL_ID);
+    expect(busy.get('dave')).toBe(DUEL_ID);
+    expect(busy.has('alice')).toBe(false);
+    expect(busy.has('bob')).toBe(false);
+    expect(busy.has('erin')).toBe(false);
+  });
+
+  it('pays its winning team once when it settles', async () => {
+    await m.applyMatchAction(
+      CLASH_ID,
+      { type: 'report', userId: 'alice', winningSide: 1, scores: [] },
+      AT + 2,
+    );
+    await m.applyMatchAction(CLASH_ID, { type: 'validate', userId: 'bob' }, AT + 3);
+
+    const rows = await m.db.select().from(m.schema.teamPointEvents);
+    const forClash = rows.filter((row) => row.matchId === CLASH_ID);
+    // Once for the whole side, whatever its size (rule 19).
+    expect(forClash).toHaveLength(1);
+    expect(forClash[0]).toMatchObject({ teamId: JULIEN, type: 'match_win', points: 25 });
+  });
+
+  it('pays every player of the winning side in full, as always', async () => {
+    const players = await m.getStandings();
+    expect(players.find((row) => row.userId === 'carol')?.points).toBe(25);
+    expect(players.find((row) => row.userId === 'alice')?.points).toBe(25);
   });
 });

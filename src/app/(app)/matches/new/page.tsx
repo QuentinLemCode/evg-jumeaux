@@ -25,13 +25,15 @@ export default async function NewMatchPage({
   if (!game) notFound();
   if (!game.isActive) redirect('/games');
 
-  const busyMatchId = await isBusy(me.id);
-  if (busyMatchId) redirect(`/matches/${busyMatchId}`);
-
   // A clash commits every guest at once, so an admin calls it
   // (spec 0017, Authorisation).
   const isClash = game.mode === 'clash';
   if (isClash && me.role !== 'admin') redirect('/games');
+
+  // The busy redirect is for ordinary matches only: a darts match under way
+  // must not stop an admin calling the set piece (spec 0017, rule 6).
+  const busyMatchId = isClash ? null : await isBusy(me.id);
+  if (busyMatchId) redirect(`/matches/${busyMatchId}`);
   const clashSides = isClash ? await getClashLineup(me.id) : null;
 
   const roster = isClash ? [] : await getRosterWithAvailability();
@@ -56,7 +58,7 @@ export default async function NewMatchPage({
             <h1 className="text-lg font-bold">{game.name}</h1>
             <p className="text-sm text-muted">
               {/* «Camp» for a side of a match; «équipe» is one of the
-                  weekend's two teams (spec 0017, rule 30). */}
+                  weekend's two teams (spec 0017, rule 31). */}
               {game.mode === 'duel'
                 ? `${game.sidesCount} joueurs, chacun pour soi`
                 : game.mode === 'clash'

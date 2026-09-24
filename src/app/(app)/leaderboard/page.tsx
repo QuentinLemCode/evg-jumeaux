@@ -97,7 +97,7 @@ export default async function LeaderboardPage() {
         }
       >
         {/* The two leaderboards are never added together — the link between
-            them is navigational (spec 0017, rule 26). */}
+            them is navigational (spec 0017, rule 27). */}
         <ViewSwitch
           views={[
             { href: '/leaderboard', label: 'Joueurs', active: true },

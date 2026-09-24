@@ -2,7 +2,7 @@
  * Where the guest was going, carried from the middleware to the layout.
  *
  * A player with no team is sent to the team-choice screen from ANY app URL
- * and then back to where they were heading (spec 0017, rule 10). The `(app)`
+ * and then back to where they were heading (spec 0017, rule 11). The `(app)`
  * layout is what performs that redirect, and a server component has no
  * pathname of its own: the middleware is the only place that knows it before
  * anything renders, so it stamps it on the request.

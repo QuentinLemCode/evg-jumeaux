@@ -45,7 +45,7 @@ export const users = sqliteTable('users', {
  * than aesthetic: the migration inserts both rows, it runs against an empty
  * `users` table on a fresh database, and `foreign_keys` is ON — so naming a
  * captain there would fail every first deploy. The seeder fills it in once
- * the players exist (spec 0017, rule 7).
+ * the players exist (spec 0017, rule 8).
  */
 export const teams = sqliteTable('teams', {
   id: text('id').primaryKey(),
@@ -58,7 +58,7 @@ export const teams = sqliteTable('teams', {
 });
 
 /**
- * Every admin move of a player between teams (spec 0017, rule 14).
+ * Every admin move of a player between teams (spec 0017, rule 15).
  *
  * Append-only, one row per move. Two columns on the player would have kept
  * only the last move and could not say which team someone came *from*, and
@@ -201,7 +201,8 @@ export const matches = sqliteTable(
 );
 
 /**
- * A side of a match: a team in a team game, a single player in a duel.
+ * A side of a match: several players in a team game, a single player in a
+ * duel — a **camp**, never an «équipe» (spec 0017, rule 31).
  */
 export const matchSides = sqliteTable(
   'match_sides',
@@ -276,7 +277,7 @@ export const pointEvents = sqliteTable(
 );
 
 /**
- * The TEAM ledger (spec 0017, rules 18-22).
+ * The TEAM ledger (spec 0017, rules 19-23).
  *
  * A separate table rather than a nullable `point_events.user_id`, because
  * `user_id` is NOT NULL and a team is not a user. Same shape and same
@@ -284,7 +285,7 @@ export const pointEvents = sqliteTable(
  * construction through `unique(match_id, team_id, type)`.
  *
  * `match_id` is NOT NULL: only a settled match moves team points. A manual
- * adjustment is a player's business alone (rule 23).
+ * adjustment is a player's business alone (rule 24).
  */
 export const teamPointEvents = sqliteTable(
   'team_point_events',
@@ -298,7 +299,7 @@ export const teamPointEvents = sqliteTable(
       .references(() => matches.id),
     // Three types and no more: "matches won" counts the matches whose rows
     // sum above zero, which only holds while nothing else can write here
-    // (rule 28).
+    // (rule 29).
     type: text('type', {
       enum: ['match_win', 'margin_bonus', 'match_reversal'],
     }).notNull(),

@@ -19,7 +19,7 @@ import { err, guarded, ok, type ActionResult } from './result';
 const choiceSchema = z.object({ teamId: z.string().min(1) });
 
 /**
- * The authenticated player joining a team, once, for themselves (rule 10).
+ * The authenticated player joining a team, once, for themselves (rule 11).
  *
  * The balance rule is re-checked inside the transaction, so a forged request
  * naming the full team is refused exactly like a lost race — the screen's
@@ -45,7 +45,7 @@ const moveSchema = z.object({
   userId: z.string().min(1),
   teamId: z.string().min(1),
   // Five characters, like every other admin intervention: a move nobody can
-  // explain is indistinguishable from favouritism (rule 14, spec 0008).
+  // explain is indistinguishable from favouritism (rule 15, spec 0008).
   reason: z.string().trim().min(5, 'Explique pourquoi (5 caractères minimum)').max(280),
 });
 

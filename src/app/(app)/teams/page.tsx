@@ -16,12 +16,12 @@ import { getTeamStandings } from '@/lib/queries/teams';
 export const dynamic = 'force-dynamic';
 
 /**
- * The team leaderboard (spec 0017, rules 25-29).
+ * The team leaderboard (spec 0017, rules 26-30).
  *
  * Its own screen, and never added to the player one: a team total added to
  * each of its members cannot reorder anybody inside a team and flips both
  * teams wholesale, which would turn the player leaderboard into a measure of
- * which team you joined (rule 26). The link between the two is navigational.
+ * which team you joined (rule 27). The link between the two is navigational.
  */
 export default async function TeamsPage() {
   const me = await requireUser('/teams');

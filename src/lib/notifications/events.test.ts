@@ -23,6 +23,35 @@ describe('notification recipients', () => {
     expect(intents.map((i) => i.userId)).toEqual(['bob', 'ben']);
   });
 
+  /**
+   * A clash has no invitation, so this is the only thing that tells the other
+   * fourteen guests the set piece has begun (spec 0017, rule 7).
+   */
+  it('tells every participant a clash has started, except the admin who called it', () => {
+    const intents = buildNotifications({ kind: 'clash_started' }, ctx);
+    expect(intents.map((i) => i.userId)).toEqual(['bob', 'ben']);
+    expect(intents[0]?.title).toContain('Le grand match commence');
+    // The sides of a clash carry the team names, so the body reads as a
+    // fixture rather than as "Camp 1 contre Camp 2".
+    expect(intents[0]?.body).toContain('Alice');
+    expect(intents[0]?.body).toContain('Bob & Ben');
+  });
+
+  it('tells everybody but the validator that a clash is over', () => {
+    // Unlike `result_validated`, which tells the validator too: here they are
+    // the one person announcing it (spec 0006, rule 9).
+    const intents = buildNotifications(
+      { kind: 'clash_finished', winningSide: 2, pointsByUser: { bob: 12, ben: 12 } },
+      { ...ctx, actorId: 'ben' },
+    );
+    expect(intents.map((i) => i.userId)).toEqual(['alice', 'bob']);
+    expect(intents[0]?.title).toContain('Le grand match est terminé');
+    expect(intents[1]?.body).toContain('+12 pts');
+    // The loser is told who won, without a points line.
+    expect(intents[0]?.body).toContain('Bob & Ben');
+    expect(intents[0]?.body).not.toContain('pts');
+  });
+
   it('notifies only the invited players on an invitation', () => {
     const intents = buildNotifications(
       { kind: 'invitation_received', invitedUserIds: ['bob', 'ben'] },

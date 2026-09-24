@@ -56,7 +56,7 @@ function duel(overrides: Partial<TeamAwardInput> = {}): TeamAwardInput {
   };
 }
 
-describe('canJoinTeam — the balance rule (rule 11)', () => {
+describe('canJoinTeam — the balance rule (rule 12)', () => {
   it('offers both teams when they are level', () => {
     expect(canJoinTeam(JULIEN, sizes(1, 1))).toBe(true);
     expect(canJoinTeam(PIERRE, sizes(1, 1))).toBe(true);
@@ -68,7 +68,7 @@ describe('canJoinTeam — the balance rule (rule 11)', () => {
   });
 
   /**
-   * The shape of the concurrency case (rule 12). Two players choosing while
+   * The shape of the concurrency case (rule 13). Two players choosing while
    * level both see both buttons; the first one through the transaction makes
    * the count 2-1, and the second is then refused BY THIS FUNCTION — which is
    * why counting and writing have to happen inside one transaction.
@@ -85,7 +85,7 @@ describe('canJoinTeam — the balance rule (rule 11)', () => {
   });
 });
 
-describe('joinBlockedReason (rule 13)', () => {
+describe('joinBlockedReason (rule 14)', () => {
   it('says nothing when the team can be joined', () => {
     expect(joinBlockedReason(JULIEN, sizes(1, 1))).toBeNull();
   });
@@ -107,7 +107,7 @@ describe('teamChoiceOptions', () => {
   });
 });
 
-describe('opposingTeams (rule 19)', () => {
+describe('opposingTeams (rule 20)', () => {
   it('maps each side to its team when the match opposes the two', () => {
     const teams = opposingTeams([
       { sideIndex: 1, teamId: JULIEN },
@@ -156,7 +156,7 @@ describe('opposingTeams (rule 19)', () => {
   });
 });
 
-describe('computeTeamAwards (rules 18-20)', () => {
+describe('computeTeamAwards (rules 19-21)', () => {
   it('pays the winning team once in a 1 v 1', () => {
     expect(computeTeamAwards(duel())).toEqual([
       { teamId: JULIEN, type: 'match_win', points: 10, detail: 'Victoire — Palet' },
@@ -262,7 +262,7 @@ describe('computeTeamAwards (rules 18-20)', () => {
   });
 });
 
-describe('computeTeamReversals (rule 22)', () => {
+describe('computeTeamReversals (rule 23)', () => {
   it('is the exact negative of what the match paid, one row per team', () => {
     expect(
       computeTeamReversals(
@@ -287,7 +287,7 @@ describe('computeTeamReversals (rule 22)', () => {
   });
 });
 
-describe('the team standings (rules 27-28)', () => {
+describe('the team standings (rules 28-29)', () => {
   const julien = { teamId: JULIEN, name: 'Équipe Julien', points: 30, matchesWon: 3 };
   const pierre = { teamId: PIERRE, name: 'Équipe Pierre', points: 30, matchesWon: 2 };
 

@@ -15,7 +15,7 @@ import { PATHNAME_HEADER, safeDestination } from '@/lib/request-path';
  * The authenticated shell (spec 0009, rules 2-3). Everything inside it is
  * behind `requireUser`, so no page in this group has to remember to check.
  *
- * It is also the team gate (spec 0017, rule 10): a player with no team reaches
+ * It is also the team gate (spec 0017, rule 11): a player with no team reaches
  * nothing in this group until they have one. Here rather than in each page,
  * for the same reason `requireUser` is here — a gate a page can forget to
  * apply is not a gate. The choice screen itself lives OUTSIDE this group, or

@@ -99,7 +99,7 @@ function pinHashesFromEnv(): Map<string, string> {
 const isE2eRoster = process.env.SEED_ROSTER === 'e2e';
 
 /**
- * Who captains which team (spec 0017, rule 7). The end-to-end roster has
+ * Who captains which team (spec 0017, rule 8). The end-to-end roster has
  * neither twin in it, so it names its own two.
  */
 const captains: Captains = isE2eRoster ? e2eCaptains : seedCaptains;
@@ -215,7 +215,7 @@ async function seed(): Promise<void> {
   }
 
   // The captains, now that the players exist. A team whose captain is not in
-  // this roster keeps a null captain and works exactly as well (rule 7).
+  // this roster keeps a null captain and works exactly as well (rule 8).
   for (const team of teamRows) {
     const captainId = captains[team.slug];
     if (!captainId) continue;
@@ -224,7 +224,7 @@ async function seed(): Promise<void> {
       continue;
     }
     await db.update(teams).set({ captainId }).where(eq(teams.id, team.id));
-    // A captain is seeded onto their own team and never chooses (rule 8).
+    // A captain is seeded onto their own team and never chooses (rule 9).
     await db.update(users).set({ teamId: team.id }).where(eq(users.id, captainId));
     console.log(`seed: ~ team ${team.slug} captained by ${captainId}`);
   }

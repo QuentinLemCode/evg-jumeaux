@@ -7,7 +7,7 @@
  * then delegates the decision to the state machine via `applyMatchAction`.
  * None of them writes `matches.status` themselves (AGENTS.md §5).
  */
-import { and, eq, inArray, sql } from 'drizzle-orm';
+import { and, eq, inArray, ne, sql } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
@@ -37,7 +37,7 @@ const createSchema = z.object({
  * "Alice & Anna" reads better than "Camp 1"; past 3 players it does not.
  *
  * Never «Équipe»: that word now names one of the weekend's two teams, and a
- * side of a match is a **camp** (spec 0017, rule 30). The one exception is a
+ * side of a match is a **camp** (spec 0017, rule 31). The one exception is a
  * clash, whose sides really are the teams — it passes their names in.
  */
 function sideLabel(names: string[], sideIndex: number): string {
@@ -166,7 +166,7 @@ export async function createMatch(input: {
         }
       }
       // Side labels: the players' names, or the team names for a clash
-      // (spec 0017, rule 30).
+      // (spec 0017, rule 31).
       let clashTeamNames: Map<number, string> | null = null;
 
       if (isClash) {
@@ -191,29 +191,66 @@ export async function createMatch(input: {
         }
       }
 
-      // The busy check runs inside the transaction so two people cannot each
-      // invite the same third player at the same moment (spec 0004, rule 8).
-      const busyRows = tx
-        .select({ userId: matchParticipants.userId, name: users.name })
-        .from(matchParticipants)
-        .innerJoin(matches, eq(matches.id, matchParticipants.matchId))
-        .innerJoin(users, eq(users.id, matchParticipants.userId))
-        .where(
-          and(
-            inArray(
-              matchParticipants.userId,
-              withCreator.map((a) => a.userId),
+      if (isClash) {
+        // A clash is outside the busy rule in both directions: a darts match
+        // under way does not block it, and nobody in it becomes unavailable
+        // (spec 0017, rule 6). Requiring fifteen idle guests meant the set
+        // piece could never start.
+        //
+        // What IS refused is a SECOND clash while one is unfinished. Both
+        // would claim the same two teams in full, and a team cannot play
+        // itself in two places. `disputed` counts: a clash has no deadline
+        // and no sweeper, so a disputed one can sit for hours waiting on an
+        // admin — which is exactly where a second would slip through.
+        const live = tx
+          .select({ id: matches.id })
+          .from(matches)
+          .innerJoin(games, eq(games.id, matches.gameId))
+          .where(
+            and(
+              eq(games.mode, 'clash'),
+              inArray(matches.status, ['active', 'awaiting_validation', 'disputed']),
             ),
-            inArray(matches.status, ['pending', 'active', 'awaiting_validation', 'disputed']),
-            sql`(${matches.status} != 'pending' OR (${matchParticipants.invitationStatus} = 'accepted' AND ${matches.invitationExpiresAt} > ${now}))`,
-          ),
-        )
-        .all();
+          )
+          .limit(1)
+          .all();
+        if (live.length > 0) {
+          return { ok: false, message: 'Un match d’équipes est déjà en cours' };
+        }
+      } else {
+        // The busy check runs inside the transaction so two people cannot each
+        // invite the same third player at the same moment (spec 0004, rule 8).
+        // Clash rows are excluded for the same reason as above: being in the
+        // set piece is not being busy.
+        const busyRows = tx
+          .select({ userId: matchParticipants.userId, name: users.name })
+          .from(matchParticipants)
+          .innerJoin(matches, eq(matches.id, matchParticipants.matchId))
+          .innerJoin(games, eq(games.id, matches.gameId))
+          .innerJoin(users, eq(users.id, matchParticipants.userId))
+          .where(
+            and(
+              ne(games.mode, 'clash'),
+              inArray(
+                matchParticipants.userId,
+                withCreator.map((a) => a.userId),
+              ),
+              inArray(matches.status, [
+                'pending',
+                'active',
+                'awaiting_validation',
+                'disputed',
+              ]),
+              sql`(${matches.status} != 'pending' OR (${matchParticipants.invitationStatus} = 'accepted' AND ${matches.invitationExpiresAt} > ${now}))`,
+            ),
+          )
+          .all();
 
-      const busySelf = busyRows.find((r) => r.userId === me.id);
-      if (busySelf) return { ok: false, message: 'Tu as déjà une partie en cours' };
-      const busyOther = busyRows[0];
-      if (busyOther) return { ok: false, message: `${busyOther.name} est déjà en partie` };
+        const busySelf = busyRows.find((r) => r.userId === me.id);
+        if (busySelf) return { ok: false, message: 'Tu as déjà une partie en cours' };
+        const busyOther = busyRows[0];
+        if (busyOther) return { ok: false, message: `${busyOther.name} est déjà en partie` };
+      }
 
       const rules = scoringRulesFor(game);
       const matchId = crypto.randomUUID();
@@ -296,12 +333,24 @@ export async function createMatch(input: {
       return {
         ok: true,
         matchId,
-        // Nobody is invited to a clash, so nobody is notified of an
-        // invitation: it is called in the room, and the only notification
-        // spec 0006 has for a live match says "tout le monde a accepté",
-        // which would be a lie here (spec 0017, rule 4).
+        // A clash has no invitation, so `invitation_received` is the wrong
+        // event and « tout le monde a accepté » is the wrong words. It gets
+        // its own: every participant except the admin who called it
+        // (spec 0017, rule 7).
         intents: isClash
-          ? []
+          ? buildNotifications(
+              { kind: 'clash_started' },
+              {
+                matchId,
+                gameName: game.name,
+                gameIcon: game.icon,
+                actorId: me.id,
+                actorName: me.name,
+                participants: withCreator,
+                sideLabels: Object.fromEntries(sides.map((s) => [s.sideIndex, s.label])),
+                adminIds: [],
+              },
+            )
           : buildNotifications(
               { kind: 'invitation_received', invitedUserIds: invited },
               {
@@ -346,12 +395,19 @@ export async function acceptInvitation(matchId: string): Promise<ActionResult> {
     if (!matchIdSchema.safeParse({ matchId }).success) return err('Partie inconnue');
 
     // A busy player may decline but never accept (spec 0004, rule 8).
+    //
+    // Its own query, and therefore its own carve-out: a clash makes nobody
+    // busy (spec 0017, rule 6). Without the join to `games` a player in the
+    // set piece is refused every invitation of the evening with the message
+    // below, which is the precise behaviour that rule forbids.
     const busy = await db
       .select({ id: matches.id })
       .from(matchParticipants)
       .innerJoin(matches, eq(matches.id, matchParticipants.matchId))
+      .innerJoin(games, eq(games.id, matches.gameId))
       .where(
         and(
+          ne(games.mode, 'clash'),
           eq(matchParticipants.userId, me.id),
           inArray(matches.status, ['active', 'awaiting_validation', 'disputed']),
         ),

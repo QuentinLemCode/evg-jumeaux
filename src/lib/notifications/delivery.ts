@@ -50,9 +50,16 @@ const POLICIES: Record<NotificationType, { ttlSeconds: number; urgency: PushUrge
   invitation_declined: { ttlSeconds: 10 * MINUTE, urgency: 'normal' },
   invitation_expired: { ttlSeconds: 10 * MINUTE, urgency: 'normal' },
   match_cancelled: { ttlSeconds: 30 * MINUTE, urgency: 'normal' },
+  // Fifteen people are being called to the same table at the same moment,
+  // which is the most time-critical thing this app does (spec 0006, rules
+  // 12-13). Ten minutes, because a phone that wakes an hour later is being
+  // told to come to a match that is over.
+  clash_started: { ttlSeconds: 10 * MINUTE, urgency: 'high' },
   // Worth arriving late: it is the points.
   result_validated: { ttlSeconds: 12 * HOUR, urgency: 'normal' },
   dispute_resolved: { ttlSeconds: 12 * HOUR, urgency: 'normal' },
+  // A result like any other.
+  clash_finished: { ttlSeconds: 12 * HOUR, urgency: 'normal' },
 };
 
 /**

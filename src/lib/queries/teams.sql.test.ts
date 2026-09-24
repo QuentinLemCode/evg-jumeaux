@@ -1,5 +1,5 @@
 /**
- * The SQL the team-size query actually generates (spec 0017, rules 11-13).
+ * The SQL the team-size query actually generates (spec 0017, rules 12-14).
  *
  * This file exists because of a bug that 25 passing unit tests could not see.
  * `canJoinTeam` was right; the count it was given was always 0, so the two

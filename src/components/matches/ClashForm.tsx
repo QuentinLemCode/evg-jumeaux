@@ -17,17 +17,17 @@ import { ErrorMessage } from '../ui/Field';
  * (spec 0017, rules 3-6).
  *
  * There is nothing to pick and nobody to wait for. A clash is not "a team
- * game with bigger sides" — its sides ARE the teams, and it has no invitation
- * phase: the admin calls it and it is live. The one thing that can stop it is
- * somebody already being in another match, which is stated here rather than
- * discovered on submit.
+ * game with bigger sides" — its sides ARE the teams, it has no invitation
+ * phase, and it runs ALONGSIDE whatever else is being played: a darts match
+ * in progress neither blocks it nor is blocked by it (rule 6). So this screen
+ * shows no availability and withholds nothing; the only thing that can refuse
+ * it is another clash already under way, which the server says on submit.
  */
 export function ClashForm({ gameId, sides }: { gameId: string; sides: ClashSide[] }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
-  const busy = sides.flatMap((side) => side.members.filter((member) => member.busy));
   const total = sides.reduce((count, side) => count + side.members.length, 0);
 
   function submit() {
@@ -69,16 +69,10 @@ export function ClashForm({ gameId, sides }: { gameId: string; sides: ClashSide[
             {side.members.map((member) => (
               <li
                 key={member.id}
-                className={[
-                  'pill flex items-center gap-1.5 bg-surface px-2 py-1 text-sm',
-                  member.busy ? 'text-muted' : '',
-                ].join(' ')}
+                className="pill flex items-center gap-1.5 bg-surface px-2 py-1 text-sm"
               >
                 <Avatar emoji={member.avatar} size="sm" />
                 {member.name}
-                {member.busy ? (
-                  <span className="text-[11px] text-muted">déjà en partie</span>
-                ) : null}
               </li>
             ))}
           </ul>
@@ -88,16 +82,13 @@ export function ClashForm({ gameId, sides }: { gameId: string; sides: ClashSide[
       <ErrorMessage>{error}</ErrorMessage>
 
       <p className="text-sm text-muted">
-        {busy.length === 0
-          ? `${total} joueurs, et la partie démarre tout de suite : personne n’a à confirmer.`
-          : `${busy.map((member) => member.name).join(', ')} ${
-              busy.length > 1 ? 'sont déjà en partie' : 'est déjà en partie'
-            } — il faut attendre qu’ils aient fini.`}
+        {total} joueurs, et la partie démarre tout de suite : personne n’a à
+        confirmer. Les parties déjà en cours continuent en parallèle.
       </p>
 
       {/* Primary action at the bottom, in thumb reach (spec 0009, rule 7). */}
       <div className="safe-bottom sticky bottom-20 md:bottom-4">
-        <Button full size="lg" disabled={pending || busy.length > 0} onClick={submit}>
+        <Button full size="lg" disabled={pending} onClick={submit}>
           {pending ? 'Envoi…' : 'Lancer le match des deux équipes'}
         </Button>
       </div>

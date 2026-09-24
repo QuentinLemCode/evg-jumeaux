@@ -15,7 +15,7 @@ import { teamAccent, teamSticker } from './accent';
 export type ChoosableTeam = TeamChoiceOption & { slug: string; accent: string };
 
 /**
- * The one-time team choice (spec 0017, rules 10-13).
+ * The one-time team choice (spec 0017, rules 11-14).
  *
  * Both teams are always shown. The one that is a player ahead is shown
  * DISABLED, naming itself and the reason — a team that silently disappears

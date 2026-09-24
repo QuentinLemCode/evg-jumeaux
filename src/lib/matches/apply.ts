@@ -34,7 +34,7 @@ import {
 } from '@/lib/domain/match-state';
 import { computeAwards, computeReversals } from '@/lib/domain/scoring';
 import { computeTeamAwards, computeTeamReversals } from '@/lib/domain/teams';
-import type { MatchSnapshot, MatchStatus } from '@/lib/domain/types';
+import type { GameMode, MatchSnapshot, MatchStatus } from '@/lib/domain/types';
 import {
   buildNotifications,
   type NotificationEvent,
@@ -239,9 +239,9 @@ function applyEffects(
             .run();
         }
 
-        // The TEAM ledger (spec 0017, rules 18-21). Keyed off team MEMBERSHIP
+        // The TEAM ledger (spec 0017, rules 19-22). Keyed off team MEMBERSHIP
         // and not off invitation status: whether somebody accepted says
-        // nothing about which team their side belongs to (rule 19).
+        // nothing about which team their side belongs to (rule 20).
         const memberships = tx
           .select({ id: users.id, teamId: users.teamId })
           .from(users)
@@ -280,7 +280,7 @@ function applyEffects(
               })),
             )
             // One row per (match, team, type), exactly as the player ledger
-            // does it (rule 21).
+            // does it (rule 22).
             .onConflictDoNothing()
             .run();
         }
@@ -318,7 +318,7 @@ function applyEffects(
         }
 
         // The same, mirrored, for the teams the match paid (spec 0017,
-        // rule 22). The award rows stay: the history shows both, and the
+        // rule 23). The award rows stay: the history shows both, and the
         // match leaves that team's "matches won" because the two cancel out.
         const teamAwarded = tx
           .select({ teamId: teamPointEvents.teamId, points: teamPointEvents.points })
@@ -394,6 +394,8 @@ function eventFor(
   before: MatchSnapshot,
   nextStatus: MatchStatus,
   pointsByUser: Record<string, number>,
+  /** The game's mode — a clash announces its own end (spec 0017, rule 7). */
+  mode: GameMode,
 ): NotificationEvent | null {
   switch (action.type) {
     case 'accept':
@@ -412,13 +414,21 @@ function eventFor(
         }),
       };
     case 'validate':
-      return nextStatus === 'completed'
+      if (nextStatus !== 'completed') return null;
+      // A clash's own ending, told to everybody except the person who just
+      // validated it — unlike `result_validated`, which tells them too
+      // (spec 0017, rule 7; spec 0006, rule 9).
+      return mode === 'clash'
         ? {
-            kind: 'result_validated',
+            kind: 'clash_finished',
             winningSide: before.winningSide ?? 0,
             pointsByUser,
           }
-        : null;
+        : {
+            kind: 'result_validated',
+            winningSide: before.winningSide ?? 0,
+            pointsByUser,
+          };
     case 'dispute':
       return {
         kind: 'result_disputed',
@@ -428,6 +438,9 @@ function eventFor(
     case 'cancel':
       return { kind: 'match_cancelled', reason: action.reason };
     case 'resolve':
+      // Including a clash: nobody validated it, so « Le grand match est
+      // terminé » would have no one to leave out, and two banners for one
+      // event is the noise spec 0006's single-topic rule exists to avoid.
       return {
         kind: 'dispute_resolved',
         outcome: nextStatus === 'completed' ? 'completed' : 'cancelled',
@@ -491,7 +504,14 @@ export async function applyMatchAction(
     const pointsByUser =
       result.nextStatus === 'completed' ? pointsAwardedFor(tx, matchId) : {};
     const actorId = 'userId' in action ? action.userId : 'adminId' in action ? action.adminId : null;
-    const event = eventFor(action, snapshot, result.nextStatus, pointsByUser);
+    const mode =
+      tx
+        .select({ mode: games.mode })
+        .from(games)
+        .innerJoin(matches, eq(matches.gameId, games.id))
+        .where(eq(matches.id, matchId))
+        .get()?.mode ?? 'duel';
+    const event = eventFor(action, snapshot, result.nextStatus, pointsByUser, mode);
     if (event) {
       intents.push(...buildNotifications(event, notifyContext(tx, matchId, actorId)));
     }

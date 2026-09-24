@@ -2,10 +2,10 @@
  * Roster reads, including the "busy" rule that governs who can be invited
  * (spec 0004, rules 7-8).
  */
-import { and, eq, inArray, sql } from 'drizzle-orm';
+import { and, eq, inArray, ne, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { matchParticipants, matches, users } from '@/db/schema';
+import { games, matchParticipants, matches, users } from '@/db/schema';
 
 export type RosterEntry = {
   id: string;
@@ -34,6 +34,12 @@ export async function getRoster(): Promise<RosterEntry[]> {
  * Expiry is applied lazily on read elsewhere; here a `pending` match past its
  * deadline is excluded directly so an abandoned invitation never keeps a
  * player locked out.
+ *
+ * **A `clash` counts for nothing here** (spec 0004, rule 7; spec 0017,
+ * rule 6). The weekend's set piece runs alongside whatever is on the pétanque
+ * court, so being in one never makes anybody unavailable. That is why this
+ * query joins `games` at all — `matches` alone cannot see the mode, and every
+ * screen that asks "who is free?" reads this one function.
  */
 export async function getBusyUserIds(now = Date.now()): Promise<Map<string, string>> {
   const rows = await db
@@ -45,8 +51,10 @@ export async function getBusyUserIds(now = Date.now()): Promise<Map<string, stri
     })
     .from(matchParticipants)
     .innerJoin(matches, eq(matches.id, matchParticipants.matchId))
+    .innerJoin(games, eq(games.id, matches.gameId))
     .where(
       and(
+        ne(games.mode, 'clash'),
         inArray(matches.status, ['pending', 'active', 'awaiting_validation', 'disputed']),
         sql`(${matches.status} != 'pending' OR (${matchParticipants.invitationStatus} = 'accepted' AND ${matches.invitationExpiresAt} > ${now}))`,
       ),

@@ -86,7 +86,7 @@ test.describe('Choosing a team', { tag: '@spec-0017' }, () => {
     await expect(page.getByRole('heading', { name: 'Choisis ton camp' })).toBeVisible();
 
     // Julien is two players ahead, so it is offered DISABLED, naming itself
-    // and the reason (rule 13) — never silently absent.
+    // and the reason (rule 14) — never silently absent.
     const julien = page.locator('[data-team="julien"]');
     const pierre = page.locator('[data-team="pierre"]');
     await expect(julien).toBeDisabled();
@@ -95,7 +95,7 @@ test.describe('Choosing a team', { tag: '@spec-0017' }, () => {
 
     await pierre.click();
 
-    // …and the guest lands where they were going all along (rule 10).
+    // …and the guest lands where they were going all along (rule 11).
     await page.waitForURL(/\/history$/);
     await expect(page.getByRole('heading', { name: 'Historique' })).toBeVisible();
     expect(teamSlugOf(PLAYERS.thomas.id)).toBe('pierre');
@@ -111,7 +111,7 @@ test.describe('Choosing a team', { tag: '@spec-0017' }, () => {
   });
 
   test('a captain is told they are one, and is offered nothing', async ({ browser }) => {
-    // Rule 8: a captain is seeded onto their own team and cannot leave it.
+    // Rule 9: a captain is seeded onto their own team and cannot leave it.
     const captain = await asPlayer(browser, 'quentin');
     await captain.goto('/team-choice');
 
@@ -145,7 +145,7 @@ test.describe('What a match moves', { tag: '@spec-0017' }, () => {
     await expect(julien).toContainText('5 joueurs');
     await expect(julien).toContainText('1 partie gagnée');
 
-    // The two leaderboards are never added together (rule 26).
+    // The two leaderboards are never added together (rule 27).
     await player.getByRole('link', { name: 'Joueurs' }).click();
     const row = player.getByTestId('standing').filter({ hasText: PLAYERS.antoine.name });
     await expect(row).toHaveAttribute('data-points', '21');
@@ -154,7 +154,7 @@ test.describe('What a match moves', { tag: '@spec-0017' }, () => {
   test('a match inside one team moves only the player leaderboard', async ({
     browser,
   }) => {
-    // Rule 20: a team cannot farm itself with its own internal pairs.
+    // Rule 21: a team cannot farm itself with its own internal pairs.
     await playAndWin(browser, 'antoine', 'baptiste', ['13', '5']);
 
     expect(pointTotal(PLAYERS.antoine.id)).toBe(18);

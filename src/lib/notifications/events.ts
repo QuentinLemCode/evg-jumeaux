@@ -15,7 +15,9 @@ export type NotificationType =
   | 'result_validated'
   | 'result_disputed'
   | 'match_cancelled'
-  | 'dispute_resolved';
+  | 'dispute_resolved'
+  | 'clash_started'
+  | 'clash_finished';
 
 export type NotificationIntent = {
   userId: string;
@@ -50,7 +52,11 @@ export type NotificationEvent =
   | { kind: 'result_validated'; winningSide: number; pointsByUser: Record<string, number> }
   | { kind: 'result_disputed'; reason: string | null; reporterId: string | null }
   | { kind: 'match_cancelled'; reason: string | null }
-  | { kind: 'dispute_resolved'; outcome: 'completed' | 'cancelled' };
+  | { kind: 'dispute_resolved'; outcome: 'completed' | 'cancelled' }
+  // A clash has no invitation, so nothing else would tell the other fourteen
+  // guests the set piece has begun (spec 0017, rule 7).
+  | { kind: 'clash_started' }
+  | { kind: 'clash_finished'; winningSide: number; pointsByUser: Record<string, number> };
 
 function matchUrl(matchId: string): string {
   return `/matches/${matchId}`;
@@ -173,5 +179,41 @@ export function buildNotifications(
           ? `Le résultat de ${ctx.gameName} a été arbitré et les points attribués.`
           : `La partie de ${ctx.gameName} a été annulée par un admin.`,
       );
+
+    // Everybody except the admin who called it — `to()` drops the actor, and
+    // the actor here is that admin (spec 0006, rule 9).
+    case 'clash_started': {
+      const left = ctx.sideLabels[1] ?? 'Une équipe';
+      const right = ctx.sideLabels[2] ?? 'l’autre';
+      return to(
+        everyone,
+        'clash_started',
+        `${icon} Le grand match commence !`,
+        `${left} contre ${right}. Tout le monde en piste.`,
+      );
+    }
+
+    // Everybody except whoever validated it. Unlike `result_validated`, which
+    // tells the validator too, a clash's result is announced BY them — so the
+    // one person who already knows is left out (spec 0017, rule 7).
+    case 'clash_finished': {
+      const winner = ctx.sideLabels[event.winningSide] ?? `Camp ${event.winningSide}`;
+      return everyone
+        .filter((userId) => userId !== ctx.actorId)
+        .map((userId) => {
+          const points = event.pointsByUser[userId] ?? 0;
+          return {
+            userId,
+            type: 'clash_finished' as const,
+            title: `${icon} Le grand match est terminé`,
+            body:
+              points > 0
+                ? `${winner} l’emporte. Tu empoches +${points} pts.`
+                : `${winner} l’emporte.`,
+            url,
+            matchId: ctx.matchId,
+          };
+        });
+    }
   }
 }

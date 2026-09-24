@@ -1,5 +1,5 @@
 /**
- * The two teams and their captains (spec 0017, rules 7-9).
+ * The two teams and their captains (spec 0017, rules 8-10).
  *
  * The ROWS are created by the migration, not here: the deploy migrates and
  * never seeds, so they have to exist before anybody can choose. What the

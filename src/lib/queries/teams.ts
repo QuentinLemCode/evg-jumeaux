@@ -1,19 +1,18 @@
 /**
- * Team reads (spec 0017, rules 25-29).
+ * Team reads (spec 0017, rules 26-30).
  *
  * Totals are summed from the team ledger on every read, exactly as the player
  * leaderboard is summed from the player ledger. The two are NEVER added
  * together: a team total added to each of its members is a constant per team,
  * so it cannot reorder anybody within a team and it flips both teams
  * wholesale — turning the player leaderboard into a measure of which team you
- * joined (rule 26).
+ * joined (rule 27).
  */
 import { asc, eq, isNotNull, sql } from 'drizzle-orm';
 
 import { db, type Db, type Tx } from '@/db';
 import { pointEvents, teamPointEvents, teams, users } from '@/db/schema';
 import { rankTeamStandings, type TeamSize } from '@/lib/domain/teams';
-import { getBusyUserIds } from '@/lib/queries/roster';
 
 export type TeamMember = {
   userId: string;
@@ -47,7 +46,7 @@ export type PlayerTeam = {
 /**
  * The two teams with their current size — what the choice screen ranks on.
  * The authoritative count is the one the transaction re-reads; this one only
- * decides what the screen offers (rule 13).
+ * decides what the screen offers (rule 14).
  */
 export type TeamOption = TeamSize & { slug: string; accent: string };
 
@@ -68,7 +67,7 @@ export const TEAM_SIZE_FIELDS = {
 /**
  * How many players each team has, as ONE query — read by the screen that
  * offers the choice and, inside its transaction, by the rule that enforces
- * the balance (rules 11-13). Two spellings of this could disagree, and the
+ * the balance (rules 12-14). Two spellings of this could disagree, and the
  * one that decides must be the one that is displayed.
  *
  * A LEFT JOIN rather than a correlated subquery, and that is not a matter of
@@ -99,7 +98,7 @@ export async function listTeams(): Promise<TeamOption[]> {
   return rows.map((row) => ({ ...row, memberCount: Number(row.memberCount) }));
 }
 
-/** A player's team, for the gate and for their profile (rules 10 and 29). */
+/** A player's team, for the gate and for their profile (rules 11 and 30). */
 export async function getPlayerTeam(userId: string): Promise<PlayerTeam | null> {
   const rows = await db
     .select({
@@ -142,7 +141,7 @@ export async function getCaptainedTeam(userId: string): Promise<PlayerTeam | nul
 }
 
 /**
- * The team standings (rules 25, 27, 28).
+ * The team standings (rules 26, 28, 29).
  *
  * "Matches won" is the number of distinct matches whose rows for that team sum
  * above zero — so a reversal, which cancels the award exactly, removes the win
@@ -169,7 +168,7 @@ export async function getTeamStandings(): Promise<TeamStanding[]> {
       .from(teamPointEvents)
       .groupBy(teamPointEvents.teamId),
     // One row per (team, match), summed. Counting the positive ones in
-    // JavaScript rather than in a nested SQL query keeps rule 28 readable,
+    // JavaScript rather than in a nested SQL query keeps rule 29 readable,
     // and there are two teams and a few dozen matches.
     db
       .select({
@@ -241,7 +240,7 @@ export type PlayerWithTeam = {
   isCaptain: boolean;
 };
 
-/** The roster with each player's team, for the admin's move form (rule 14). */
+/** The roster with each player's team, for the admin's move form (rule 15). */
 export async function listPlayersWithTeams(): Promise<PlayerWithTeam[]> {
   const rows = await db
     .select({
@@ -268,7 +267,6 @@ export type ClashMember = {
   id: string;
   name: string;
   avatar: string;
-  busy: boolean;
 };
 
 export type ClashSide = {
@@ -286,9 +284,12 @@ export type ClashSide = {
  * Returns null when the caller belongs to no team, which is the one case a
  * clash cannot be built from: its sides ARE the two teams, and the creator
  * has to be in one of them.
+ *
+ * Availability is deliberately absent: a clash runs alongside everything
+ * else, so who is mid-match is not this screen's business (rule 6).
  */
 export async function getClashLineup(creatorId: string): Promise<ClashSide[] | null> {
-  const [rows, roster, busy] = await Promise.all([
+  const [rows, roster] = await Promise.all([
     db
       .select({ teamId: teams.id, name: teams.name, accent: teams.accent })
       .from(teams)
@@ -303,7 +304,6 @@ export async function getClashLineup(creatorId: string): Promise<ClashSide[] | n
       .from(users)
       .where(isNotNull(users.teamId))
       .orderBy(asc(users.name)),
-    getBusyUserIds(),
   ]);
 
   if (rows.length !== 2) return null;
@@ -327,7 +327,6 @@ export async function getClashLineup(creatorId: string): Promise<ClashSide[] | n
         id: player.id,
         name: player.name,
         avatar: player.avatar,
-        busy: busy.has(player.id),
       })),
   }));
 }

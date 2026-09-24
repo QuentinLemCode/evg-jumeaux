@@ -48,7 +48,7 @@ export const e2eUsers: SeedUser[] = [
 /**
  * The end-to-end captains. Neither twin is in this roster, so the two teams
  * are captained by the two admins — which is also what makes the "a captain
- * is offered no choice" journey runnable (rule 7).
+ * is offered no choice" journey runnable (rule 8).
  */
 export const e2eCaptains: Captains = {
   julien: 'quentin',

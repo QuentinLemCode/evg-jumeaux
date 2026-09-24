@@ -75,29 +75,20 @@ indistinguishable from cheating.
     destination.
 18. It lists, newest first, one entry per intervention:
     - the **type**: points adjusted, match cancelled, dispute settled,
-      invitation force-expired, player moved between teams;
+      invitation force-expired;
     - the **admin** who did it and **when**;
     - the **subject**: the player, or the game and its sides;
     - the **reason**, in full and never folded behind a "show more".
-      Adjustments, cancellations, arbitrations and team moves always record
-      one; a force-expiry has none, and the entry states the derived fact
-      instead;
-    - the **point delta** it caused, signed, or `0` when it moved no points —
-      a team move always moves `0` (spec 0017, rule 13).
+      Adjustments, cancellations and arbitrations always record one; a
+      force-expiry has none, and the entry states the derived fact instead;
+    - the **point delta** it caused, signed, or `0` when it moved no points.
 19. It can be filtered by type. The unfiltered view is the whole log; no type
     is hidden by default.
 20. An intervention that concerns a match links to that match.
 21. Entries are derived from what is already recorded — `point_events` rows
-    of type `admin_adjustment` or `match_reversal`, matches whose
-    `settled_by` or `cancelled_by` is set, and rows of `team_moves`
-    (spec 0017). There is no separate audit table: every one of those is the
-    **fact itself**, not a second copy of it, so the log cannot drift from
-    what it reports.
-
-    A team move needs its own rows because it is the only intervention that
-    writes no point and touches no match. Two columns on the player would
-    have lost every move but the last, and could not say which team someone
-    came *from* — a log that silently forgets is worse than no log.
+    of type `admin_adjustment` or `match_reversal`, and matches whose
+    `settled_by` or `cancelled_by` is set. There is no separate audit table,
+    so the log cannot drift from the facts it reports.
 
 ## Data model
 
@@ -205,4 +196,5 @@ None.
 |---|---|---|
 | 2026-09-14 | Created | Initial harness and application bootstrap |
 | 2026-09-14 | Added the public admin log (rules 15-21); removed "an admin audit log screen" from Out of scope | Human requirement: full transparency on admin score changes, readable by everyone and not only by admins |
-| 2026-09-23 | Rules 18 and 21: team moves are a fifth kind of intervention, derived from `team_moves` (spec 0017) | An admin moving a player writes no point event and touches no match, so the log could not otherwise see it — and two columns on the player would have lost every move but the last |
+| 2026-09-23 | Rules 18 and 21: team moves are a fifth kind of intervention, derived from `team_moves` (spec 0017) | An admin moving a player writes no point event and touches no match, so the log could not otherwise see it |
+| 2026-09-24 | Reverted: an admin cannot move a player between teams at all (spec 0017) | A team choice is final for everyone, admins included — so there is no intervention left for the log to carry |

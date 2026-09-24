@@ -12,7 +12,7 @@ import { safeDestination } from '@/lib/request-path';
 export const dynamic = 'force-dynamic';
 
 /**
- * The team choice (spec 0017, rules 10-13).
+ * The team choice (spec 0017, rules 11-14).
  *
  * OUTSIDE the `(app)` group on purpose: that group's layout is the gate that
  * sends a player here, so a choice screen inside it would redirect to itself.
