@@ -11,30 +11,28 @@
  *   players choosing while level both pass the check, both join the same team,
  *   and leave a gap of two that rule 11 can never close.
  */
-import { eq, isNotNull, sql } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 
-import { db } from '@/db';
+import { db, type Tx } from '@/db';
 import { teamMoves, teams, users } from '@/db/schema';
 import { canJoinTeam, type TeamSize } from '@/lib/domain/teams';
-
-type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+import { teamSizeQuery } from '@/lib/queries/teams';
 
 export type MembershipResult = { ok: true } | { ok: false; message: string };
 
-/** Every team with its current size, read INSIDE the caller's transaction. */
+/**
+ * Every team with its current size, read INSIDE the caller's transaction —
+ * and by the same query the choice screen displays, so the count that refuses
+ * a choice and the count the player was shown cannot disagree.
+ */
 export function teamSizes(tx: Tx): TeamSize[] {
-  const rows = tx
-    .select({
-      teamId: teams.id,
-      name: teams.name,
-      memberCount: sql<number>`(
-        select count(*) from ${users} where ${users.teamId} = ${teams.id}
-      )`,
-    })
-    .from(teams)
-    .orderBy(teams.name)
-    .all();
-  return rows.map((row) => ({ ...row, memberCount: Number(row.memberCount) }));
+  return teamSizeQuery(tx)
+    .all()
+    .map((row) => ({
+      teamId: row.teamId,
+      name: row.name,
+      memberCount: Number(row.memberCount),
+    }));
 }
 
 /**
@@ -136,13 +134,4 @@ export function movePlayerToTeam(input: {
     tx.update(users).set({ teamId: input.teamId }).where(eq(users.id, input.userId)).run();
     return { ok: true };
   });
-}
-
-/** How many players have chosen. Used by the admin screen's summary line. */
-export async function countPlacedPlayers(): Promise<number> {
-  const rows = await db
-    .select({ count: sql<number>`count(*)` })
-    .from(users)
-    .where(isNotNull(users.teamId));
-  return Number(rows[0]?.count ?? 0);
 }

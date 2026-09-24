@@ -10,7 +10,7 @@
  */
 import { asc, eq, isNotNull, sql } from 'drizzle-orm';
 
-import { db } from '@/db';
+import { db, type Db, type Tx } from '@/db';
 import { pointEvents, teamPointEvents, teams, users } from '@/db/schema';
 import { rankTeamStandings, type TeamSize } from '@/lib/domain/teams';
 import { getBusyUserIds } from '@/lib/queries/roster';
@@ -51,19 +51,51 @@ export type PlayerTeam = {
  */
 export type TeamOption = TeamSize & { slug: string; accent: string };
 
-export async function listTeams(): Promise<TeamOption[]> {
-  const rows = await db
-    .select({
-      teamId: teams.id,
-      slug: teams.slug,
-      name: teams.name,
-      accent: teams.accent,
-      memberCount: sql<number>`(
-        select count(*) from ${users} where ${users.teamId} = ${teams.id}
-      )`,
-    })
+/** Which players belong to which team. The one definition of that link. */
+export const TEAM_MEMBERSHIP_JOIN = eq(users.teamId, teams.id);
+
+export const TEAM_SIZE_FIELDS = {
+  teamId: teams.id,
+  slug: teams.slug,
+  name: teams.name,
+  accent: teams.accent,
+  // `count(column)` and not `count(*)`: the LEFT JOIN yields one all-null row
+  // for a team nobody has joined, and counting a column ignores it, so an
+  // empty team reports 0 rather than 1.
+  memberCount: sql<number>`count(${users.id})`,
+};
+
+/**
+ * How many players each team has, as ONE query — read by the screen that
+ * offers the choice and, inside its transaction, by the rule that enforces
+ * the balance (rules 11-13). Two spellings of this could disagree, and the
+ * one that decides must be the one that is displayed.
+ *
+ * A LEFT JOIN rather than a correlated subquery, and that is not a matter of
+ * taste. Drizzle renders a SINGLE-table select's identifiers **unqualified**,
+ * so this:
+ *
+ *     sql`(select count(*) from ${users} where ${users.teamId} = ${teams.id})`
+ *
+ * came out as `where "team_id" = "id"` — and inside that subquery `users` is
+ * in scope, so both names bound to `users`. It counted the players whose team
+ * is their own id, which is nobody: every team reported 0 members, the two
+ * always looked level, and the balance rule therefore never refused anything.
+ * A join makes Drizzle qualify every identifier itself, so there is no
+ * hand-written table name left to get wrong. `teams.sql.test.ts` holds the
+ * shape to it.
+ */
+export function teamSizeQuery(runner: Db | Tx) {
+  return runner
+    .select(TEAM_SIZE_FIELDS)
     .from(teams)
+    .leftJoin(users, TEAM_MEMBERSHIP_JOIN)
+    .groupBy(teams.id)
     .orderBy(asc(teams.name));
+}
+
+export async function listTeams(): Promise<TeamOption[]> {
+  const rows = await teamSizeQuery(db);
   return rows.map((row) => ({ ...row, memberCount: Number(row.memberCount) }));
 }
 

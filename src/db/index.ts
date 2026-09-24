@@ -64,3 +64,13 @@ export const db: Client = new Proxy({} as Client, {
 
 export { schema };
 export type Db = Client;
+
+/**
+ * A transaction handle, as `db.transaction()` hands it to its callback.
+ *
+ * Exported so a query can be written once and run either on the connection or
+ * inside somebody's transaction — the team sizes are read both ways, and they
+ * have to be the same query or the screen and the rule that enforces it can
+ * disagree.
+ */
+export type Tx = Parameters<Parameters<Client['transaction']>[0]>[0];
