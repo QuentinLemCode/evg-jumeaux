@@ -51,6 +51,7 @@ async function createClashGame(admin: Page): Promise<void> {
   await admin.getByRole('button', { name: '+ Créer un jeu' }).click();
   await admin.getByPlaceholder('ex. Molkky').fill(CLASH_GAME);
   await admin.getByRole('button', { name: 'Les deux équipes' }).click();
+  await admin.getByLabel(/Score chiffré obligatoire/).check();
   await admin.getByRole('button', { name: 'Enregistrer' }).click();
   await expect(admin.getByText(CLASH_GAME)).toBeVisible();
 }
