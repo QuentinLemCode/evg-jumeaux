@@ -235,22 +235,23 @@ ones are covered by `src/lib/teams/membership.integration.test.ts` and
 
 - [x] The migration alone creates two teams with a null captain and no foreign-key failure, against an empty `users` table.
 - [x] Seeding then sets each team's captain, and a roster without the captains leaves them null rather than failing.
-- [ ] A captain is on their own team and is never shown the choice screen.
-- [ ] A player with no team is redirected to the choice screen from any app URL.
-- [ ] The Server Action refuses a choice that would make a team two ahead, even when the request is forged.
-- [ ] Two concurrent choices at level pegging leave the teams one apart, not two — asserted against the transaction, not in a browser.
-- [ ] A player cannot change their own team once chosen, and their own first choice writes no `team_moves` row.
-- [ ] An admin move writes a `team_moves` row with both teams and a reason, appears in the admin log with a delta of 0, and changes no point row.
-- [ ] Two successive moves of the same player both appear in the admin log.
-- [ ] An admin move may make the teams two apart where a player's own choice may not.
+- [x] A captain is on their own team and is never shown the choice screen.
+- [x] A player with no team is redirected to the choice screen from any app URL.
+- [x] The Server Action refuses a choice that would make a team two ahead, even when the request is forged.
+- [x] Two concurrent choices at level pegging leave the teams one apart, not two — asserted against the transaction, not in a browser.
+- [x] A player cannot change their own team once chosen, and their own first choice writes no `team_moves` row.
+- [x] An admin move writes a `team_moves` row with both teams and a reason, appears in the admin log with a delta of 0, and changes no point row.
+- [x] Two successive moves of the same player both appear in the admin log.
+- [x] An admin move may make the teams two apart where a player's own choice may not.
 - [x] A 1 v 1, a 3 v 3 and a `clash` 8 v 7 between the teams each award `pointsPerWin` **once** to the winning team, while every winner is credited the full amount personally.
 - [x] A match between two players of one team, and a match with a mixed side, award player points and no team points.
-- [ ] A participant on a side that is not entirely one team stops the match awarding any team points (rule 19).
-- [ ] Awarding the same match twice writes one team row, not two.
-- [ ] Cancelling a settled match writes one `match_reversal` row per team cancelling the award exactly, both rows visible, and the match leaves that team's "matches won".
-- [ ] A `clash` game can be created with `playersPerSide` unset in practice, and `duel`/`team` games still reject a side of the wrong size.
+- [x] A participant on a side that is not entirely one team stops the match awarding any team points (rule 19).
+- [x] Awarding the same match twice writes one team row, not two.
+- [x] Cancelling a settled match writes one `match_reversal` row per team cancelling the award exactly, both rows visible, and the match leaves that team's "matches won".
+- [x] A `clash` game can be created whatever `playersPerSide` is submitted, and stores two sides and one player per side.
+- [ ] A `duel` or `team` match still refuses a side of the wrong size — no test asserts that refusal, in any suite.
 - [ ] A `clash` is refused when any player is busy, and is `active` with every participant accepted the moment it is created.
-- [ ] Team standings show points, player count and matches won, ordered by points then matches won then name, ties shown as ties.
+- [x] Team standings show points, player count and matches won, ordered by points then matches won then name, ties shown as ties.
 - [x] `getStandings()` returns the same rows in the same order whether or not teams exist.
 - [x] No user-facing string calls a match's side an «équipe», except a `clash`, whose sides carry the team names.
 - [x] Both new screens are built from the shared Confetti parts (spec 0010 §8) and pass `npm run lint:design`.
@@ -281,19 +282,23 @@ database and would fail a CI retry, so `e2e/helpers/db.ts` gains a scoped
 
 ## Open questions
 
-1. **Fourteen criteria are unticked because they were not run, not because
-   they are unimplemented.** Each is covered by a test that exists:
-   `src/lib/teams/membership.integration.test.ts` (the choice transaction, the
-   admin move, the team ledger and its reversal) and `e2e/teams.spec.ts`
-   (`@spec-0017`: the gate, the disabled team, the captain, and what a match
-   moves). Neither runs on the agent's machine — AGENTS.md §4 puts the
-   integration suite in CI, §9 puts the browser suite there. Tick them off the
-   pipeline, not off a reading.
-   Of those fourteen, the parts a unit test *does* prove were run: the balance
-   rule and its refusal message, `opposingTeams`, `computeTeamAwards` for
-   1 v 1 / 3 v 3 / 8 v 7 / same-team / mixed-side, `computeTeamReversals`, the
-   standings order and ties, and a clash being created already active with
-   nobody left to accept.
+1. **Two criteria remain unticked, and both name something no test asserts.**
+
+   - *A `duel` or `team` match still refuses a side of the wrong size.* The
+     refusal exists in `matches.ts`; nothing checks it. It predates this spec,
+     which is why it went unnoticed — but this spec made that check
+     mode-aware, so it is now exactly the sort of thing that breaks quietly.
+   - *A `clash` is refused when any player is busy, and is `active` with every
+     participant accepted the moment it is created.* `initialStatus` and
+     `startsAccepted` are unit-tested; that `createMatch` calls them, and the
+     busy refusal itself, are not. Driving that Server Action needs
+     `next/headers` and `next/cache` mocked, which the integration suite
+     deliberately does without.
+
+   Everything else was ticked against a **green pipeline** on `adc4143` —
+   `Tests and build` and `End-to-end` both passing — and each tick was
+   matched to the assertion that carries it, not to the existence of a test
+   file.
 
 2. **Two conflicts with spec 0004 were found during implementation and are
    settled there, not here.** Its rule 2 put the creator in camp 1, which a
