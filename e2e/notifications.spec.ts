@@ -24,22 +24,22 @@ test.beforeEach(() => resetVolatileState());
 test.describe('Notifications', { tag: '@spec-0006' }, () => {
   test('an invitation notifies the invited player and not the inviter', async ({ browser }) => {
     const antoine = await asPlayer(browser, 'antoine');
-    const baptiste = await asPlayer(browser, 'baptiste');
+    const lucas = await asPlayer(browser, 'lucas');
 
     await antoine.goto('/games');
     await antoine.getByRole('link', { name: /Palet/ }).click();
-    await antoine.getByRole('button', { name: new RegExp(`^${PLAYERS.baptiste.name}`) }).click();
+    await antoine.getByRole('button', { name: new RegExp(`^${PLAYERS.lucas.name}`) }).click();
     await antoine.getByRole('button', { name: 'Envoyer les invitations' }).click();
     await antoine.waitForURL(/\/matches\/[0-9a-f-]+$/);
     const matchId = antoine.url().split('/matches/')[1] as string;
 
-    // Baptiste is told, with a deep link straight to the match (rule 8).
-    await baptiste.goto('/notifications');
-    const invitation = baptiste.getByRole('button', { name: /te défie/ });
+    // Lucas is told, with a deep link straight to the match (rule 8).
+    await lucas.goto('/notifications');
+    const invitation = lucas.getByRole('button', { name: /te défie/ });
     await expect(invitation).toBeVisible();
     await expect(invitation).toContainText('5 minutes');
     await invitation.click();
-    await expect(baptiste).toHaveURL(new RegExp(`/matches/${matchId}$`));
+    await expect(lucas).toHaveURL(new RegExp(`/matches/${matchId}$`));
 
     // Antoine is not told about his own action (rule 9).
     await antoine.goto('/notifications');
@@ -57,7 +57,7 @@ test.describe('Notifications', { tag: '@spec-0006' }, () => {
     await hugo.waitForURL(/\/matches\/[0-9a-f-]+$/);
 
     await lucas.goto('/leaderboard');
-    const alerts = lucas.getByRole('link', { name: /Alertes/ });
+    const alerts = lucas.getByRole('link', { name: /Alertes/ }).first();
     await expect(alerts).toContainText('1');
 
     await lucas.goto('/notifications');
@@ -68,18 +68,18 @@ test.describe('Notifications', { tag: '@spec-0006' }, () => {
 
   test('accepting tells the inviter the match has started', async ({ browser }) => {
     const antoine = await asPlayer(browser, 'antoine');
-    const baptiste = await asPlayer(browser, 'baptiste');
+    const lucas = await asPlayer(browser, 'lucas');
 
     await antoine.goto('/games');
     await antoine.getByRole('link', { name: /Palet/ }).click();
-    await antoine.getByRole('button', { name: new RegExp(`^${PLAYERS.baptiste.name}`) }).click();
+    await antoine.getByRole('button', { name: new RegExp(`^${PLAYERS.lucas.name}`) }).click();
     await antoine.getByRole('button', { name: 'Envoyer les invitations' }).click();
     await antoine.waitForURL(/\/matches\/[0-9a-f-]+$/);
     const matchId = antoine.url().split('/matches/')[1] as string;
 
-    await baptiste.goto(`/matches/${matchId}`);
-    await baptiste.getByRole('button', { name: 'Accepter le défi' }).click();
-    await expect(baptiste.getByText('En cours', { exact: true })).toBeVisible();
+    await lucas.goto(`/matches/${matchId}`);
+    await lucas.getByRole('button', { name: 'Accepter le défi' }).click();
+    await expect(lucas.getByText('En cours', { exact: true })).toBeVisible();
 
     await antoine.goto('/notifications');
     await expect(antoine.getByRole('button', { name: /La partie commence/ })).toBeVisible();

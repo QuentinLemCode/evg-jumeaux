@@ -51,8 +51,11 @@ Terminal states: `completed`, `cancelled`, `expired`.
    anybody picks.
 3. The creator picks the other participants from the roster. Players who are
    busy are shown as unavailable and cannot be selected.
-4. For a team game, the creator assigns each participant to a side. The match
-   cannot be created until every side has exactly `playersPerSide` players.
+4. Every match strictly opposes the weekend's two teams (spec 0017, rule 20).
+   The creator assigns each participant to a side (1 or 2). Side 1 must consist
+   entirely of players from one team (the creator's), and Side 2 of players from
+   the other team. Every side must have exactly `playersPerSide` players. Intra-team
+   matches and mixed sides are forbidden.
 5. On creation the match is `pending`, and each non-creator participant has a
    `pending` invitation. Each of them is notified (0006).
 
@@ -293,3 +296,4 @@ None.
 | 2026-09-24 | A `clash` is outside the busy rule entirely, both ways (rules 7-8, spec 0017) | The set piece involves everybody, so requiring fifteen idle guests meant it could never start — and a darts match in progress must simply keep running alongside it |
 | 2026-09-24 | A `clash` is reported and settled directly by an admin, bypassing player validation and dispute (rule 14, spec 0017) | An admin referees the clash, so validation between players is unnecessary and dispute is impossible |
 | 2026-09-25 | Team games prompt «Quel camp a gagné ?» with camp labels and auto-sync winner from scores | In team games, winner selection is between camps, not individuals |
+| 2026-09-25 | Matches strictly oppose the two teams (rule 4) | Camp 1 and Camp 2 must belong to opposing teams; intra-team matches are rejected |

@@ -142,10 +142,21 @@ itemised clearly on the team screen.
     if any) **once** to the winning team in `team_point_events`. It awards
     **no** individual points in `point_events` to players, preventing roster size
     asymmetry (8 vs 7) from inflating individual standings or double-counting.
-20. **Rule 20.** Non-clash matches (duels and small-team games) award
-    individual points in `point_events` to winning players, which naturally
-    contribute to their team's `individualPoints`. When opposing the two teams,
-    a settled match also records a match win for the team.
+    Legacy `point_events` rows associated with past `clash` matches are cleaned up
+    via migration 0006 so that individual player scores retroactively reflect only
+    individual and team games, excluding clash points.
+20. **Rule 20.** Every match (duel, team game, or clash) **strictly opposes the two teams**:
+    - In a duel (`mode === 'duel'`): 1 player of one team vs 1 player of the opposing team.
+      Two players of the same team cannot play against each other.
+    - In a team game (`mode === 'team'`): Camp 1 must be composed exclusively of players
+      from one team, and Camp 2 exclusively of players from the other team.
+      Mixed camps and intra-team camps are strictly forbidden.
+    - Match creation (`createMatch`) rejects any match that does not strictly oppose the two teams.
+    - Every participant must belong to a team (`team_id IS NOT NULL`). A player without a team
+      cannot create or join a match.
+    - Settling an opposing match awards individual points in `point_events` to winning players
+      (which naturally roll up into their team's `individualPoints`), and records a match win
+      (and margin bonus, if any) for the winning team in `team_point_events`.
 21. **Rule 21.** Awarding is idempotent: at most one row per
     `(match, team, type)`, exactly as spec 0005 requires of player awards.
 22. **Rule 22.** Cancelling a settled match writes one `match_reversal` row
@@ -255,7 +266,9 @@ team's button is presentation, not authorisation.
 | A `clash` while somebody has no team | Refused, counting them | « {n} joueur(s) n'ont pas encore d'équipe. » |
 | A player with no team opens any screen | Redirected to the choice screen | — |
 | A captain opens the choice screen | Their team is stated, no choice offered | « Tu es le capitaine de {équipe}. » |
-| A match opposing no two teams settles | Player points as usual, no team row | « Pas de points d'équipe : ce match n'oppose pas les deux équipes. » |
+| An intra-team duel is attempted | Refused at creation | « Deux joueurs de la même équipe ne peuvent pas s'affronter » |
+| A team game with mixed camps or non-opposing camps | Refused at creation | « Chaque camp doit être composé uniquement de joueurs d'une même équipe, et les deux camps doivent être d'équipes opposées » |
+| A participant has no team | Refused at creation | « Tous les participants doivent avoir choisi une équipe » |
 | A `clash` whose sides are not the two full teams | Refused at creation | « Un match d'équipes oppose les deux équipes au complet. » |
 | A second `clash` while one is live | Refused | « Un match d'équipes est déjà en cours. » |
 | An admin adjusts a player's points | The team total reflects the adjustment via individual points sum | — |
@@ -283,8 +296,10 @@ only CI runs (AGENTS.md §4 and §9) — see *Open questions*.
 - [x] A `clash` match awards points to the winning team only, and awards no individual points to players.
 - [x] An admin adjustment on a player is reflected in the team's total points.
 - [x] Team standings calculate total points as individual points sum + clash points, and display the breakdown.
-- [x] A match between two players of one team, and a match with a mixed side, award player points and no team points.
-- [x] A participant on a side that is not entirely one team stops the match awarding any team points (rule 19).
+- [ ] A duel between two players of the same team is refused at creation.
+- [ ] A team match with a mixed camp or non-opposing camps is refused at creation.
+- [ ] A participant without a team stops a match from being created.
+- [x] Every completed match opposes the two teams and awards points to the winning team.
 - [x] Awarding the same match twice writes one team row, not two.
 - [x] Cancelling a settled match writes one `match_reversal` row per team cancelling the award exactly, both rows visible, and the match leaves that team's "matches won".
 - [x] A `clash` game can be created whatever `playersPerSide` is submitted, and stores two sides and one player per side.
@@ -402,3 +417,5 @@ database and would fail a CI retry, so `e2e/helpers/db.ts` gains a scoped
 | 2026-09-25 | Explicit team accent tokens: Julien is coral (red), Pierre is sky (blue) | Colors formalized in the spec and player profile badge tone aligned with team accent |
 | 2026-09-25 | Pre-assigned teams in seed (rule 10) | Players pre-assigned via seed skip the choice screen on first login |
 | 2026-09-25 | Team score = individual points sum + clash points; clash awards team points only; team screen displays breakdown | Total score reflects all members' points (including admin adjustments) plus clash victories; clash awards no individual points to avoid 8 vs 7 inflation |
+| 2026-09-25 | Every match strictly opposes the two teams (rule 20) | Intra-team duels and mixed camps are strictly rejected at creation; every match opposes Équipe Julien vs Équipe Pierre |
+| 2026-09-26 | Migration 0006: Clean up legacy individual clash point events | Remove point_events rows associated with clash matches to prevent double-counting and individual score inflation from past clashes |

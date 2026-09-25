@@ -22,13 +22,14 @@ without a developer.
    - `mode`: `duel` (each side is one player), `team` (each side is several),
      or `clash` (each side is one of the weekend's two teams, in full —
      spec 0017).
-   - `sidesCount`: how many sides face each other, 2 to 4. Always 2 for a
-     `clash`.
+   - `sidesCount`: always 2 for all games (`duel`, `team`, `clash`). Every
+     game opposes exactly two camps.
    - `playersPerSide`: 1 for a duel; 2 to 6 for a team game. **Ignored for a
      `clash`**, whose sides are as big as the teams are and need not match
      each other; the column still holds a value, and that value is 1.
-   - Total participants is `sidesCount × playersPerSide`, from 2 to 24 — for
-     `duel` and `team`. A `clash` holds every member of both teams.
+   - Total participants is `2 × playersPerSide`, from 2 to 12 — for `duel`
+     (2 players) and `team` (4 to 12 players). A `clash` holds every member
+     of both teams.
    - The 1..6 bound on `playersPerSide` and the "every side holds exactly
      `playersPerSide` players" check apply to `duel` and `team` only. A
      validator that applies them to every mode makes a `clash` impossible to
@@ -63,7 +64,7 @@ games
   description            text
   icon                   text not null      -- single emoji
   mode                   text not null      -- 'duel' | 'team' | 'clash'
-  sides_count            integer not null   -- 2..4 (always 2 when 'clash')
+  sides_count            integer not null   -- 2 (always 2)
   players_per_side       integer not null   -- 1..6 ('duel' and 'clash': 1)
   points_per_win         integer not null   -- 1..100
   margin_bonus_enabled   integer not null   -- 0 | 1
@@ -95,6 +96,7 @@ Default games are seeded so the app is usable on first boot: *Palet*,
 | Case | Behaviour | User-facing message (French) |
 |---|---|---|
 | Name already taken | Reject, keep the form filled | « Un jeu porte déjà ce nom » |
+| `sidesCount !== 2` | Reject | « Un jeu oppose exactement 2 camps » |
 | `mode = duel` with `playersPerSide > 1` | Reject | « Un duel oppose des joueurs seuls » |
 | `mode = team` with `playersPerSide < 2` | Reject | « Un camp d’équipe compte au moins 2 joueurs » |
 | Margin bonus enabled with `marginBonusPerPoint = 0` | Reject | « Indique combien de points rapporte chaque point d'écart » |
@@ -108,6 +110,7 @@ Default games are seeded so the app is usable on first boot: *Palet*,
 - [x] A non-admin sees no create/edit control, **and** a direct call to the
       create, edit or archive action returns an authorisation error.
 - [x] Creating a game whose name matches an existing one, ignoring case, fails.
+- [x] Creating or editing a game requires exactly 2 sides (`sidesCount = 2`).
 - [x] `mode = duel` forces `playersPerSide` to 1 and the form reflects it.
 - [x] Enabling the margin bonus forces `requiresScore` on.
 - [x] A game with the margin bonus enabled and `marginBonusPerPoint = 0` is rejected.
@@ -128,7 +131,7 @@ Default games are seeded so the app is usable on first boot: *Palet*,
 
 - Per-game custom rules text beyond the free-text description.
 - Handicaps, brackets, tournaments, or seasons.
-- Games with more than 4 sides, or asymmetric sides (2 vs 3).
+- Games with other than 2 sides, or asymmetric sides (2 vs 3).
 - Draws. A match has exactly one winning side; a game with no winner is
   cancelled instead (0004).
 
@@ -142,3 +145,4 @@ None.
 |---|---|---|
 | 2026-09-14 | Created | Initial harness and application bootstrap |
 | 2026-09-23 | A third mode, `clash`, where the two sides are the two teams in full and need not be the same size (spec 0017) | `playersPerSide` forces every side to the same count, so two teams of 8 and 7 could never meet |
+| 2026-09-25 | Games strictly limited to 2 sides (`sidesCount: 2`) | The competition is strictly between the two teams; multi-camp (>2) games are retired |

@@ -20,7 +20,7 @@ type Game = {
   playersPerSide: number;
 };
 
-type Me = { id: string; name: string; avatar: string };
+type Me = { id: string; name: string; avatar: string; teamId: string | null };
 
 /**
  * Fill every side, then send the invitations (spec 0004, rules 1-5).
@@ -66,8 +66,30 @@ export function NewMatchForm({
   const nameOf = (userId: string) =>
     userId === me.id ? me.name : (roster.find((p) => p.id === userId)?.name ?? '?');
 
+  function getDisabledReason(player: RosterEntryWithAvailability): string | null {
+    if (player.id === me.id) return null;
+    if (player.busy) return 'déjà en partie';
+    if (!me.teamId || !player.teamId) return 'sans équipe';
+
+    const selectedSide = assignments[player.id];
+    if (selectedSide !== undefined) return null;
+
+    if (game.mode === 'duel') {
+      if (player.teamId === me.teamId) return 'même équipe';
+    } else {
+      if (targetSide === 1) {
+        if (player.teamId !== me.teamId) return 'autre équipe';
+      } else {
+        if (player.teamId === me.teamId) return 'même équipe';
+      }
+    }
+    return null;
+  }
+
   function toggle(player: RosterEntryWithAvailability) {
-    if (player.id === me.id || player.busy || pending) return;
+    if (player.id === me.id || pending) return;
+    const disabledReason = getDisabledReason(player);
+    if (disabledReason) return;
     setError(null);
     setAssignments((current) => {
       const next = { ...current };
@@ -168,24 +190,25 @@ export function NewMatchForm({
             .map((player) => {
               const side = assignments[player.id];
               const selected = side !== undefined;
+              const disabledReason = getDisabledReason(player);
               return (
                 <li key={player.id}>
                   <button
                     type="button"
-                    disabled={player.busy || pending}
+                    disabled={Boolean(disabledReason) || pending}
                     onClick={() => toggle(player)}
                     className={[
                       'tap-target flex w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition-colors',
                       selected
                         ? 'border-coral bg-coral/10'
                         : 'border-border bg-surface hover:bg-bg',
-                      player.busy ? 'cursor-not-allowed opacity-40' : '',
+                      disabledReason ? 'cursor-not-allowed opacity-40' : '',
                     ].join(' ')}
                   >
                     <Avatar emoji={player.avatar} size="sm" />
                     <span className="min-w-0 flex-1 truncate font-medium">{player.name}</span>
-                    {player.busy ? (
-                      <span className="text-xs text-muted">déjà en partie</span>
+                    {disabledReason ? (
+                      <span className="text-xs text-muted">{disabledReason}</span>
                     ) : selected ? (
                       <span className="text-xs font-semibold text-coral">
                         {game.mode === 'duel' ? `Joueur ${side}` : `Camp ${side}`}
