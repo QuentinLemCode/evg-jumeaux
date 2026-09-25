@@ -134,3 +134,4 @@ None.
 | 2026-09-18 | The end-to-end suite gets its own roster | Sharing one list meant the tests needed real guests' PINs, and every change to the guest list broke them |
 | 2026-09-23 | Julien and Pierre appended to the roster; `users.team_id` added (spec 0017) | The two twins the weekend is for now head a team each; appended last because `generate-users` assigns avatars positionally |
 | 2026-09-24 | A player's team is set once and never changes, by anybody (spec 0017) | The choice is final, so there is no history to keep and no `team_moves` |
+| 2026-09-25 | Ravno and Gabriel removed via migration 0005, teamSlug supported in seed | Roster reduced to 13 guests; guests can be assigned teams directly in the seed |

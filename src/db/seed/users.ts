@@ -31,36 +31,28 @@ export type RosterEntry = {
   name: string;
   role: 'admin' | 'user';
   avatar: string;
+  teamSlug?: string;
 };
 
 /**
  * What the seeder actually writes, once a hash has been resolved for each.
- *
- * `teamSlug` is NOT part of `RosterEntry`, and deliberately: `generate-users`
- * rewrites the roster block below wholesale, so anything it does not know how
- * to write would be silently dropped on the next run. Real guests choose
- * their own team in the app (spec 0017, rule 10); only the end-to-end roster
- * arrives pre-placed, so the nine existing suites are not all sent to the
- * choice screen.
  */
-export type SeedUser = RosterEntry & { pinHash: string; teamSlug?: string };
+export type SeedUser = RosterEntry & { pinHash: string };
 
 // generate-users:begin — replaced wholesale by `npm run generate-users`.
 export const seedRoster: RosterEntry[] = [
-  { id: 'quentin', name: 'Quentin', role: 'admin', avatar: '🧠' },
-  { id: 'pablo', name: 'Pablo', role: 'admin', avatar: '👑' },
-  { id: 'ravno', name: 'Ravno', role: 'user', avatar: '🐻' },
-  { id: 'gabriel', name: 'Gabriel', role: 'user', avatar: '🦊' },
-  { id: 'benjamin', name: 'Benjamin', role: 'user', avatar: '🦉' },
-  { id: 'alex', name: 'Alex', role: 'user', avatar: '🐺' },
-  { id: 'arthur', name: 'Arthur', role: 'user', avatar: '🦁' },
-  { id: 'felix', name: 'Félix', role: 'user', avatar: '🐯' },
-  { id: 'nemo', name: 'Némo', role: 'user', avatar: '🦅' },
-  { id: 'garreau', name: 'Garreau', role: 'user', avatar: '🐗' },
-  { id: 'robin', name: 'Robin', role: 'user', avatar: '🦌' },
-  { id: 'tim', name: 'Tim', role: 'user', avatar: '🐸' },
-  { id: 'tom', name: 'Tom', role: 'user', avatar: '🦈' },
-  { id: 'julien', name: 'Julien', role: 'user', avatar: '🐙' },
-  { id: 'pierre', name: 'Pierre', role: 'user', avatar: '🦄' },
+  { id: 'quentin', name: 'Quentin', role: 'admin', avatar: '🧠', teamSlug: 'julien' },
+  { id: 'pablo', name: 'Pablo', role: 'admin', avatar: '👑', teamSlug: 'pierre' },
+  { id: 'benjamin', name: 'Benjamin', role: 'user', avatar: '🦉', teamSlug: 'pierre' },
+  { id: 'alex', name: 'Alex', role: 'user', avatar: '🐺', teamSlug: 'pierre' },
+  { id: 'arthur', name: 'Arthur', role: 'user', avatar: '🦁', teamSlug: 'julien' },
+  { id: 'felix', name: 'Félix', role: 'user', avatar: '🐯', teamSlug: 'julien' },
+  { id: 'nemo', name: 'Némo', role: 'user', avatar: '🦅', teamSlug: 'julien' },
+  { id: 'garreau', name: 'Garreau', role: 'user', avatar: '🐗', teamSlug: 'julien' },
+  { id: 'robin', name: 'Robin', role: 'user', avatar: '🦌', teamSlug: 'julien' },
+  { id: 'tim', name: 'Tim', role: 'user', avatar: '🐸', teamSlug: 'pierre' },
+  { id: 'tom', name: 'Tom', role: 'user', avatar: '🦈', teamSlug: 'pierre' },
+  { id: 'julien', name: 'Julien', role: 'user', avatar: '🐙', teamSlug: 'julien' },
+  { id: 'pierre', name: 'Pierre', role: 'user', avatar: '🦄', teamSlug: 'pierre' },
 ];
 // generate-users:end

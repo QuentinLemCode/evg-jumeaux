@@ -17,8 +17,21 @@ export type Captains = Record<string, string>;
 
 export const TEAM_SLUGS = ['julien', 'pierre'] as const;
 
+export type SeedTeam = {
+  slug: (typeof TEAM_SLUGS)[number];
+  name: string;
+  accent: 'coral' | 'sky';
+  captainId: string;
+};
+
+export const seedTeams: readonly SeedTeam[] = [
+  { slug: 'julien', name: 'Équipe Julien', accent: 'coral', captainId: 'julien' },
+  { slug: 'pierre', name: 'Équipe Pierre', accent: 'sky', captainId: 'pierre' },
+] as const;
+
 /** The real weekend: each twin heads the team that carries their name. */
 export const seedCaptains: Captains = {
   julien: 'julien',
   pierre: 'pierre',
 };
+
