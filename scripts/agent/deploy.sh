@@ -252,7 +252,7 @@ IMAGE_TAG="$TARGET_TAG" GIT_COMMIT="$TARGET_COMMIT" \
   $COMPOSE --profile "$PROFILES_BASE" --profile "$TARGET" up -d --no-deps sweeper \
   || warn "sweeper restart failed"
 
-docker image prune -f --filter 'until=168h' >/dev/null 2>&1 || true
+docker image prune -a -f --filter 'until=24h' >/dev/null 2>&1 || true
 
 cat <<REPORT
 
