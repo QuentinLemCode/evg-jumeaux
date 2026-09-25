@@ -62,11 +62,13 @@ function StandingRow({
         <span className="min-w-0 flex-1">
           <span className="block truncate font-medium">{standing.name}</span>
           <span className="block text-xs text-muted">
-            {`${standing.wins} V · ${standing.losses} D · ${standing.scarfTheftsCount} ${
-              standing.scarfTheftsCount > 1 ? 'vols' : 'vol'
-            } (${standing.scarfTheftsPoints} ${
-              Math.abs(standing.scarfTheftsPoints) > 1 ? 'pts' : 'pt'
-            })`}
+            {standing.played === 0 && standing.scarfTheftsCount === 0
+              ? 'Pas encore joué'
+              : `${standing.wins} V · ${standing.losses} D · ${standing.scarfTheftsCount} ${
+                  standing.scarfTheftsCount > 1 ? 'vols' : 'vol'
+                } (${standing.scarfTheftsPoints} ${
+                  Math.abs(standing.scarfTheftsPoints) > 1 ? 'pts' : 'pt'
+                })`}
           </span>
         </span>
         <Score value={standing.points} tone={isMe ? 'grape' : 'coral'} suffix="pts" />
