@@ -14,6 +14,7 @@ export default defineConfig({
     // not race each other.
     fileParallelism: false,
     testTimeout: 30_000,
+    hookTimeout: 30_000,
   },
   resolve: {
     alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },

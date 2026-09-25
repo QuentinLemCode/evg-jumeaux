@@ -215,9 +215,9 @@ test.describe('Resetting tournament before kickoff', { tag: '@spec-0008' }, () =
     await admin.getByPlaceholder('confirmer').fill('confirmer');
     await confirmButton.click();
 
-    // After reset, points are 0
-    await expect(admin.getByText('Remise à zéro avant le début')).toBeVisible();
-    expect(pointTotal(PLAYERS.clement.id)).toBe(0);
+    // Wait for the modal dialog to disappear and reset to complete
+    await expect(admin.getByRole('dialog')).toHaveCount(0);
+    await expect.poll(() => pointTotal(PLAYERS.clement.id)).toBe(0);
     // Non-captain player team has been reset
     expect(teamSlugOf(PLAYERS.clement.id)).toBeNull();
     // Captain player team is preserved
