@@ -11,7 +11,7 @@ import { eq } from 'drizzle-orm';
 import { db } from '../index';
 import { games, teams, users } from '../schema';
 import { seedGames } from './games';
-import { seedCaptains, type Captains } from './teams';
+import { seedCaptains, seedTeams, type Captains } from './teams';
 import { seedRoster, type SeedUser } from './users';
 import { DEV_PIN, e2eCaptains, e2eUsers } from './users.e2e';
 
@@ -180,8 +180,8 @@ async function seed(): Promise<void> {
   const teamIdBySlug = new Map(teamRows.map((team) => [team.slug, team.id]));
 
   for (const user of roster) {
-    // A pre-assigned team is an end-to-end fixture only: a real guest chooses
-    // their own, and re-seeding must never move somebody who has.
+    // A pre-assigned team can be defined in the seed: when set, the player
+    // is placed immediately and skips the choice screen upon first login.
     const teamId = user.teamSlug ? (teamIdBySlug.get(user.teamSlug) ?? null) : null;
     if (user.teamSlug && teamId === null) {
       fail(`user '${user.id}' names team '${user.teamSlug}', which is not seeded`);
@@ -198,7 +198,7 @@ async function seed(): Promise<void> {
         teamId,
         createdAt: now,
       });
-      console.log(`seed: + user ${user.id}`);
+      console.log(`seed: + user ${user.id}${user.teamSlug ? ` (team: ${user.teamSlug})` : ''}`);
     } else {
       await db
         .update(users)
@@ -210,23 +210,35 @@ async function seed(): Promise<void> {
           ...(teamId === null ? {} : { teamId }),
         })
         .where(eq(users.id, user.id));
-      console.log(`seed: ~ user ${user.id}`);
+      console.log(`seed: ~ user ${user.id}${user.teamSlug ? ` (team: ${user.teamSlug})` : ''}`);
     }
   }
 
-  // The captains, now that the players exist. A team whose captain is not in
-  // this roster keeps a null captain and works exactly as well (rule 8).
+  // The captains and accents, now that the players exist. A team whose captain
+  // is not in this roster keeps a null captain and works exactly as well (rule 8).
   for (const team of teamRows) {
     const captainId = captains[team.slug];
-    if (!captainId) continue;
-    if (!roster.some((user) => user.id === captainId)) {
-      console.log(`seed: = team ${team.slug} (captain '${captainId}' not in this roster)`);
-      continue;
+    const teamDef = seedTeams.find((t) => t.slug === team.slug);
+    const updates: { accent?: string; captainId?: string } = {};
+
+    if (teamDef && team.accent !== teamDef.accent) {
+      updates.accent = teamDef.accent;
     }
-    await db.update(teams).set({ captainId }).where(eq(teams.id, team.id));
-    // A captain is seeded onto their own team and never chooses (rule 9).
-    await db.update(users).set({ teamId: team.id }).where(eq(users.id, captainId));
-    console.log(`seed: ~ team ${team.slug} captained by ${captainId}`);
+
+    if (captainId && roster.some((user) => user.id === captainId)) {
+      updates.captainId = captainId;
+      await db.update(teams).set(updates).where(eq(teams.id, team.id));
+      // A captain is seeded onto their own team and never chooses (rule 9).
+      await db.update(users).set({ teamId: team.id }).where(eq(users.id, captainId));
+      console.log(`seed: ~ team ${team.slug} captained by ${captainId} (accent: ${teamDef?.accent ?? team.accent})`);
+    } else {
+      if (captainId) {
+        console.log(`seed: = team ${team.slug} (captain '${captainId}' not in this roster)`);
+      }
+      if (Object.keys(updates).length > 0) {
+        await db.update(teams).set(updates).where(eq(teams.id, team.id));
+      }
+    }
   }
 
   const [firstAdmin] = roster.filter((u) => u.role === 'admin');

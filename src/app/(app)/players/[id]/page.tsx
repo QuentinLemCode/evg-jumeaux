@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import { MatchSummaryCard } from '@/components/matches/MatchSummaryCard';
 import { Avatar } from '@/components/ui/Avatar';
 import { Badge } from '@/components/ui/Badge';
+import { teamAccent } from '@/components/teams/accent';
 import { ButtonLink } from '@/components/ui/Button';
 import { Card, SectionTitle } from '@/components/ui/Card';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -54,7 +55,7 @@ export default async function PlayerPage({ params }: { params: Promise<{ id: str
                   arithmetic (spec 0017, rule 29). */}
               {team ? (
                 <Link href="/teams" data-testid="player-team">
-                  <Badge tone="sky">
+                  <Badge tone={teamAccent(team.accent)}>
                     {team.name}
                     {team.isCaptain ? ' · capitaine' : ''}
                   </Badge>
