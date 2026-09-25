@@ -60,6 +60,12 @@ export function resetVolatileState(): void {
     db.prepare(`UPDATE games SET is_active = 1 WHERE slug IN (${placeholders})`).run(
       ...SEED_GAME_SLUGS,
     );
+    // Restore seeded e2e teams in case a test reset the tournament.
+    db.exec(`
+      UPDATE users SET team_id = (SELECT id FROM teams WHERE slug = 'julien') WHERE id IN ('quentin', 'antoine', 'baptiste', 'clement', 'hugo');
+      UPDATE users SET team_id = (SELECT id FROM teams WHERE slug = 'pierre') WHERE id IN ('jumeau-1', 'lucas', 'romain');
+      UPDATE users SET team_id = NULL WHERE id = 'thomas';
+    `);
   } finally {
     db.close();
   }

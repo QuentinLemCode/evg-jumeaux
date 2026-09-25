@@ -13,6 +13,7 @@ import { z } from 'zod';
 
 import { db } from '@/db';
 import { clientErrors, pointEvents, users } from '@/db/schema';
+import { performTournamentReset } from '@/lib/admin/reset';
 import { requireAdminAction } from '@/lib/auth/guards';
 import { applyMatchAction } from '@/lib/matches/apply';
 
@@ -213,3 +214,36 @@ export async function setClientErrorResolved(
     return ok();
   });
 }
+
+const resetTournamentSchema = z.object({
+  confirmation: z.string(),
+});
+
+/**
+ * Resets the whole competition before official kickoff (spec 0008, rules 22-25).
+ * Clears all points, matches, participants, sides, notifications, and resets
+ * teams for all players except the captains.
+ */
+export async function resetTournament(
+  input: z.input<typeof resetTournamentSchema>,
+): Promise<ActionResult> {
+  return guarded(async () => {
+    await requireAdminAction();
+    const parsed = resetTournamentSchema.safeParse(input);
+    if (!parsed.success || parsed.data.confirmation.trim().toLowerCase() !== 'confirmer') {
+      return err('Tape « confirmer » pour valider');
+    }
+
+    performTournamentReset(db);
+
+    revalidatePath('/', 'layout');
+    revalidatePath('/admin');
+    revalidatePath('/admin-log');
+    revalidatePath('/leaderboard');
+    revalidatePath('/history');
+    revalidatePath('/teams');
+    revalidatePath('/team-choice');
+    return ok();
+  });
+}
+
