@@ -90,6 +90,26 @@ indistinguishable from cheating.
     `settled_by` or `cancelled_by` is set. There is no separate audit table,
     so the log cannot drift from the facts it reports.
 
+### Tournament reset
+
+22. An admin can perform a complete reset of the competition to start the game
+    fresh when the real weekend begins.
+23. The action is guarded by a modal popup requiring the admin to type
+    `confirmer` (case-insensitive) to validate. Without this exact typed
+    confirmation, the action is refused and nothing is deleted.
+24. Executing the reset performs the following in a single transaction:
+    - **Scores**: deletes all rows from `point_events` and `team_point_events`.
+    - **History**: deletes all rows from `matches`, `match_sides`,
+      `match_participants`, and `notifications`.
+    - **Teams**: resets `users.team_id = NULL` for all players, EXCEPT the team
+      captains (spec 0017 rule 9).
+    - Player accounts (`users`), their credentials (`pin_hash`), roles,
+      avatars, games catalog (`games`), and push subscriptions
+      (`push_subscriptions`) are preserved.
+25. After the reset, on their next visit, non-captain players are redirected
+    to the team selection screen (spec 0017 rule 11) because their `team_id`
+    is null.
+
 ## Data model
 
 No new tables. The admin log is a read over `point_events` and `matches`
@@ -114,6 +134,7 @@ people must be able to trust is the one the points actually come from.
 | Cancel a completed match (with reversal) | admin |
 | Force-expire a pending match | admin |
 | Adjust a player's points | admin |
+| Reset the tournament (scores, history, teams) | admin |
 | Everything above, called directly without the UI | admin only — 403 otherwise |
 
 ## Failure cases
@@ -128,6 +149,7 @@ people must be able to trust is the one the points actually come from.
 | Adjustment with a blank or 4-character reason | Reject | « Explique pourquoi (5 caractères minimum) » |
 | Adjustment of 0 points | Reject | « Indique un nombre de points non nul » |
 | Adjustment beyond ±1000 | Reject | « Maximum 1000 points » |
+| Tournament reset without typing confirmation | Reject | « Tape « confirmer » pour valider » |
 | The last admin is removed from the seed | Seeding fails (0002 rule 7) | (server log only) |
 
 ## Acceptance criteria
@@ -145,7 +167,7 @@ people must be able to trust is the one the points actually come from.
 - [x] Cancelling a completed match writes negative `match_reversal` events that
       exactly offset that match's awards.
 - [x] Cancelling a completed match without the typed confirmation writes nothing.
-- [x] There is no code path that edits or deletes an existing `point_events` row.
+- [x] Outside of tournament reset, there is no code path that edits or deletes an existing `point_events` row.
 - [x] An adjustment requires a reason of at least 5 characters and a non-zero
       value within ±1000.
 - [x] An adjustment appears in the target player's public ledger, attributed to
@@ -169,6 +191,12 @@ people must be able to trust is the one the points actually come from.
 - [x] An entry that concerns a match links to that match.
 - [x] The log is derived from `point_events` and `matches`; no audit table exists.
 - [x] The screen follows spec 0010 §8 (the standard screen anatomy).
+- [x] An admin can reset the tournament (scores, history, teams) from the admin console.
+- [x] Reset requires typing "confirmer" (case-insensitive) in a modal popup; anything else is rejected.
+- [x] Reset deletes all point events (player and team), matches, match sides, match participants, and notifications.
+- [x] Reset unassigns `users.team_id` for all players except the captains.
+- [x] Reset preserves user accounts, PIN hashes, games catalog, and push subscriptions.
+- [x] Non-admins cannot invoke the reset (rejected with 403).
 
 ## End-to-end coverage
 
@@ -176,6 +204,7 @@ people must be able to trust is the one the points actually come from.
 - An adjustment needs a reason of at least 5 characters, and that reason appears in the target's public profile.
 - A disputed result awards nothing until an admin decides, and the decision needs a stated reason.
 - A plain player reads the admin log, sees the author, the reason in full and the signed delta, and can filter by type.
+- An admin can reset the tournament with typed confirmation, clearing scores, history and non-captain teams.
 
 ## Out of scope
 
@@ -184,7 +213,6 @@ people must be able to trust is the one the points actually come from.
 - Bulk operations, CSV import/export.
 - Logging admin actions that move no points and change no outcome (creating
   or editing a game). The log is about points and results, not configuration.
-- Resetting the leaderboard.
 
 ## Open questions
 
@@ -198,3 +226,4 @@ None.
 | 2026-09-14 | Added the public admin log (rules 15-21); removed "an admin audit log screen" from Out of scope | Human requirement: full transparency on admin score changes, readable by everyone and not only by admins |
 | 2026-09-23 | Rules 18 and 21: team moves are a fifth kind of intervention, derived from `team_moves` (spec 0017) | An admin moving a player writes no point event and touches no match, so the log could not otherwise see it |
 | 2026-09-24 | Reverted: an admin cannot move a player between teams at all (spec 0017) | A team choice is final for everyone, admins included — so there is no intervention left for the log to carry |
+| 2026-09-24 | Added tournament reset for game kickoff (rules 22-25) | Human requirement: allow admins to reset scores, history and teams before the real game starts |

@@ -14,7 +14,7 @@ No code change lands without a spec change first — see `AGENTS.md` §6.
 | `0005` | [Scoring and leaderboard](0005-scoring-and-leaderboard.md) | implemented | Append-only point ledger, base points + itemised margin bonus |
 | `0006` | [Notifications](0006-notifications.md) | implemented | Web Push (VAPID) + in-app inbox, opt-in prompt |
 | `0007` | [Profiles and history](0007-profiles-and-history.md) | implemented | Per-player stats, match history, point-by-point breakdown, Parties / Journal switch |
-| `0008` | [Admin console](0008-admin-console.md) | implemented | Game CRUD, dispute resolution, manual adjustments, **public admin log** |
+| `0008` | [Admin console](0008-admin-console.md) | implemented | Game CRUD, dispute resolution, manual adjustments, **public admin log**, tournament reset |
 | `0009` | [PWA and responsive shell](0009-pwa-and-responsive-shell.md) | implemented | Mobile-first shell, installable PWA, desktop layout |
 | `0010` | [Visual design system (« Confetti »)](0010-visual-design-system.md) | implemented | Cream paper, sticker cards, hard shadows, Gabarito, shared screen anatomy — enforced by `lint:design` |
 | `0011` | [Client error reporting](0011-client-error-reporting.md) | implemented | Browser crashes reach a table, an admin screen and the alert channel — grouped, rate limited, no third party |
