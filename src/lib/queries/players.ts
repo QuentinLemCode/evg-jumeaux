@@ -10,9 +10,11 @@ import { getStandings, type Standing } from './leaderboard';
 import { isBusy } from './roster';
 import { listHistory, type MatchSummary } from './matches';
 
+import type { PointEventType } from '@/lib/domain/types';
+
 export type LedgerEntry = {
   id: string;
-  type: 'match_win' | 'margin_bonus' | 'admin_adjustment' | 'match_reversal';
+  type: PointEventType;
   points: number;
   detail: string;
   matchId: string | null;

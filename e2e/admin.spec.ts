@@ -231,3 +231,35 @@ test.describe('Resetting tournament before kickoff', { tag: '@spec-0008' }, () =
   });
 });
 
+test.describe('Scarf theft', { tag: '@spec-0018' }, () => {
+  test('an admin assigns a scarf theft and it updates leaderboard, player profile and admin log', async ({
+    browser,
+  }) => {
+    const admin = await asPlayer(browser, 'quentin');
+    await admin.goto('/admin');
+
+    await admin.getByLabel('Voleur').selectOption(PLAYERS.clement.id);
+    await admin.getByPlaceholder('ex. Dérobé discrètement au salon').fill('Dans la cuisine');
+    await admin.getByRole('button', { name: 'Attribuer le vol de foulard' }).click();
+
+    await expect(admin.getByText('Vol de foulard enregistré.')).toBeVisible();
+    expect(pointTotal(PLAYERS.clement.id)).toBe(2);
+
+    // Leaderboard
+    await admin.goto('/leaderboard');
+    const clementRow = admin.getByTestId('standing').filter({ hasText: PLAYERS.clement.name });
+    await expect(clementRow).toBeVisible();
+    await expect(clementRow).toContainText('1 vol (2 pts)');
+
+    // Player profile
+    await admin.goto(`/players/${PLAYERS.clement.id}`);
+    await expect(admin.getByText('1 vol · 2 pts')).toBeVisible();
+    await expect(admin.getByText('Vol de foulard · par Quentin')).toBeVisible();
+    await expect(admin.getByText('Vol de foulard (+2 pts) — Dans la cuisine')).toBeVisible();
+
+    // Admin log
+    await admin.goto('/admin-log');
+    await expect(admin.getByText('Vol de foulard (+2 pts) — Dans la cuisine')).toBeVisible();
+  });
+});
+

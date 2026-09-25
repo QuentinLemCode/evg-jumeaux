@@ -185,3 +185,11 @@ export const BackspaceIcon = svg(
     <path d="M17 9.5l-5 5" />
   </>,
 );
+
+export const ScarfIcon = svg(
+  <>
+    <path d="M6 7a6 6 0 0 1 12 0c0 3-3 5.5-6 6-3-.5-6-3-6-6Z" />
+    <path d="M9 13v7" />
+    <path d="M13 13v5" />
+  </>,
+);

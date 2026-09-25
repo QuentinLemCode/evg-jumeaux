@@ -180,6 +180,68 @@ export async function adjustPoints(
   });
 }
 
+const scarfTheftSchema = z.object({
+  userId: z.string({ required_error: 'Joueur inconnu' }).min(1, 'Joueur inconnu'),
+  points: z.preprocess(
+    (val) => {
+      if (val === '' || val === null || val === undefined) return undefined;
+      const num = Number(val);
+      return Number.isNaN(num) ? val : num;
+    },
+    z
+      .number({
+        required_error: 'Indique le nombre de points',
+        invalid_type_error: 'Indique le nombre de points',
+      })
+      .int('Indique un nombre de points entier')
+      .min(-1000, 'Maximum 1000 points')
+      .max(1000, 'Maximum 1000 points')
+      .refine((v) => v !== 0, 'Indique un nombre de points non nul'),
+  ),
+  note: z.string().trim().max(280, 'Maximum 280 caractères').optional(),
+});
+
+export async function assignScarfTheft(
+  input: z.input<typeof scarfTheftSchema>,
+): Promise<ActionResult> {
+  return guarded(async () => {
+    const admin = await requireAdminAction();
+    const parsed = scarfTheftSchema.safeParse(input);
+    if (!parsed.success) {
+      return err(parsed.error.issues[0]?.message ?? 'Attribution invalide');
+    }
+
+    const target = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.id, parsed.data.userId))
+      .limit(1);
+    if (target.length === 0) return err('Joueur inconnu');
+
+    const signed = parsed.data.points > 0 ? `+${parsed.data.points}` : `${parsed.data.points}`;
+    const base = `Vol de foulard (${signed} pts)`;
+    const trimmedNote = parsed.data.note?.trim();
+    const detail = trimmedNote && trimmedNote.length > 0 ? `${base} — ${trimmedNote}` : base;
+
+    await db.insert(pointEvents).values({
+      id: crypto.randomUUID(),
+      userId: parsed.data.userId,
+      matchId: null,
+      type: 'scarf_theft',
+      points: parsed.data.points,
+      detail,
+      createdBy: admin.id,
+      createdAt: Date.now(),
+    });
+
+    revalidatePath('/leaderboard');
+    revalidatePath(`/players/${parsed.data.userId}`);
+    revalidatePath('/admin');
+    revalidatePath('/admin-log');
+    return ok();
+  });
+}
+
 const fingerprintSchema = z.object({
   fingerprint: z.string().regex(/^[0-9a-f]{20}$/, 'empreinte invalide'),
   resolved: z.boolean(),

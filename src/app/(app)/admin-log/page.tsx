@@ -8,6 +8,7 @@ import {
   ClockIcon,
   EyeIcon,
   ScalesIcon,
+  ScarfIcon,
   SlidersIcon,
   UndoIcon,
   type IconProps,
@@ -37,6 +38,7 @@ const MARKS: Record<
   dispute_settled: { Icon: ScalesIcon, tint: 'bg-grape-tint', ink: 'text-grape' },
   match_cancelled: { Icon: UndoIcon, tint: 'bg-coral-tint', ink: 'text-coral' },
   force_expired: { Icon: ClockIcon, tint: 'bg-tangerine-tint', ink: 'text-tangerine-deep' },
+  scarf_theft: { Icon: ScarfIcon, tint: 'bg-coral-tint', ink: 'text-coral' },
 };
 
 function isLogType(value: string | undefined): value is AdminLogType {

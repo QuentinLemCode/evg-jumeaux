@@ -23,6 +23,7 @@ export const ADMIN_LOG_TYPES = [
   'dispute_settled',
   'match_cancelled',
   'force_expired',
+  'scarf_theft',
 ] as const;
 
 export type AdminLogType = (typeof ADMIN_LOG_TYPES)[number];
@@ -32,6 +33,7 @@ export const ADMIN_LOG_LABELS: Record<AdminLogType, string> = {
   dispute_settled: 'Contestation tranchée',
   match_cancelled: 'Partie annulée',
   force_expired: 'Invitation expirée',
+  scarf_theft: 'Vol de foulard',
 };
 
 export type AdminLogEntry = {
@@ -142,22 +144,58 @@ export async function listAdminLog(
 
   const forcedBy = new Map(forcedByRows.map((r) => [r.matchId, r]));
 
-  const entries: AdminLogEntry[] = adjustmentRows.map((row) => ({
-    key: `adjustment:${row.id}`,
-    type: 'adjustment' as const,
-    at: row.at,
-    adminName: row.adminName ?? 'Un admin',
-    adminId: row.adminId,
-    points: row.points,
-    affected: 1,
-    reason: row.reason,
-    derived: null,
-    subject: row.targetName,
-    targetUserId: row.targetUserId,
-    matchId: null,
-    gameName: null,
-    gameIcon: null,
-  }));
+  // --- scarf thefts ---------------------------------------------------------
+  const scarfTheftRows = await db
+    .select({
+      id: pointEvents.id,
+      at: pointEvents.createdAt,
+      points: pointEvents.points,
+      reason: pointEvents.detail,
+      adminId: pointEvents.createdBy,
+      adminName: admins.name,
+      targetUserId: pointEvents.userId,
+      targetName: targets.name,
+    })
+    .from(pointEvents)
+    .leftJoin(admins, eq(admins.id, pointEvents.createdBy))
+    .innerJoin(targets, eq(targets.id, pointEvents.userId))
+    .where(eq(pointEvents.type, 'scarf_theft'))
+    .orderBy(desc(pointEvents.createdAt));
+
+  const entries: AdminLogEntry[] = [
+    ...adjustmentRows.map((row) => ({
+      key: `adjustment:${row.id}`,
+      type: 'adjustment' as const,
+      at: row.at,
+      adminName: row.adminName ?? 'Un admin',
+      adminId: row.adminId,
+      points: row.points,
+      affected: 1,
+      reason: row.reason,
+      derived: null,
+      subject: row.targetName,
+      targetUserId: row.targetUserId,
+      matchId: null,
+      gameName: null,
+      gameIcon: null,
+    })),
+    ...scarfTheftRows.map((row) => ({
+      key: `scarf_theft:${row.id}`,
+      type: 'scarf_theft' as const,
+      at: row.at,
+      adminName: row.adminName ?? 'Un admin',
+      adminId: row.adminId,
+      points: row.points,
+      affected: 1,
+      reason: row.reason,
+      derived: null,
+      subject: row.targetName,
+      targetUserId: row.targetUserId,
+      matchId: null,
+      gameName: null,
+      gameIcon: null,
+    })),
+  ];
 
   for (const row of matchRows) {
     const match = row.match;
@@ -246,7 +284,12 @@ export async function countAdminLog(): Promise<number> {
   const rows = await db
     .select({ count: sql<number>`count(*)` })
     .from(pointEvents)
-    .where(eq(pointEvents.type, 'admin_adjustment'));
+    .where(
+      or(
+        eq(pointEvents.type, 'admin_adjustment'),
+        eq(pointEvents.type, 'scarf_theft'),
+      ),
+    );
   const adjustments = Number(rows[0]?.count ?? 0);
   const matchRows = await db
     .select({ count: sql<number>`count(*)` })

@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | ready-for-code |
+| **Status** | implemented |
 | **Owner** | spec agent |
 | **Depends on** | 0002, 0005, 0007, 0008, 0010, 0017 |
 | **Ready for code** | yes |
@@ -45,9 +45,9 @@ every theft is logged in the public admin log for transparency.
    e.g. « 3 vols · 6 pts » (or « 0 vol · 0 pt » when none).
 8. **Rule 8.** The "vol de fod" score is displayed:
    - On the player's profile (`/players/[id]`) as a dedicated stat card in the
-     stats grid.
+   stats grid.
    - On the leaderboard (`/leaderboard`) in the row description alongside the
-     match record (e.g. « 3 V · 1 D · 2 vols (4 pts) »).
+   match record (e.g. « 3 V · 1 D · 2 vols (4 pts) »).
 
 ### Transparency and admin log
 
@@ -101,18 +101,18 @@ Purely additive schema change (AGENTS.md §8):
 
 ## Acceptance criteria
 
-- [ ] An admin can assign a scarf theft to any player from `/admin`.
-- [ ] The scarf theft assignment form defaults to 2 points.
-- [ ] The admin can modify the point value before submitting.
-- [ ] The admin can optionally specify an explanatory note.
-- [ ] Submitting awards the points to the target player and records a `scarf_theft` row in `point_events`.
-- [ ] The points are reflected in the player's total on `/leaderboard` and `/players/[id]`.
-- [ ] Each player's "vol de fod" score (count and points) is displayed on their profile and on the leaderboard.
-- [ ] Each scarf theft appears in the public admin log (`/admin-log`) showing the admin, recipient player, points awarded, and timestamp.
-- [ ] Each scarf theft appears in the recipient player's public ledger on `/players/[id]`.
-- [ ] Non-admins cannot invoke the scarf theft action (rejected with 403).
-- [ ] Setting 0 points is rejected with an error message.
-- [ ] Tournament reset (spec 0008) deletes all scarf thefts and resets every player's "vol de fod" score to 0.
+- [x] An admin can assign a scarf theft to any player from `/admin`.
+- [x] The scarf theft assignment form defaults to 2 points.
+- [x] The admin can modify the point value before submitting.
+- [x] The admin can optionally specify an explanatory note.
+- [x] Submitting awards the points to the target player and records a `scarf_theft` row in `point_events`.
+- [x] The points are reflected in the player's total on `/leaderboard` and `/players/[id]`.
+- [x] Each player's "vol de fod" score (count and points) is displayed on their profile and on the leaderboard.
+- [x] Each scarf theft appears in the public admin log (`/admin-log`) showing the admin, recipient player, points awarded, and timestamp.
+- [x] Each scarf theft appears in the recipient player's public ledger on `/players/[id]`.
+- [x] Non-admins cannot invoke the scarf theft action (rejected with 403).
+- [x] Setting 0 points is rejected with an error message.
+- [x] Tournament reset (spec 0008) deletes all scarf thefts and resets every player's "vol de fod" score to 0.
 
 ## End-to-end coverage
 
@@ -139,3 +139,4 @@ None. All questions answered by product human on 2026-09-25:
 |---|---|---|
 | 2026-09-25 | Created (draft) | Initial specification from human request |
 | 2026-09-25 | Promoted to ready-for-code | Resolved all open questions with product human |
+| 2026-09-25 | Implemented | Implemented in code, unit/integration tests and e2e suite |

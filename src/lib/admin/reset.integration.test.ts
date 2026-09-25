@@ -127,6 +127,17 @@ describe('Tournament reset', () => {
       createdAt: NOW,
     });
 
+    await m.db.insert(pointEvents).values({
+      id: 'pe-theft-1',
+      userId: 'carol',
+      matchId: null,
+      type: 'scarf_theft',
+      points: 2,
+      detail: 'Vol de foulard (+2 pts)',
+      createdBy: 'alice',
+      createdAt: NOW,
+    });
+
     await m.db.insert(teamPointEvents).values({
       id: 'tpe-1',
       teamId: JULIEN,
