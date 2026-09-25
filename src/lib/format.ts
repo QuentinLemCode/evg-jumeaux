@@ -81,4 +81,5 @@ export const POINT_TYPE_LABELS: Record<string, string> = {
   margin_bonus: 'Bonus d’écart',
   admin_adjustment: 'Ajustement admin',
   match_reversal: 'Annulation',
+  scarf_theft: 'Vol de foulard',
 };

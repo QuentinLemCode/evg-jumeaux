@@ -2,6 +2,7 @@ import { AdjustPointsForm } from '@/components/admin/AdjustPointsForm';
 import { AdminMatchControls } from '@/components/admin/AdminMatchControls';
 import { DisputeResolver } from '@/components/admin/DisputeResolver';
 import { ResetTournamentControls } from '@/components/admin/ResetTournamentControls';
+import { ScarfTheftForm } from '@/components/admin/ScarfTheftForm';
 import { MatchSummaryCard } from '@/components/matches/MatchSummaryCard';
 import { ButtonLink } from '@/components/ui/Button';
 import { Card, SectionTitle } from '@/components/ui/Card';
@@ -102,6 +103,17 @@ export default async function AdminPage() {
             ))}
           </ul>
         )}
+      </section>
+
+      <section>
+        <SectionTitle>Vol de foulard</SectionTitle>
+        <Card>
+          <p className="mb-3 text-sm text-muted">
+            Enregistre un vol de foulard réussi. Par défaut, rapporte 2 points au voleur.
+            L’action apparaît dans le profil du joueur et dans le journal public.
+          </p>
+          <ScarfTheftForm roster={roster} />
+        </Card>
       </section>
 
       <section>

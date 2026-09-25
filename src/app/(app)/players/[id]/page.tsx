@@ -18,9 +18,24 @@ import { getPlayerTeam } from '@/lib/queries/teams';
 
 export const dynamic = 'force-dynamic';
 
-function Stat({ label, value }: { label: string; value: string }) {
+function Stat({
+  label,
+  value,
+  className,
+}: {
+  label: string;
+  value: string;
+  className?: string;
+}) {
   return (
-    <div className="rounded-xl bg-bg-elevated px-3 py-2 text-center">
+    <div
+      className={[
+        'rounded-xl bg-bg-elevated px-3 py-2 text-center',
+        className,
+      ]
+        .filter(Boolean)
+        .join(' ')}
+    >
       <Score value={value} size="md" />
       <p className="text-[11px] tracking-wide text-muted uppercase">{label}</p>
     </div>
@@ -76,6 +91,15 @@ export default async function PlayerPage({ params }: { params: Promise<{ id: str
           <Stat
             label="Ratio"
             value={winRate === null ? '—' : `${Math.round(winRate * 100)}%`}
+          />
+          <Stat
+            label="Vol de fod"
+            value={`${standing.scarfTheftsCount} ${
+              standing.scarfTheftsCount > 1 ? 'vols' : 'vol'
+            } · ${standing.scarfTheftsPoints} ${
+              Math.abs(standing.scarfTheftsPoints) > 1 ? 'pts' : 'pt'
+            }`}
+            className="col-span-4"
           />
         </div>
 

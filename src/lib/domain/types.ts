@@ -35,7 +35,8 @@ export type PointEventType =
   | 'match_win'
   | 'margin_bonus'
   | 'admin_adjustment'
-  | 'match_reversal';
+  | 'match_reversal'
+  | 'scarf_theft';
 
 /**
  * The team ledger's types (spec 0017). Deliberately a subset of the player

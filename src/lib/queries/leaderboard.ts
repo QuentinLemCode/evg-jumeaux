@@ -21,10 +21,12 @@ export type Standing = {
   losses: number;
   played: number;
   rank: number;
+  scarfTheftsCount: number;
+  scarfTheftsPoints: number;
 };
 
 export async function getStandings(): Promise<Standing[]> {
-  const [roster, totals, records] = await Promise.all([
+  const [roster, totals, records, thefts] = await Promise.all([
     db
       .select({ id: users.id, name: users.name, avatar: users.avatar })
       .from(users)
@@ -51,16 +53,29 @@ export async function getStandings(): Promise<Standing[]> {
         ),
       )
       .groupBy(matchParticipants.userId),
+    db
+      .select({
+        userId: pointEvents.userId,
+        count: sql<number>`count(*)`,
+        total: sql<number>`coalesce(sum(${pointEvents.points}), 0)`,
+      })
+      .from(pointEvents)
+      .where(eq(pointEvents.type, 'scarf_theft'))
+      .groupBy(pointEvents.userId),
   ]);
 
   const pointsByUser = new Map(totals.map((t) => [t.userId, Number(t.total)]));
   const recordByUser = new Map(
     records.map((r) => [r.userId, { played: Number(r.played), wins: Number(r.wins) }]),
   );
+  const theftsByUser = new Map(
+    thefts.map((t) => [t.userId, { count: Number(t.count), points: Number(t.total) }]),
+  );
 
   return rankStandings(
     roster.map((player) => {
       const record = recordByUser.get(player.id) ?? { played: 0, wins: 0 };
+      const theft = theftsByUser.get(player.id) ?? { count: 0, points: 0 };
       return {
         userId: player.id,
         name: player.name,
@@ -69,6 +84,8 @@ export async function getStandings(): Promise<Standing[]> {
         played: record.played,
         wins: record.wins,
         losses: record.played - record.wins,
+        scarfTheftsCount: theft.count,
+        scarfTheftsPoints: theft.points,
       };
     }),
   );

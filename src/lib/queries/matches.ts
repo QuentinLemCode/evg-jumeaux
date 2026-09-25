@@ -17,7 +17,13 @@ import {
   type MatchRow,
 } from '@/db/schema';
 import { canAct, isInvitationExpired } from '@/lib/domain/match-state';
-import { isTerminal, type GameMode, type MatchSnapshot, type MatchStatus } from '@/lib/domain/types';
+import {
+  isTerminal,
+  type GameMode,
+  type MatchSnapshot,
+  type MatchStatus,
+  type PointEventType,
+} from '@/lib/domain/types';
 
 export type MatchParticipantView = {
   userId: string;
@@ -40,7 +46,7 @@ export type MatchSideView = {
 export type MatchAward = {
   userId: string;
   name: string;
-  type: 'match_win' | 'margin_bonus' | 'admin_adjustment' | 'match_reversal';
+  type: PointEventType;
   points: number;
   detail: string;
 };

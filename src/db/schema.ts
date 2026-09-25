@@ -227,7 +227,13 @@ export const pointEvents = sqliteTable(
       .references(() => users.id),
     matchId: text('match_id').references(() => matches.id),
     type: text('type', {
-      enum: ['match_win', 'margin_bonus', 'admin_adjustment', 'match_reversal'],
+      enum: [
+        'match_win',
+        'margin_bonus',
+        'admin_adjustment',
+        'match_reversal',
+        'scarf_theft',
+      ],
     }).notNull(),
     /** Signed. Negative for reversals and for downward admin adjustments. */
     points: integer('points').notNull(),
