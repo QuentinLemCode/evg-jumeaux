@@ -144,15 +144,17 @@ export function GameManager({ games }: { games: ManagedGame[] }) {
       <ErrorMessage>{error}</ErrorMessage>
 
       <div className="flex gap-3">
-        <Field label="Emoji">
-          <input
-            value={draft.icon}
-            onChange={(event) => set('icon', event.target.value)}
-            maxLength={8}
-            className={`${inputClass} w-20 text-center text-2xl`}
-          />
-        </Field>
-        <div className="flex-1">
+        <div className="w-14 shrink-0">
+          <Field label="Emoji">
+            <input
+              value={draft.icon}
+              onChange={(event) => set('icon', event.target.value)}
+              maxLength={8}
+              className={`${inputClass} px-1 text-center text-2xl`}
+            />
+          </Field>
+        </div>
+        <div className="min-w-0 flex-1">
           <Field label="Nom">
             <input
               value={draft.name}

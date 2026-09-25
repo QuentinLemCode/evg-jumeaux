@@ -113,8 +113,8 @@ Terminal states: `completed`, `cancelled`, `expired`.
     In games played by camps (`mode === 'team'`), the winner selection prompts
     «Quel camp a gagné ?» and options clearly identify the camp (e.g. «Camp 1 · Alice & Bob»),
     tagging the selected side with «camp gagnant». In duels, it prompts «Qui a gagné ?»
-    with «gagnant». When scores are entered, the winning side automatically tracks
-    the side with the highest score.
+    with «gagnant». In team games, when scores are entered, the winning side
+    automatically tracks the side with the highest score.
 16. Scores, when required, must be integers ≥ 0, and the winning side's score
     must be strictly greater than every other side's. The app rejects a report
     that contradicts itself.

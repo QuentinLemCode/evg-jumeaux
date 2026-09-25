@@ -102,7 +102,7 @@ export function MatchActions({
   const handleScoreChange = (sideIndex: number, val: string) => {
     setScores((current) => {
       const next = { ...current, [sideIndex]: val };
-      if (requiresScore) {
+      if (isTeam && requiresScore) {
         const parsed = sides.map((s) => ({
           sideIndex: s.sideIndex,
           score:
@@ -189,25 +189,36 @@ export function MatchActions({
               <div className="space-y-2">
                 <p className="text-sm font-medium">Scores en direct</p>
                 {sides.map((side) => (
-                  <label key={side.sideIndex} className="flex items-center gap-3">
-                    <span className="min-w-0 flex-1 truncate text-sm">{side.label}</span>
-                    <input
-                      type="number"
-                      inputMode="numeric"
-                      min={0}
-                      max={999}
-                      value={scores[side.sideIndex] ?? ''}
-                      onChange={(event) => {
-                        setScoresSaved(false);
-                        setScores((current) => ({
-                          ...current,
-                          [side.sideIndex]: event.target.value,
-                        }));
-                      }}
-                      className={`${inputClass} w-24 text-center`}
-                      aria-label={`Score de ${side.label}`}
-                    />
-                  </label>
+                  <div
+                    key={side.sideIndex}
+                    className="flex items-center justify-between gap-3 rounded-xl border border-border bg-bg-elevated p-3"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold">{side.label}</p>
+                      <p className="text-xs text-muted">
+                        Score attribué à l’équipe {side.label}
+                      </p>
+                    </div>
+                    <div className="w-24 shrink-0">
+                      <input
+                        type="number"
+                        inputMode="numeric"
+                        min={0}
+                        max={999}
+                        placeholder="Score"
+                        value={scores[side.sideIndex] ?? ''}
+                        onChange={(event) => {
+                          setScoresSaved(false);
+                          setScores((current) => ({
+                            ...current,
+                            [side.sideIndex]: event.target.value,
+                          }));
+                        }}
+                        className={`${inputClass} text-center`}
+                        aria-label={`Score de ${side.label}`}
+                      />
+                    </div>
+                  </div>
                 ))}
                 <Button
                   full
@@ -388,23 +399,41 @@ export function MatchActions({
                     ? 'Score de chaque équipe'
                     : 'Score de chaque joueur'}
               </p>
-              {sides.map((side) => (
-                <label key={side.sideIndex} className="flex items-center gap-3">
-                  <span className="min-w-0 flex-1 truncate text-sm">{formatSideName(side)}</span>
-                  <input
-                    type="number"
-                    inputMode="numeric"
-                    min={0}
-                    max={999}
-                    value={scores[side.sideIndex] ?? ''}
-                    onChange={(event) =>
-                      handleScoreChange(side.sideIndex, event.target.value)
-                    }
-                    className={`${inputClass} w-24 text-center`}
-                    aria-label={`Score de ${formatSideName(side)}`}
-                  />
-                </label>
-              ))}
+              {sides.map((side) => {
+                const name = formatSideName(side);
+                return (
+                  <div
+                    key={side.sideIndex}
+                    className="flex items-center justify-between gap-3 rounded-xl border border-border bg-bg-elevated p-3"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold">{name}</p>
+                      <p className="text-xs text-muted">
+                        {isTeam
+                          ? `Score attribué au Camp ${side.sideIndex}`
+                          : isClash
+                            ? `Score attribué à l’équipe ${side.label}`
+                            : `Score attribué à ${side.label}`}
+                      </p>
+                    </div>
+                    <div className="w-24 shrink-0">
+                      <input
+                        type="number"
+                        inputMode="numeric"
+                        min={0}
+                        max={999}
+                        placeholder="Score"
+                        value={scores[side.sideIndex] ?? ''}
+                        onChange={(event) =>
+                          handleScoreChange(side.sideIndex, event.target.value)
+                        }
+                        className={`${inputClass} text-center`}
+                        aria-label={`Score de ${name}`}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
               <p className="text-xs text-faint">
                 {scoreRuleText}
               </p>

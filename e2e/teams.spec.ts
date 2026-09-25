@@ -184,6 +184,7 @@ test.describe('What a match moves', { tag: '@spec-0017' }, () => {
       .getByPlaceholder('ex. Vainqueur du concours de grimaces')
       .fill('Vainqueur du concours');
     await admin.getByRole('button', { name: 'Ajuster les points' }).click();
+    await expect(admin.getByText('Ajustement enregistré.')).toBeVisible();
 
     expect(pointTotal(PLAYERS.clement.id)).toBe(20);
 
