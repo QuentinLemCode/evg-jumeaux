@@ -1,6 +1,7 @@
 import { AdjustPointsForm } from '@/components/admin/AdjustPointsForm';
 import { AdminMatchControls } from '@/components/admin/AdminMatchControls';
 import { DisputeResolver } from '@/components/admin/DisputeResolver';
+import { ResetTournamentControls } from '@/components/admin/ResetTournamentControls';
 import { MatchSummaryCard } from '@/components/matches/MatchSummaryCard';
 import { ButtonLink } from '@/components/ui/Button';
 import { Card, SectionTitle } from '@/components/ui/Card';
@@ -114,6 +115,21 @@ export default async function AdminPage() {
           <AdjustPointsForm roster={roster} />
         </Card>
       </section>
+
+      <section>
+        <SectionTitle>Lancement officiel du jeu</SectionTitle>
+        <Card accent="coral">
+          <p className="mb-1 text-sm font-bold text-ink">
+            Remise à zéro avant le début
+          </p>
+          <p className="mb-4 text-xs text-muted">
+            Efface tous les scores, l’historique des parties et réinitialise les équipes pour
+            commencer le jeu sur des bases neuves. Les comptes et jeux configurés sont conservés.
+          </p>
+          <ResetTournamentControls />
+        </Card>
+      </section>
     </div>
   );
 }
+

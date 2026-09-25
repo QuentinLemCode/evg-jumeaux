@@ -1,7 +1,7 @@
 import { expect, test, type Browser, type Page } from '@playwright/test';
 
 import { PLAYERS, login } from './helpers/auth';
-import { matchStatus, pointTotal, resetVolatileState } from './helpers/db';
+import { matchStatus, pointTotal, resetVolatileState, teamSlugOf } from './helpers/db';
 
 /**
  * The admin console (specs 0003, 0008).
@@ -180,3 +180,54 @@ test.describe('Arbitrating a dispute', { tag: '@spec-0008' }, () => {
     expect(pointTotal(PLAYERS.antoine.id)).toBe(0);
   });
 });
+
+test.describe('Resetting tournament before kickoff', { tag: '@spec-0008' }, () => {
+  test('an admin resets all scores, history and teams with typed confirmation', async ({
+    browser,
+  }) => {
+    const admin = await asPlayer(browser, 'quentin');
+    // First give points to Clément via adjustment
+    await admin.goto('/admin');
+    await admin.getByLabel('Joueur', { exact: true }).selectOption(PLAYERS.clement.id);
+    await admin.getByPlaceholder('ex. 25 ou -10').fill('50');
+    await admin
+      .getByPlaceholder('ex. Vainqueur du concours de grimaces')
+      .fill('Points test avant remise à zéro');
+    await admin.getByRole('button', { name: 'Ajuster les points' }).click();
+    await expect(admin.getByText('Ajustement enregistré.')).toBeVisible();
+    expect(pointTotal(PLAYERS.clement.id)).toBe(50);
+
+    // Open reset popup
+    await admin.getByRole('button', { name: 'Remettre tout à zéro' }).click();
+    await expect(admin.getByText('Remise à zéro du jeu')).toBeVisible();
+
+    // Confirm button is disabled if empty
+    const confirmButton = admin.getByRole('button', { name: 'Confirmer' });
+    await expect(confirmButton).toBeDisabled();
+
+    // Type something invalid
+    await admin.getByPlaceholder('confirmer').fill('mauvais');
+    await expect(confirmButton).toBeEnabled();
+    await confirmButton.click();
+    await expect(admin.getByTestId('form-error')).toContainText('Tape « confirmer » pour valider');
+
+    // Type "confirmer"
+    await admin.getByPlaceholder('confirmer').fill('confirmer');
+    await confirmButton.click();
+
+    // After reset, points are 0
+    await expect(admin.getByText('Remise à zéro avant le début')).toBeVisible();
+    expect(pointTotal(PLAYERS.clement.id)).toBe(0);
+    // Non-captain player team has been reset
+    expect(teamSlugOf(PLAYERS.clement.id)).toBeNull();
+    // Captain player team is preserved
+    expect(teamSlugOf(PLAYERS.quentin.id)).toBe('julien');
+  });
+
+  test('a plain player cannot reach admin console', async ({ browser }) => {
+    const player = await asPlayer(browser, 'antoine');
+    await player.goto('/admin');
+    await expect(player).toHaveURL(/\/leaderboard/);
+  });
+});
+
