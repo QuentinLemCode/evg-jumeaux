@@ -105,7 +105,9 @@ rule survives any future roster.
    A team whose captain is not seeded still works: `captain_id` stays null.
 9. **Rule 9.** A captain is seeded onto their own team and cannot change team,
    by themselves or by an admin.
-10. **Rule 10.** Every other player has no team until they choose one.
+10. **Rule 10.** Every other player has no team until they choose one — unless
+    pre-assigned in the seed (`teamSlug`), in which case their team is set upon
+    seeding and they skip the choice screen upon login.
 
 ### Choosing a team
 
@@ -215,7 +217,7 @@ rule survives any future roster.
 Additive only, and safe for the blue/green overlap (AGENTS.md §8).
 
 - **`teams`** — `id`, `slug`, `name`, `accent` (a Confetti token, so the two
-  differ by colour as well as by name), **nullable** `captain_id` referencing
+  differ by colour as well as by name: `coral` for Julien, `sky` for Pierre), **nullable** `captain_id` referencing
   `users(id)`, `created_at`. **The migration inserts the two rows with
   `captain_id` NULL**, and the seeder fills it in.
 
@@ -406,3 +408,5 @@ database and would fail a CI retry, so `e2e/helpers/db.ts` gains a scoped
 | 2026-09-24 | A clash runs alongside other matches and notifies at both ends (rules 6-7) | Requiring fifteen idle guests meant the set piece could never start; and with no invitation, nothing told the other fourteen it had begun |
 | 2026-09-24 | A team fills at eight and the rest are placed automatically; the choice is final for everyone, admins included; a clash needs every player placed (rules 6, 12-17) | The balance rule made the cap unreachable — a team could only hit eight once all fifteen had chosen — so it is replaced rather than added to; and with no move possible, team composition cannot drift once it is set |
 | 2026-09-24 | Clash is admin-managed: live score updates, direct settlement, and no dispute or validation (rule 7) | An admin starts, scores and settles the clash; validation/dispute by players is removed, and players have read-only views with live scores |
+| 2026-09-25 | Explicit team accent tokens: Julien is coral (red), Pierre is sky (blue) | Colors formalized in the spec and player profile badge tone aligned with team accent |
+| 2026-09-25 | Pre-assigned teams in seed (rule 10) | Players pre-assigned via seed skip the choice screen on first login |

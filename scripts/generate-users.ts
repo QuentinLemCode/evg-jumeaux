@@ -75,6 +75,7 @@ type Parsed = {
   role: 'admin' | 'user';
   avatar: string;
   pinHash: string;
+  teamSlug?: string;
 };
 
 /**
@@ -94,9 +95,9 @@ const users: Parsed[] = readFileSync(inputPath, 'utf8')
   .filter(({ line }) => line && !line.startsWith('#'))
   .map(({ line, number }, index) => {
     const fields = line.split(',').map((field) => field.trim());
-    const [name, pin, roleValue] = fields;
-    if (fields.length !== 3 || !name) {
-      fail(`line ${number}: expected Name,6-digit-pin,role`);
+    const [name, pin, roleValue, avatarValue, teamValue] = fields;
+    if (fields.length < 3 || fields.length > 5 || !name) {
+      fail(`line ${number}: expected Name,6-digit-pin,role[,avatar[,team]]`);
     }
     if (!/^\d{6}$/.test(pin ?? '')) {
       fail(`line ${number}: the PIN must be exactly 6 digits`);
@@ -107,12 +108,18 @@ const users: Parsed[] = readFileSync(inputPath, 'utf8')
       fail(`line ${number}: role must be empty, user, or admin`);
     }
 
+    const teamSlug = teamValue || undefined;
+    if (teamSlug && teamSlug !== 'julien' && teamSlug !== 'pierre') {
+      fail(`line ${number}: team must be empty, 'julien', or 'pierre'`);
+    }
+
     return {
       id: userId(name),
       name,
       role,
-      avatar: avatarFor(index),
+      avatar: avatarValue || avatarFor(index),
       pinHash: bcrypt.hashSync(pin as string, 12),
+      ...(teamSlug ? { teamSlug } : {}),
     };
   });
 
@@ -141,7 +148,7 @@ const rosterBlock = [
   ...users.map(
     (u) =>
       `  { id: '${u.id}', name: '${u.name.replace(/'/g, "\\'")}', ` +
-      `role: '${u.role}', avatar: '${u.avatar}' },`,
+      `role: '${u.role}', avatar: '${u.avatar}'${u.teamSlug ? `, teamSlug: '${u.teamSlug}'` : ''} },`,
   ),
   '];',
   END,
