@@ -71,6 +71,56 @@ export function MatchActions({
   const [scoresSaved, setScoresSaved] = useState(false);
   const [reason, setReason] = useState('');
 
+  const isTeam = gameMode === 'team';
+  const isClash = gameMode === 'clash';
+
+  const formatSideName = (side: Side) => {
+    if (isTeam && !side.label.startsWith('Camp')) {
+      return `Camp ${side.sideIndex} · ${side.label}`;
+    }
+    return side.label;
+  };
+
+  const winnerQuestion = isTeam
+    ? 'Quel camp a gagné ?'
+    : isClash
+      ? 'Quelle équipe a gagné ?'
+      : 'Qui a gagné ?';
+
+  const winnerBadge = isTeam
+    ? 'camp gagnant'
+    : isClash
+      ? 'équipe gagnante'
+      : 'gagnant';
+
+  const scoreRuleText = isTeam
+    ? 'Le camp gagnant doit avoir le score le plus élevé. Les égalités ne sont pas possibles — annule la partie si personne n’a gagné.'
+    : isClash
+      ? 'L’équipe gagnante doit avoir le score le plus élevé. Les égalités ne sont pas possibles — annule la partie si personne n’a gagné.'
+      : 'Le gagnant doit avoir le score le plus élevé. Les égalités ne sont pas possibles — annule la partie si personne n’a gagné.';
+
+  const handleScoreChange = (sideIndex: number, val: string) => {
+    setScores((current) => {
+      const next = { ...current, [sideIndex]: val };
+      if (isTeam && requiresScore) {
+        const parsed = sides.map((s) => ({
+          sideIndex: s.sideIndex,
+          score:
+            next[s.sideIndex] !== undefined && next[s.sideIndex] !== ''
+              ? Number(next[s.sideIndex])
+              : null,
+        }));
+        if (parsed.every((p) => p.score !== null && !Number.isNaN(p.score))) {
+          const sorted = [...parsed].sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+          if (sorted[0] && sorted[1] && (sorted[0].score ?? 0) > (sorted[1].score ?? 0)) {
+            setWinningSide(sorted[0].sideIndex);
+          }
+        }
+      }
+      return next;
+    });
+  };
+
   function run(action: () => Promise<{ ok: boolean; message?: string }>) {
     setError(null);
     startTransition(async () => {
@@ -139,25 +189,36 @@ export function MatchActions({
               <div className="space-y-2">
                 <p className="text-sm font-medium">Scores en direct</p>
                 {sides.map((side) => (
-                  <label key={side.sideIndex} className="flex items-center gap-3">
-                    <span className="min-w-0 flex-1 truncate text-sm">{side.label}</span>
-                    <input
-                      type="number"
-                      inputMode="numeric"
-                      min={0}
-                      max={999}
-                      value={scores[side.sideIndex] ?? ''}
-                      onChange={(event) => {
-                        setScoresSaved(false);
-                        setScores((current) => ({
-                          ...current,
-                          [side.sideIndex]: event.target.value,
-                        }));
-                      }}
-                      className={`${inputClass} w-24 text-center`}
-                      aria-label={`Score de ${side.label}`}
-                    />
-                  </label>
+                  <div
+                    key={side.sideIndex}
+                    className="flex items-center justify-between gap-3 rounded-xl border border-border bg-bg-elevated p-3"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold">{side.label}</p>
+                      <p className="text-xs text-muted">
+                        Score attribué à l’équipe {side.label}
+                      </p>
+                    </div>
+                    <div className="w-24 shrink-0">
+                      <input
+                        type="number"
+                        inputMode="numeric"
+                        min={0}
+                        max={999}
+                        placeholder="Score"
+                        value={scores[side.sideIndex] ?? ''}
+                        onChange={(event) => {
+                          setScoresSaved(false);
+                          setScores((current) => ({
+                            ...current,
+                            [side.sideIndex]: event.target.value,
+                          }));
+                        }}
+                        className={`${inputClass} text-center`}
+                        aria-label={`Score de ${side.label}`}
+                      />
+                    </div>
+                  </div>
                 ))}
                 <Button
                   full
@@ -183,7 +244,7 @@ export function MatchActions({
             ) : null}
 
             <div className="space-y-3 pt-2">
-              <p className="text-sm font-medium">Qui a gagné ?</p>
+              <p className="text-sm font-medium">Quelle équipe a gagné ?</p>
               <div className="space-y-2">
                 {sides.map((side) => (
                   <button
@@ -199,7 +260,7 @@ export function MatchActions({
                   >
                     <span className="flex-1 truncate font-medium">{side.label}</span>
                     {winningSide === side.sideIndex ? (
-                      <span className="text-sm text-coral">gagnant</span>
+                      <span className="text-sm text-coral">équipe gagnante</span>
                     ) : null}
                   </button>
                 ))}
@@ -307,7 +368,7 @@ export function MatchActions({
 
       {mode === 'report' ? (
         <div className="space-y-3">
-          <p className="text-sm font-medium">Qui a gagné ?</p>
+          <p className="text-sm font-medium">{winnerQuestion}</p>
           <div className="space-y-2">
             {sides.map((side) => (
               <button
@@ -321,9 +382,9 @@ export function MatchActions({
                     : 'border-border bg-bg-elevated',
                 ].join(' ')}
               >
-                <span className="flex-1 truncate font-medium">{side.label}</span>
+                <span className="flex-1 truncate font-medium">{formatSideName(side)}</span>
                 {winningSide === side.sideIndex ? (
-                  <span className="text-sm text-coral">gagnant</span>
+                  <span className="text-sm text-coral">{winnerBadge}</span>
                 ) : null}
               </button>
             ))}
@@ -331,30 +392,50 @@ export function MatchActions({
 
           {requiresScore ? (
             <div className="space-y-2">
-              <p className="text-sm font-medium">Score de chaque camp</p>
-              {sides.map((side) => (
-                <label key={side.sideIndex} className="flex items-center gap-3">
-                  <span className="min-w-0 flex-1 truncate text-sm">{side.label}</span>
-                  <input
-                    type="number"
-                    inputMode="numeric"
-                    min={0}
-                    max={999}
-                    value={scores[side.sideIndex] ?? ''}
-                    onChange={(event) =>
-                      setScores((current) => ({
-                        ...current,
-                        [side.sideIndex]: event.target.value,
-                      }))
-                    }
-                    className={`${inputClass} w-24 text-center`}
-                    aria-label={`Score de ${side.label}`}
-                  />
-                </label>
-              ))}
+              <p className="text-sm font-medium">
+                {isTeam
+                  ? 'Score de chaque camp'
+                  : isClash
+                    ? 'Score de chaque équipe'
+                    : 'Score de chaque joueur'}
+              </p>
+              {sides.map((side) => {
+                const name = formatSideName(side);
+                return (
+                  <div
+                    key={side.sideIndex}
+                    className="flex items-center justify-between gap-3 rounded-xl border border-border bg-bg-elevated p-3"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold">{name}</p>
+                      <p className="text-xs text-muted">
+                        {isTeam
+                          ? `Score attribué au Camp ${side.sideIndex}`
+                          : isClash
+                            ? `Score attribué à l’équipe ${side.label}`
+                            : `Score attribué à ${side.label}`}
+                      </p>
+                    </div>
+                    <div className="w-24 shrink-0">
+                      <input
+                        type="number"
+                        inputMode="numeric"
+                        min={0}
+                        max={999}
+                        placeholder="Score"
+                        value={scores[side.sideIndex] ?? ''}
+                        onChange={(event) =>
+                          handleScoreChange(side.sideIndex, event.target.value)
+                        }
+                        className={`${inputClass} text-center`}
+                        aria-label={`Score de ${name}`}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
               <p className="text-xs text-faint">
-                Le gagnant doit avoir le score le plus élevé. Les égalités ne sont pas
-                possibles — annule la partie si personne n’a gagné.
+                {scoreRuleText}
               </p>
             </div>
           ) : null}

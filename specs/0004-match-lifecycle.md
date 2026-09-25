@@ -110,6 +110,11 @@ Terminal states: `completed`, `cancelled`, `expired`.
 15. The reporter is expected to be on the winning side, and the form defaults to
     that, but a player on a losing side may also report. What matters is who
     validates (rule 18), not who reports.
+    In games played by camps (`mode === 'team'`), the winner selection prompts
+    «Quel camp a gagné ?» and options clearly identify the camp (e.g. «Camp 1 · Alice & Bob»),
+    tagging the selected side with «camp gagnant». In duels, it prompts «Qui a gagné ?»
+    with «gagnant». In team games, when scores are entered, the winning side
+    automatically tracks the side with the highest score.
 16. Scores, when required, must be integers ≥ 0, and the winning side's score
     must be strictly greater than every other side's. The app rejects a report
     that contradicts itself.
@@ -251,6 +256,7 @@ matches are queried by `user_id`.
       `src/lib/domain/match-state.ts`, and no other module writes `matches.status`.
 - [x] A transition attempted from a state that does not allow it is rejected
       with the current state in the error, and nothing is written.
+- [x] In team games (`mode === 'team'`), result reporting allows choosing the winning camp with camp labels and «camp gagnant» badge.
 - [x] Unit tests cover every legal transition and at least one illegal one per state.
 
 ## End-to-end coverage
@@ -286,3 +292,4 @@ None.
 | 2026-09-24 | A `clash` skips the invitation phase entirely: admin-started, everyone accepted, `active` at once (rules 5, 6, 11-13) | Nobody confirms a match the organiser has already called, and with no pending invitation there is nothing to decline or expire — which removes the mode-aware decline and expiry paths added the day before |
 | 2026-09-24 | A `clash` is outside the busy rule entirely, both ways (rules 7-8, spec 0017) | The set piece involves everybody, so requiring fifteen idle guests meant it could never start — and a darts match in progress must simply keep running alongside it |
 | 2026-09-24 | A `clash` is reported and settled directly by an admin, bypassing player validation and dispute (rule 14, spec 0017) | An admin referees the clash, so validation between players is unnecessary and dispute is impossible |
+| 2026-09-25 | Team games prompt «Quel camp a gagné ?» with camp labels and auto-sync winner from scores | In team games, winner selection is between camps, not individuals |

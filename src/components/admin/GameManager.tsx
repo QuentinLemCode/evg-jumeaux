@@ -98,7 +98,9 @@ export function GameManager({ games }: { games: ManagedGame[] }) {
       // (spec 0017, rule 1).
       if (key === 'mode') {
         next.playersPerSide = value === 'team' ? Math.max(2, current.playersPerSide) : 1;
-        if (value === 'clash') next.sidesCount = 2;
+        if (value === 'clash' || (value === 'team' && current.mode === 'duel')) {
+          next.sidesCount = 2;
+        }
       }
       // A margin cannot be computed without scores, so enabling the bonus
       // forces them on rather than saving a rule that can never fire.
@@ -142,15 +144,17 @@ export function GameManager({ games }: { games: ManagedGame[] }) {
       <ErrorMessage>{error}</ErrorMessage>
 
       <div className="flex gap-3">
-        <Field label="Emoji">
-          <input
-            value={draft.icon}
-            onChange={(event) => set('icon', event.target.value)}
-            maxLength={8}
-            className={`${inputClass} w-20 text-center text-2xl`}
-          />
-        </Field>
-        <div className="flex-1">
+        <div className="w-14 shrink-0">
+          <Field label="Emoji">
+            <input
+              value={draft.icon}
+              onChange={(event) => set('icon', event.target.value)}
+              maxLength={8}
+              className={`${inputClass} px-1 text-center text-2xl`}
+            />
+          </Field>
+        </div>
+        <div className="min-w-0 flex-1">
           <Field label="Nom">
             <input
               value={draft.name}
@@ -202,7 +206,14 @@ export function GameManager({ games }: { games: ManagedGame[] }) {
             régler : elles n’ont pas besoin d’être de la même taille.
           </p>
         ) : (
-          <Field label={draft.mode === 'duel' ? 'Nombre de joueurs' : 'Nombre de camps'}>
+          <Field
+            label={draft.mode === 'duel' ? 'Nombre de joueurs' : 'Nombre de camps'}
+            hint={
+              draft.mode === 'duel'
+                ? 'Chaque joueur joue pour soi (1 contre 1, ou chacun pour soi jusqu’à 4).'
+                : 'Nombre de camps qui s’affrontent (ex : 2 pour un 2v2).'
+            }
+          >
             <input
               type="number"
               inputMode="numeric"
@@ -215,7 +226,10 @@ export function GameManager({ games }: { games: ManagedGame[] }) {
           </Field>
         )}
         {draft.mode === 'team' ? (
-          <Field label="Joueurs par camp">
+          <Field
+            label="Joueurs par camp"
+            hint="Nombre de joueurs dans chaque camp (ex : 2 pour un 2v2)."
+          >
             <input
               type="number"
               inputMode="numeric"

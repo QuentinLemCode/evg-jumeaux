@@ -11,7 +11,7 @@
 import { asc, eq, isNotNull, sql } from 'drizzle-orm';
 
 import { db, type Db, type Tx } from '@/db';
-import { pointEvents, teamPointEvents, teams, users } from '@/db/schema';
+import { games, matches, pointEvents, teamPointEvents, teams, users } from '@/db/schema';
 import { rankTeamStandings, type TeamSize } from '@/lib/domain/teams';
 
 export type TeamMember = {
@@ -28,6 +28,8 @@ export type TeamStanding = {
   name: string;
   accent: string;
   points: number;
+  individualPoints: number;
+  clashPoints: number;
   playerCount: number;
   matchesWon: number;
   rank: number;
@@ -159,7 +161,7 @@ export async function getCaptainedTeam(userId: string): Promise<PlayerTeam | nul
  * more.
  */
 export async function getTeamStandings(): Promise<TeamStanding[]> {
-  const [rows, totals, wins, roster, ledger] = await Promise.all([
+  const [rows, clashTotals, wins, roster, ledger] = await Promise.all([
     db
       .select({
         teamId: teams.id,
@@ -170,12 +172,16 @@ export async function getTeamStandings(): Promise<TeamStanding[]> {
       })
       .from(teams)
       .orderBy(asc(teams.name)),
+    // Clash points awarded to the team (spec 0017, rules 18-19).
     db
       .select({
         teamId: teamPointEvents.teamId,
         total: sql<number>`coalesce(sum(${teamPointEvents.points}), 0)`,
       })
       .from(teamPointEvents)
+      .innerJoin(matches, eq(matches.id, teamPointEvents.matchId))
+      .innerJoin(games, eq(games.id, matches.gameId))
+      .where(eq(games.mode, 'clash'))
       .groupBy(teamPointEvents.teamId),
     // One row per (team, match), summed. Counting the positive ones in
     // JavaScript rather than in a nested SQL query keeps rule 28 readable,
@@ -206,7 +212,7 @@ export async function getTeamStandings(): Promise<TeamStanding[]> {
       .groupBy(pointEvents.userId),
   ]);
 
-  const pointsByTeam = new Map(totals.map((row) => [row.teamId, Number(row.total)]));
+  const clashPointsByTeam = new Map(clashTotals.map((row) => [row.teamId, Number(row.total)]));
   const winsByTeam = new Map<string, number>();
   for (const row of wins) {
     if (Number(row.total) <= 0) continue;
@@ -226,13 +232,19 @@ export async function getTeamStandings(): Promise<TeamStanding[]> {
       }))
       .sort((a, b) => b.points - a.points || a.name.localeCompare(b.name, 'fr'));
 
+    const individualPoints = members.reduce((sum, member) => sum + member.points, 0);
+    const clashPoints = clashPointsByTeam.get(team.teamId) ?? 0;
+    const points = individualPoints + clashPoints;
+
     return {
       teamId: team.teamId,
       slug: team.slug,
       name: team.name,
       accent: team.accent,
       captainId: team.captainId,
-      points: pointsByTeam.get(team.teamId) ?? 0,
+      points,
+      individualPoints,
+      clashPoints,
       matchesWon: winsByTeam.get(team.teamId) ?? 0,
       playerCount: members.length,
       members,

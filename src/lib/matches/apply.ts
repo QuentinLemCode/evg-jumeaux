@@ -209,16 +209,21 @@ function applyEffects(
         };
         const sideScores = sides.map((s) => ({ sideIndex: s.sideIndex, score: s.score }));
 
-        const awards = computeAwards({
-          rules,
-          gameName: game.name,
-          winningSide,
-          sides: sideScores,
-          participants: participants.map((p) => ({
-            userId: p.userId,
-            sideIndex: p.sideIndex,
-          })),
-        });
+        // Clash games award team points only, no individual points to players
+        // (spec 0017, rule 19).
+        const awards =
+          game.mode === 'clash'
+            ? []
+            : computeAwards({
+                rules,
+                gameName: game.name,
+                winningSide,
+                sides: sideScores,
+                participants: participants.map((p) => ({
+                  userId: p.userId,
+                  sideIndex: p.sideIndex,
+                })),
+              });
 
         if (awards.length > 0) {
           tx.insert(pointEvents)

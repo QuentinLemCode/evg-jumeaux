@@ -39,7 +39,7 @@ export default async function TeamsPage() {
         subtitle={
           tied
             ? 'Tout le monde à égalité. Tout se joue maintenant.'
-            : 'Chaque partie gagnée rapporte ses points une fois à l’équipe.'
+            : 'Total = points individuels des membres + points de clash.'
         }
       >
         <ViewSwitch
@@ -79,7 +79,10 @@ export default async function TeamsPage() {
                       <span className="display block text-lg leading-tight font-black">
                         {team.name}
                       </span>
-                      <span className="block text-xs text-muted">
+                      <span className="block text-xs leading-tight text-muted">
+                        {team.individualPoints} pts individuels · {team.clashPoints} pt{team.clashPoints > 1 ? 's' : ''} de clash
+                      </span>
+                      <span className="block text-xs leading-tight text-muted">
                         {team.playerCount} joueur{team.playerCount > 1 ? 's' : ''} ·{' '}
                         {team.matchesWon} partie{team.matchesWon > 1 ? 's' : ''} gagnée
                         {team.matchesWon > 1 ? 's' : ''}
@@ -140,15 +143,17 @@ export default async function TeamsPage() {
         <Card quiet>
           <ul className="space-y-1.5 text-sm leading-snug text-muted">
             <li>
-              Une partie gagnée rapporte ses points <strong>une seule fois</strong> à
-              l’équipe, quel que soit le nombre de joueurs dans le camp.
+              Le score total additionne les <strong>points individuels</strong> de tous
+              les membres et les <strong>points de clash</strong> remportés par l’équipe.
             </li>
             <li>
-              Seules les parties qui opposent les deux équipes comptent : deux joueurs
-              de la même équipe ne rapportent rien.
+              Les victoires en match et les ajustements d’arbitre augmentent le score
+              du joueur et profitent donc directement au total de son équipe.
             </li>
-            {/* Rule 23: a total that did not move has to be explained. */}
-            <li>Les ajustements manuels ne comptent que pour le joueur.</li>
+            <li>
+              Un <strong>clash</strong> rapporte ses points directement à l’équipe
+              gagnante, sans impacter le classement individuel.
+            </li>
           </ul>
         </Card>
       </section>

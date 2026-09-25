@@ -14,23 +14,16 @@ The weekend stops being every man for himself. Two teams, one per twin —
 time they log in. Guests want to know who is winning *together*, not only who
 is winning.
 
-Fifteen players means eight against seven. That is a scoring problem for
-exactly one shape of match, and this spec introduces that shape deliberately:
-two teams that can never meet in full are not what was asked for.
+The team score brings together both individual performances and whole-team
+clashes: **total points = individual points sum + team clash points**.
 
-`computeAwards` gives **every** winner the full `pointsPerWin` rather than a
-share, so a whole-team victory is worth 8 × P to the bigger team and 7 × P to
-the smaller — while an equal-sided one is worth the same to either:
-
-| Match | Sum of members' points | Points per player |
-|---|---|---|
-| 1 v 1, 2 v 2, 3 v 3 between the teams | fair | favours the smaller team |
-| whole team, 8 v 7 | favours the bigger team by 1/7 | fair |
-
-No aggregation of members' points is fair for both rows. So the team score is
-not aggregated from members at all: **a match awards its points once to the
-winning team**, whatever the side sizes. Headcount appears nowhere, and the
-rule survives any future roster.
+Manual adjustments (like an admin awarding points for real-life feats), duel
+victories, and small-team games all credit individual players, and therefore
+roll up directly into the team total. Meanwhile, whole-team `clash` matches
+award points directly to the winning team (in `team_point_events`) and award
+no individual points to players — preventing the 8 against 7 roster imbalance
+from distorting individual player standings, and keeping clash rewards
+itemised clearly on the team screen.
 
 ## Behaviour
 
@@ -139,52 +132,48 @@ rule survives any future roster.
 
 ### What earns a team points
 
-18. **Rule 18.** A settled match awards `pointsPerWin` **once** to the winning
-    team — not once per winner. A margin bonus, where the game has one, is
-    awarded once in the same way.
-19. **Rule 19.** A match awards team points only when it **opposes the two
-    teams**: exactly two sides, every participant of a side being a member of
-    one team, and the two sides being different teams. Team membership is what
-    counts, not invitation status — a player who declined is still on a team.
-
-    Re-deriving this at settlement is safe **because membership cannot
-    change** (rule 17). An earlier revision snapshotted each side's team onto
-    the match, to survive an admin moving somebody mid-clash; with no move
-    possible and every player placed before a clash can start, there is
-    nothing left to drift and the column was dropped rather than kept "just
-    in case".
-20. **Rule 20.** A player with no team earns their personal points normally;
-    their matches award none to any team. Rule 20 is also what stops a team
-    farming itself — two of its players facing each other earn it nothing, and
-    the bigger team has more internal pairs to try it with, 28 against 21.
+18. **Rule 18.** A team's score is computed as:
+    `totalPoints = individualPoints + clashPoints`.
+    - `individualPoints` is the sum of all individual points of the team's
+      current members (from `point_events`).
+    - `clashPoints` is the sum of points awarded to the team from whole-team
+      `clash` matches (from `team_point_events`).
+19. **Rule 19.** A settled `clash` match awards `pointsPerWin` (+ margin bonus,
+    if any) **once** to the winning team in `team_point_events`. It awards
+    **no** individual points in `point_events` to players, preventing roster size
+    asymmetry (8 vs 7) from inflating individual standings or double-counting.
+20. **Rule 20.** Non-clash matches (duels and small-team games) award
+    individual points in `point_events` to winning players, which naturally
+    contribute to their team's `individualPoints`. When opposing the two teams,
+    a settled match also records a match win for the team.
 21. **Rule 21.** Awarding is idempotent: at most one row per
     `(match, team, type)`, exactly as spec 0005 requires of player awards.
 22. **Rule 22.** Cancelling a settled match writes one `match_reversal` row
-    per team **the match awarded anything**, worth the negative of that. The
+    per team the match awarded anything, worth the negative of that. The
     award rows stay, so the history shows both — `computeReversals`, mirrored.
-    No re-award path exists: a disputed match is settled once, a cancelled one
-    is final.
-23. **Rule 23.** A manual `admin_adjustment` moves **no** team points, and the
-    team screen says so, so a total that did not move is explained.
+23. **Rule 23.** A manual `admin_adjustment` on a player updates their
+    individual points in `point_events`, and is therefore directly reflected in
+    their team's total score (via `individualPoints`).
 
 ### The two leaderboards
 
 24. **Rule 24.** The player leaderboard is unchanged: same query, same order,
-    same tiebreaks. Nothing about a player's rank depends on their team.
+    same tiebreaks. A player's individual points include their match wins,
+    margin bonuses, and admin adjustments, but not clash team points.
 25. **Rule 25.** The team leaderboard is its own screen: each team's name,
-    points, number of players and matches won.
-26. **Rule 26.** The two are never added together. A team total added to each
-    member is a constant per team: it cannot reorder players within a team,
-    and it flips both teams wholesale — turning the player leaderboard into a
-    measure of which team you joined.
-27. **Rule 27.** Teams are ordered by points, then matches won, then name, and
-    a tie is shown as a tie.
+    total points (`individualPoints + clashPoints`), detail breakdown
+    (individual points, clash points), number of players, and matches won.
+26. **Rule 26.** The team total score combines its members' individual points
+    and team clash points. The player leaderboard remains ranked purely by
+    each player's own points (a player's rank does not add their whole team's
+    score).
+27. **Rule 27.** Teams are ordered by total points, then matches won, then name,
+    and a tie is shown as a tie.
 28. **Rule 28.** "Matches won" is the number of distinct matches whose rows for
     that team sum above zero — so a reversal, which cancels the award exactly,
     removes the win along with the points.
 29. **Rule 29.** A player's profile shows their team; the team screen lists its
-    members with their personal totals. The link between the two leaderboards
-    is navigational, never arithmetic.
+    members with their personal totals.
 
 ### Vocabulary
 
@@ -269,7 +258,7 @@ team's button is presentation, not authorisation.
 | A match opposing no two teams settles | Player points as usual, no team row | « Pas de points d'équipe : ce match n'oppose pas les deux équipes. » |
 | A `clash` whose sides are not the two full teams | Refused at creation | « Un match d'équipes oppose les deux équipes au complet. » |
 | A second `clash` while one is live | Refused | « Un match d'équipes est déjà en cours. » |
-| An admin adjusts a player's points | The team total does not move | « Les ajustements manuels ne comptent que pour le joueur. » |
+| An admin adjusts a player's points | The team total reflects the adjustment via individual points sum | — |
 | `db:seed` before the secret has the new players | Seeder exits non-zero, naming them | — (operator, not guest) |
 
 ## Acceptance criteria
@@ -291,7 +280,9 @@ only CI runs (AGENTS.md §4 and §9) — see *Open questions*.
 - [x] Each automatically assigned player gets a notification naming their team.
 - [x] The choice screen states that the choice is final, and confirming takes a deliberate second action.
 - [x] A `clash` is refused while any player has no team, saying so.
-- [x] A 1 v 1, a 3 v 3 and a `clash` 8 v 7 between the teams each award `pointsPerWin` **once** to the winning team, while every winner is credited the full amount personally.
+- [x] A `clash` match awards points to the winning team only, and awards no individual points to players.
+- [x] An admin adjustment on a player is reflected in the team's total points.
+- [x] Team standings calculate total points as individual points sum + clash points, and display the breakdown.
 - [x] A match between two players of one team, and a match with a mixed side, award player points and no team points.
 - [x] A participant on a side that is not entirely one team stops the match awarding any team points (rule 19).
 - [x] Awarding the same match twice writes one team row, not two.
@@ -410,3 +401,4 @@ database and would fail a CI retry, so `e2e/helpers/db.ts` gains a scoped
 | 2026-09-24 | Clash is admin-managed: live score updates, direct settlement, and no dispute or validation (rule 7) | An admin starts, scores and settles the clash; validation/dispute by players is removed, and players have read-only views with live scores |
 | 2026-09-25 | Explicit team accent tokens: Julien is coral (red), Pierre is sky (blue) | Colors formalized in the spec and player profile badge tone aligned with team accent |
 | 2026-09-25 | Pre-assigned teams in seed (rule 10) | Players pre-assigned via seed skip the choice screen on first login |
+| 2026-09-25 | Team score = individual points sum + clash points; clash awards team points only; team screen displays breakdown | Total score reflects all members' points (including admin adjustments) plus clash victories; clash awards no individual points to avoid 8 vs 7 inflation |

@@ -155,10 +155,10 @@ test.describe('What a match moves', { tag: '@spec-0017' }, () => {
     await expect(row).toHaveAttribute('data-points', '21');
   });
 
-  test('a match inside one team moves only the player leaderboard', async ({
+  test('a match inside one team credits the winner and rolls into the team individual total', async ({
     browser,
   }) => {
-    // Rule 21: a team cannot farm itself with its own internal pairs.
+    // Rule 20: a team cannot farm team_point_events with its own internal pairs.
     await playAndWin(browser, 'antoine', 'baptiste', ['13', '5']);
 
     expect(pointTotal(PLAYERS.antoine.id)).toBe(18);
@@ -167,7 +167,31 @@ test.describe('What a match moves', { tag: '@spec-0017' }, () => {
 
     const player = await asPlayer(browser, 'hugo');
     await player.goto('/teams');
-    await expect(player.locator('[data-team="julien"]')).toHaveAttribute('data-points', '0');
-    await expect(player.getByText('Les ajustements manuels ne comptent que pour le joueur.')).toBeVisible();
+    const julien = player.locator('[data-team="julien"]');
+    await expect(julien).toHaveAttribute('data-points', '18');
+    await expect(julien).toContainText('18 pts individuels · 0 pt de clash');
+    await expect(julien).toContainText('0 partie gagnée');
+  });
+
+  test('an admin adjustment on a player is reflected in the team total score', async ({
+    browser,
+  }) => {
+    const admin = await asPlayer(browser, 'quentin');
+    await admin.goto('/admin');
+    await admin.getByLabel('Joueur', { exact: true }).selectOption(PLAYERS.clement.id);
+    await admin.getByPlaceholder('ex. 25 ou -10').fill('20');
+    await admin
+      .getByPlaceholder('ex. Vainqueur du concours de grimaces')
+      .fill('Vainqueur du concours');
+    await admin.getByRole('button', { name: 'Ajuster les points' }).click();
+    await expect(admin.getByText('Ajustement enregistré.')).toBeVisible();
+
+    expect(pointTotal(PLAYERS.clement.id)).toBe(20);
+
+    const player = await asPlayer(browser, 'hugo');
+    await player.goto('/teams');
+    const julien = player.locator('[data-team="julien"]');
+    await expect(julien).toHaveAttribute('data-points', '20');
+    await expect(julien).toContainText('20 pts individuels · 0 pt de clash');
   });
 });

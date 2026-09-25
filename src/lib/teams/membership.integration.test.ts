@@ -409,9 +409,36 @@ describe('a clash', () => {
     expect(forClash[0]).toMatchObject({ teamId: JULIEN, type: 'match_win', points: 25 });
   });
 
-  it('pays every player of the winning side in full, as always', async () => {
+  it('awards no individual points to players for a clash, preserving individual balance', async () => {
     const players = await m.getStandings();
-    expect(players.find((row) => row.userId === 'carol')?.points).toBe(25);
-    expect(players.find((row) => row.userId === 'alice')?.points).toBe(25);
+    expect(players.find((row) => row.userId === 'carol')?.points).toBe(0);
+    expect(players.find((row) => row.userId === 'alice')?.points).toBe(0);
+  });
+
+  it('reflects clash points on team standings and includes admin adjustments in team total', async () => {
+    let standings = await m.getTeamStandings();
+    const julienBefore = standings.find((team) => team.teamId === JULIEN);
+    expect(julienBefore?.clashPoints).toBe(25);
+    expect(julienBefore?.individualPoints).toBe(0);
+    expect(julienBefore?.points).toBe(25);
+
+    // Admin awards +20 manual adjustment to Alice (who is in Julien)
+    await m.db.insert(m.schema.pointEvents).values({
+      id: crypto.randomUUID(),
+      userId: 'alice',
+      matchId: null,
+      type: 'admin_adjustment',
+      points: 20,
+      detail: 'Bonus admin',
+      createdBy: 'alice',
+      createdAt: AT + 10,
+    });
+
+    standings = await m.getTeamStandings();
+    const julienAfter = standings.find((team) => team.teamId === JULIEN);
+    expect(julienAfter?.clashPoints).toBe(25);
+    expect(julienAfter?.individualPoints).toBe(20);
+    expect(julienAfter?.points).toBe(45);
   });
 });
+
