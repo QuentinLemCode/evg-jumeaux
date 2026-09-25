@@ -48,10 +48,10 @@ test.describe('A match from invitation to points', { tag: ['@spec-0004', '@spec-
     browser,
   }) => {
     const antoine = await asPlayer(browser, 'antoine');
-    const baptiste = await asPlayer(browser, 'baptiste');
+    const lucas = await asPlayer(browser, 'lucas');
 
-    // --- Antoine challenges Baptiste at Palet ---------------------------
-    const matchId = await startDuel(antoine, 'Palet', PLAYERS.baptiste.name);
+    // --- Antoine challenges Lucas at Palet ------------------------------
+    const matchId = await startDuel(antoine, 'Palet', PLAYERS.lucas.name);
     await expect(antoine.getByText('En attente', { exact: true })).toBeVisible();
     await expect(antoine.getByText(/Invitation expire dans/)).toBeVisible();
     expect(matchStatus(matchId)).toBe('pending');
@@ -59,13 +59,13 @@ test.describe('A match from invitation to points', { tag: ['@spec-0004', '@spec-
     // Nobody has scored for merely being invited.
     expect(pointTotal(PLAYERS.antoine.id)).toBe(0);
 
-    // --- Baptiste is told, and accepts ----------------------------------
-    await baptiste.goto('/leaderboard');
-    await expect(baptiste.getByText('À toi de jouer')).toBeVisible();
+    // --- Lucas is told, and accepts -------------------------------------
+    await lucas.goto('/leaderboard');
+    await expect(lucas.getByText('À toi de jouer')).toBeVisible();
 
-    await baptiste.goto(`/matches/${matchId}`);
-    await baptiste.getByRole('button', { name: 'Accepter le défi' }).click();
-    await expect(baptiste.getByText('En cours', { exact: true })).toBeVisible();
+    await lucas.goto(`/matches/${matchId}`);
+    await lucas.getByRole('button', { name: 'Accepter le défi' }).click();
+    await expect(lucas.getByText('En cours', { exact: true })).toBeVisible();
     expect(matchStatus(matchId)).toBe('active');
 
     // --- while it runs, neither of them can start another ---------------
@@ -77,7 +77,7 @@ test.describe('A match from invitation to points', { tag: ['@spec-0004', '@spec-
     await antoine.getByRole('button', { name: 'Saisir le résultat' }).click();
     await antoine.getByRole('button', { name: new RegExp(`^${PLAYERS.antoine.name}`) }).click();
     await antoine.getByLabel(`Score de ${PLAYERS.antoine.name}`).fill('13');
-    await antoine.getByLabel(`Score de ${PLAYERS.baptiste.name}`).fill('2');
+    await antoine.getByLabel(`Score de ${PLAYERS.lucas.name}`).fill('2');
     await antoine.getByRole('button', { name: 'Envoyer pour validation' }).click();
 
     await expect(antoine.getByText('À valider', { exact: true })).toBeVisible();
@@ -91,27 +91,27 @@ test.describe('A match from invitation to points', { tag: ['@spec-0004', '@spec-
       antoine.getByText('En attente de la validation de l’autre camp.'),
     ).toBeVisible();
 
-    // --- Baptiste confirms, and only then are points awarded ------------
-    await baptiste.goto(`/matches/${matchId}`);
-    await baptiste.getByRole('button', { name: 'Je confirme ce résultat' }).click();
-    await expect(baptiste.getByText('Terminée', { exact: true })).toBeVisible();
+    // --- Lucas confirms, and only then are points awarded ---------------
+    await lucas.goto(`/matches/${matchId}`);
+    await lucas.getByRole('button', { name: 'Je confirme ce résultat' }).click();
+    await expect(lucas.getByText('Terminée', { exact: true })).toBeVisible();
     expect(matchStatus(matchId)).toBe('completed');
 
     // 10 for the win + 11 for the 13–2 margin, as TWO lines with their
     // arithmetic spelled out (spec 0005, rule 12).
-    await expect(baptiste.getByText('Points attribués')).toBeVisible();
-    await expect(baptiste.getByText('Victoire — Palet')).toBeVisible();
-    await expect(baptiste.getByText('Écart 13–2 × 1 pt')).toBeVisible();
-    await expect(baptiste.getByText('+10', { exact: true })).toBeVisible();
-    await expect(baptiste.getByText('+11', { exact: true })).toBeVisible();
+    await expect(lucas.getByText('Points attribués')).toBeVisible();
+    await expect(lucas.getByText('Victoire — Palet').first()).toBeVisible();
+    await expect(lucas.getByText('Écart 13–2 × 1 pt').first()).toBeVisible();
+    await expect(lucas.getByText('+10', { exact: true }).first()).toBeVisible();
+    await expect(lucas.getByText('+11', { exact: true }).first()).toBeVisible();
 
     expect(pointTotal(PLAYERS.antoine.id)).toBe(21);
     // Both rows share a timestamp, so the helper breaks the tie on `type` to
     // stay deterministic. Alphabetical, not chronological.
     expect(pointEventTypes(PLAYERS.antoine.id)).toEqual(['margin_bonus', 'match_win']);
     // The loser gets no rows at all — zero is the absence of a row.
-    expect(pointTotal(PLAYERS.baptiste.id)).toBe(0);
-    expect(pointEventTypes(PLAYERS.baptiste.id)).toEqual([]);
+    expect(pointTotal(PLAYERS.lucas.id)).toBe(0);
+    expect(pointEventTypes(PLAYERS.lucas.id)).toEqual([]);
 
     // --- and the leaderboard agrees -------------------------------------
     await antoine.goto('/leaderboard');
@@ -145,18 +145,18 @@ test.describe('A match from invitation to points', { tag: ['@spec-0004', '@spec-
 
   test('a busy player cannot be invited', async ({ browser }) => {
     const antoine = await asPlayer(browser, 'antoine');
-    const baptiste = await asPlayer(browser, 'baptiste');
+    const lucas = await asPlayer(browser, 'lucas');
     const clement = await asPlayer(browser, 'clement');
 
-    const matchId = await startDuel(antoine, 'Palet', PLAYERS.baptiste.name);
-    await baptiste.goto(`/matches/${matchId}`);
-    await baptiste.getByRole('button', { name: 'Accepter le défi' }).click();
-    await expect(baptiste.getByText('En cours', { exact: true })).toBeVisible();
+    const matchId = await startDuel(antoine, 'Palet', PLAYERS.lucas.name);
+    await lucas.goto(`/matches/${matchId}`);
+    await lucas.getByRole('button', { name: 'Accepter le défi' }).click();
+    await expect(lucas.getByText('En cours', { exact: true })).toBeVisible();
 
     // Clément tries to challenge someone already playing.
     await clement.goto('/games');
     await clement.getByRole('link', { name: /Palet/ }).click();
-    const busyRow = clement.getByRole('button', { name: new RegExp(PLAYERS.antoine.name) });
+    const busyRow = clement.getByRole('button', { name: new RegExp(PLAYERS.lucas.name) });
     await expect(busyRow).toBeDisabled();
     await expect(clement.getByText('déjà en partie').first()).toBeVisible();
   });
@@ -165,19 +165,19 @@ test.describe('A match from invitation to points', { tag: ['@spec-0004', '@spec-
     browser,
   }) => {
     const antoine = await asPlayer(browser, 'antoine');
-    const baptiste = await asPlayer(browser, 'baptiste');
+    const lucas = await asPlayer(browser, 'lucas');
 
-    const matchId = await startDuel(antoine, 'Palet', PLAYERS.baptiste.name);
-    await baptiste.goto(`/matches/${matchId}`);
-    await baptiste.getByRole('button', { name: 'Accepter le défi' }).click();
-    await expect(baptiste.getByText('En cours', { exact: true })).toBeVisible();
+    const matchId = await startDuel(antoine, 'Palet', PLAYERS.lucas.name);
+    await lucas.goto(`/matches/${matchId}`);
+    await lucas.getByRole('button', { name: 'Accepter le défi' }).click();
+    await expect(lucas.getByText('En cours', { exact: true })).toBeVisible();
 
     await antoine.goto(`/matches/${matchId}`);
     await antoine.getByRole('button', { name: 'Saisir le résultat' }).click();
     // Claims the win with the LOWER score (spec 0004, rule 16).
     await antoine.getByRole('button', { name: new RegExp(`^${PLAYERS.antoine.name}`) }).click();
     await antoine.getByLabel(`Score de ${PLAYERS.antoine.name}`).fill('2');
-    await antoine.getByLabel(`Score de ${PLAYERS.baptiste.name}`).fill('13');
+    await antoine.getByLabel(`Score de ${PLAYERS.lucas.name}`).fill('13');
     await antoine.getByRole('button', { name: 'Envoyer pour validation' }).click();
 
     await expect(antoine.getByTestId('form-error')).toContainText(
@@ -217,15 +217,15 @@ test.describe('A match from invitation to points', { tag: ['@spec-0004', '@spec-
     const matchId = createExpiredInvitation({
       gameSlug: 'palet',
       from: PLAYERS.antoine.id,
-      to: PLAYERS.baptiste.id,
+      to: PLAYERS.lucas.id,
     });
 
-    const baptiste = await asPlayer(browser, 'baptiste');
-    await baptiste.goto(`/matches/${matchId}`);
+    const lucas = await asPlayer(browser, 'lucas');
+    await lucas.goto(`/matches/${matchId}`);
 
     // Read as expired without waiting for the background sweep.
-    await expect(baptiste.getByText('Expirée')).toBeVisible();
-    await expect(baptiste.getByRole('button', { name: 'Accepter le défi' })).toHaveCount(0);
+    await expect(lucas.getByText('Expirée')).toBeVisible();
+    await expect(lucas.getByRole('button', { name: 'Accepter le défi' })).toHaveCount(0);
     expect(pointTotal(PLAYERS.antoine.id)).toBe(0);
 
     // And it no longer holds Antoine hostage.

@@ -43,6 +43,13 @@
       "when": 1790442345000,
       "tag": "0005_remove-ravno-gabriel",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1790460000000,
+      "tag": "0006_remove-clash-individual-points",
+      "breakpoints": true
     }
   ]
 }

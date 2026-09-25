@@ -70,8 +70,8 @@ describe('validateGameDefinition', () => {
     );
   });
 
-  it('rejects more than four sides', () => {
-    expect(fields(validateGameDefinition(definition({ sidesCount: 5 })))).toContain(
+  it('rejects more than two sides', () => {
+    expect(fields(validateGameDefinition(definition({ sidesCount: 3 })))).toContain(
       'sidesCount',
     );
   });

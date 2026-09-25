@@ -12,6 +12,7 @@ export type RosterEntry = {
   name: string;
   avatar: string;
   role: 'admin' | 'user';
+  teamId: string | null;
 };
 
 export type RosterEntryWithAvailability = RosterEntry & {
@@ -21,7 +22,13 @@ export type RosterEntryWithAvailability = RosterEntry & {
 
 export async function getRoster(): Promise<RosterEntry[]> {
   return db
-    .select({ id: users.id, name: users.name, avatar: users.avatar, role: users.role })
+    .select({
+      id: users.id,
+      name: users.name,
+      avatar: users.avatar,
+      role: users.role,
+      teamId: users.teamId,
+    })
     .from(users)
     .orderBy(users.name);
 }

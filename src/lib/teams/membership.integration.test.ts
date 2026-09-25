@@ -13,7 +13,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 const workdir = mkdtempSync(join(tmpdir(), 'evg-teams-'));
@@ -440,5 +440,46 @@ describe('a clash', () => {
     expect(julienAfter?.individualPoints).toBe(20);
     expect(julienAfter?.points).toBe(45);
   });
+
+  it('cleans up legacy clash point events from individual ledger when migration runs', async () => {
+    // Insert a legacy clash point event for Alice
+    const legacyClashPointId = crypto.randomUUID();
+    await m.db.insert(m.schema.pointEvents).values({
+      id: legacyClashPointId,
+      userId: 'alice',
+      matchId: CLASH_ID,
+      type: 'match_win',
+      points: 25,
+      detail: 'Clash Palet — Victoire',
+      createdBy: 'alice',
+      createdAt: AT + 15,
+    });
+
+    // Verify Alice now has 45 individual points (20 adjustment + 25 clash)
+    let standings = await m.getTeamStandings();
+    let julien = standings.find((team) => team.teamId === JULIEN);
+    expect(julien?.individualPoints).toBe(45);
+
+    // Run the migration cleanup SQL statement
+    const fs = await import('node:fs');
+    const path = await import('node:path');
+    const sqlContent = fs.readFileSync(
+      path.join(process.cwd(), 'src/db/migrations/0006_remove-clash-individual-points.sql'),
+      'utf8',
+    );
+    m.db.run(sql.raw(sqlContent));
+
+    // The legacy clash point event was removed, but the admin adjustment remains
+    const rows = await m.db.select().from(m.schema.pointEvents);
+    expect(rows.find((r) => r.id === legacyClashPointId)).toBeUndefined();
+    expect(rows.find((r) => r.type === 'admin_adjustment')).toBeDefined();
+
+    standings = await m.getTeamStandings();
+    julien = standings.find((team) => team.teamId === JULIEN);
+    expect(julien?.individualPoints).toBe(20);
+    expect(julien?.clashPoints).toBe(25);
+    expect(julien?.points).toBe(45);
+  });
 });
+
 

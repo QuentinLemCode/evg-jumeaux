@@ -18,7 +18,7 @@ export type GameDefinition = {
 };
 
 export const GAME_LIMITS = {
-  sidesCount: { min: 2, max: 4 },
+  sidesCount: { min: 2, max: 2 },
   playersPerSide: { min: 1, max: 6 },
   pointsPerWin: { min: 1, max: 100 },
   marginBonusPerPoint: { min: 0, max: 20 },
@@ -34,23 +34,15 @@ export function validateGameDefinition(game: GameDefinition): GameRuleError[] {
   }
   if (
     !Number.isInteger(game.sidesCount) ||
-    game.sidesCount < GAME_LIMITS.sidesCount.min ||
-    game.sidesCount > GAME_LIMITS.sidesCount.max
+    game.sidesCount !== 2
   ) {
-    errors.push({ field: 'sidesCount', message: 'Entre 2 et 4 camps' });
+    errors.push({ field: 'sidesCount', message: 'Un jeu oppose exactement 2 camps' });
   }
   if (game.mode === 'duel' && game.playersPerSide !== 1) {
     errors.push({ field: 'playersPerSide', message: 'Un duel oppose des joueurs seuls' });
   }
   if (game.mode === 'team' && game.playersPerSide < 2) {
     errors.push({ field: 'playersPerSide', message: 'Un camp d’équipe compte au moins 2 joueurs' });
-  }
-  // A clash is the two teams in full, so it has exactly two sides and its
-  // `playersPerSide` is never read (spec 0017, rule 1). The size checks above
-  // deliberately do not apply to it: a validator that demands equal sides
-  // makes a 8 v 7 impossible to create, which is the bug 0017 corrects.
-  if (game.mode === 'clash' && game.sidesCount !== 2) {
-    errors.push({ field: 'sidesCount', message: 'Un choc oppose les deux équipes' });
   }
   if (game.playersPerSide > GAME_LIMITS.playersPerSide.max) {
     errors.push({ field: 'playersPerSide', message: 'Maximum 6 joueurs par camp' });
@@ -92,7 +84,7 @@ export function normaliseGameDefinition(
   // A duel is one player a side, and a clash stores 1 and never reads it
   // (spec 0017, rule 2).
   const playersPerSide = game.mode === 'duel' || game.mode === 'clash' ? 1 : game.playersPerSide;
-  const sidesCount = game.mode === 'clash' ? 2 : game.sidesCount;
+  const sidesCount = 2;
   const marginBonusPerPoint = game.marginBonusEnabled ? game.marginBonusPerPoint : 0;
   return {
     ...game,

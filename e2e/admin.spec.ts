@@ -120,40 +120,40 @@ test.describe('Arbitrating a dispute', { tag: '@spec-0008' }, () => {
     browser,
   }) => {
     const antoine = await asPlayer(browser, 'antoine');
-    const baptiste = await asPlayer(browser, 'baptiste');
+    const lucas = await asPlayer(browser, 'lucas');
 
     // --- play a match and dispute the result -----------------------------
     await antoine.goto('/games');
     await antoine.getByRole('link', { name: /Palet/ }).click();
-    await antoine.getByRole('button', { name: new RegExp(`^${PLAYERS.baptiste.name}`) }).click();
+    await antoine.getByRole('button', { name: new RegExp(`^${PLAYERS.lucas.name}`) }).click();
     await antoine.getByRole('button', { name: 'Envoyer les invitations' }).click();
     await antoine.waitForURL(/\/matches\/[0-9a-f-]+$/);
     const matchId = antoine.url().split('/matches/')[1] as string;
 
-    await baptiste.goto(`/matches/${matchId}`);
-    await baptiste.getByRole('button', { name: 'Accepter le défi' }).click();
-    await expect(baptiste.getByText('En cours', { exact: true })).toBeVisible();
+    await lucas.goto(`/matches/${matchId}`);
+    await lucas.getByRole('button', { name: 'Accepter le défi' }).click();
+    await expect(lucas.getByText('En cours', { exact: true })).toBeVisible();
 
     await antoine.goto(`/matches/${matchId}`);
     await antoine.getByRole('button', { name: 'Saisir le résultat' }).click();
     await antoine.getByRole('button', { name: new RegExp(`^${PLAYERS.antoine.name}`) }).click();
     await antoine.getByLabel(`Score de ${PLAYERS.antoine.name}`).fill('13');
-    await antoine.getByLabel(`Score de ${PLAYERS.baptiste.name}`).fill('11');
+    await antoine.getByLabel(`Score de ${PLAYERS.lucas.name}`).fill('11');
     await antoine.getByRole('button', { name: 'Envoyer pour validation' }).click();
     await expect(antoine.getByText('À valider', { exact: true })).toBeVisible();
 
-    await baptiste.goto(`/matches/${matchId}`);
-    await baptiste.getByRole('button', { name: 'Ce n’est pas ce qui s’est passé' }).click();
-    await baptiste.getByPlaceholder('Optionnel, mais ça aide l’admin à trancher').fill(
+    await lucas.goto(`/matches/${matchId}`);
+    await lucas.getByRole('button', { name: 'Ce n’est pas ce qui s’est passé' }).click();
+    await lucas.getByPlaceholder('Optionnel, mais ça aide l’admin à trancher').fill(
       'C’est moi qui ai gagné 13-11',
     );
-    await baptiste.getByRole('button', { name: 'Contester' }).click();
+    await lucas.getByRole('button', { name: 'Contester' }).click();
 
-    await expect(baptiste.getByText('Contestée', { exact: true })).toBeVisible();
+    await expect(lucas.getByText('Contestée', { exact: true })).toBeVisible();
     expect(matchStatus(matchId)).toBe('disputed');
     // Nothing is awarded while it is contested (spec 0004, rule 20).
     expect(pointTotal(PLAYERS.antoine.id)).toBe(0);
-    expect(pointTotal(PLAYERS.baptiste.id)).toBe(0);
+    expect(pointTotal(PLAYERS.lucas.id)).toBe(0);
 
     // --- the admin arbitrates, and must say why --------------------------
     const admin = await asPlayer(browser, 'quentin');
@@ -161,22 +161,22 @@ test.describe('Arbitrating a dispute', { tag: '@spec-0008' }, () => {
     await expect(admin.getByText('C’est moi qui ai gagné 13-11')).toBeVisible();
 
     await admin.getByRole('button', { name: 'Trancher' }).click();
-    await admin.getByRole('button', { name: PLAYERS.baptiste.name, exact: true }).click();
+    await admin.getByRole('button', { name: PLAYERS.lucas.name, exact: true }).click();
     await admin.getByLabel(`Score de ${PLAYERS.antoine.name}`).fill('11');
-    await admin.getByLabel(`Score de ${PLAYERS.baptiste.name}`).fill('13');
+    await admin.getByLabel(`Score de ${PLAYERS.lucas.name}`).fill('13');
 
     // Without a reason the decision cannot be saved (spec 0008, rule 3).
     await expect(admin.getByRole('button', { name: 'Valider la décision' })).toBeDisabled();
     await admin
       .getByPlaceholder('Pourquoi cette décision ? (visible par tous)')
-      .fill('Deux témoins confirment le score de Baptiste');
+      .fill('Deux témoins confirment le score de Lucas');
     await admin.getByRole('button', { name: 'Valider la décision' }).click();
 
     await expect(admin.getByText('Aucune contestation')).toBeVisible();
     expect(matchStatus(matchId)).toBe('completed');
 
-    // Baptiste wins: 10 for the match + 2 for the 13–11 margin.
-    expect(pointTotal(PLAYERS.baptiste.id)).toBe(12);
+    // Lucas wins: 10 for the match + 2 for the 13–11 margin.
+    expect(pointTotal(PLAYERS.lucas.id)).toBe(12);
     expect(pointTotal(PLAYERS.antoine.id)).toBe(0);
   });
 });

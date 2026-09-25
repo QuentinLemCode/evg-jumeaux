@@ -60,10 +60,10 @@ export default async function NewMatchPage({
               {/* «Camp» for a side of a match; «équipe» is one of the
                   weekend's two teams (spec 0017, rule 30). */}
               {game.mode === 'duel'
-                ? `${game.sidesCount} joueurs, chacun pour soi`
+                ? '1 contre 1'
                 : game.mode === 'clash'
                   ? 'Les deux équipes au complet'
-                  : `${game.sidesCount} camps de ${game.playersPerSide}`}{' '}
+                  : `2 camps de ${game.playersPerSide}`}{' '}
               · {game.pointsPerWin} pts au vainqueur
               {game.marginBonusEnabled
                 ? ` · bonus +${game.marginBonusPerPoint} par point d’écart${
@@ -94,7 +94,7 @@ export default async function NewMatchPage({
             sidesCount: game.sidesCount,
             playersPerSide: game.playersPerSide,
           }}
-          me={{ id: me.id, name: me.name, avatar: me.avatar }}
+          me={{ id: me.id, name: me.name, avatar: me.avatar, teamId: me.teamId }}
           roster={roster}
         />
       )}

@@ -205,41 +205,32 @@ export function GameManager({ games }: { games: ManagedGame[] }) {
             Les deux équipes du week-end s’affrontent au complet. Pas de taille à
             régler : elles n’ont pas besoin d’être de la même taille.
           </p>
+        ) : draft.mode === 'duel' ? (
+          <p className="col-span-2 text-xs text-muted">
+            Un duel oppose 2 joueurs (1 contre 1, un joueur de chaque équipe).
+          </p>
         ) : (
-          <Field
-            label={draft.mode === 'duel' ? 'Nombre de joueurs' : 'Nombre de camps'}
-            hint={
-              draft.mode === 'duel'
-                ? 'Chaque joueur joue pour soi (1 contre 1, ou chacun pour soi jusqu’à 4).'
-                : 'Nombre de camps qui s’affrontent (ex : 2 pour un 2v2).'
-            }
-          >
-            <input
-              type="number"
-              inputMode="numeric"
-              min={2}
-              max={4}
-              value={draft.sidesCount}
-              onChange={(event) => set('sidesCount', Number(event.target.value))}
-              className={inputClass}
-            />
-          </Field>
+          <p className="col-span-2 text-xs text-muted">
+            Un match d’équipe oppose 2 camps (un camp de chaque équipe).
+          </p>
         )}
         {draft.mode === 'team' ? (
-          <Field
-            label="Joueurs par camp"
-            hint="Nombre de joueurs dans chaque camp (ex : 2 pour un 2v2)."
-          >
-            <input
-              type="number"
-              inputMode="numeric"
-              min={2}
-              max={6}
-              value={draft.playersPerSide}
-              onChange={(event) => set('playersPerSide', Number(event.target.value))}
-              className={inputClass}
-            />
-          </Field>
+          <div className="col-span-2">
+            <Field
+              label="Joueurs par camp"
+              hint="Nombre de joueurs dans chaque camp (ex : 2 pour un 2v2)."
+            >
+              <input
+                type="number"
+                inputMode="numeric"
+                min={2}
+                max={6}
+                value={draft.playersPerSide}
+                onChange={(event) => set('playersPerSide', Number(event.target.value))}
+                className={inputClass}
+              />
+            </Field>
+          </div>
         ) : null}
       </div>
 
@@ -378,10 +369,10 @@ export function GameManager({ games }: { games: ManagedGame[] }) {
                       <Badge tone="coral">{game.pointsPerWin} pts</Badge>
                       <Badge>
                         {game.mode === 'duel'
-                          ? `${game.sidesCount} joueurs`
+                          ? '1 contre 1'
                           : game.mode === 'clash'
                             ? 'Les deux équipes'
-                            : `${game.sidesCount} × ${game.playersPerSide}`}
+                            : `2 × ${game.playersPerSide}`}
                       </Badge>
                       {game.marginBonusEnabled ? (
                         <Badge tone="grape">+{game.marginBonusPerPoint}/écart</Badge>

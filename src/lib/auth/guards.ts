@@ -13,14 +13,20 @@ import { users, type UserRow } from '@/db/schema';
 
 import { currentUserId } from './session';
 
-export type SessionUser = Pick<UserRow, 'id' | 'name' | 'role' | 'avatar'>;
+export type SessionUser = Pick<UserRow, 'id' | 'name' | 'role' | 'avatar' | 'teamId'>;
 
 export async function getCurrentUser(): Promise<SessionUser | null> {
   const id = await currentUserId();
   if (!id) return null;
 
   const rows = await db
-    .select({ id: users.id, name: users.name, role: users.role, avatar: users.avatar })
+    .select({
+      id: users.id,
+      name: users.name,
+      role: users.role,
+      avatar: users.avatar,
+      teamId: users.teamId,
+    })
     .from(users)
     .where(eq(users.id, id))
     .limit(1);

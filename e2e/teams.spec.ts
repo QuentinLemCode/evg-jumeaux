@@ -155,22 +155,18 @@ test.describe('What a match moves', { tag: '@spec-0017' }, () => {
     await expect(row).toHaveAttribute('data-points', '21');
   });
 
-  test('a match inside one team credits the winner and rolls into the team individual total', async ({
-    browser,
-  }) => {
-    // Rule 20: a team cannot farm team_point_events with its own internal pairs.
-    await playAndWin(browser, 'antoine', 'baptiste', ['13', '5']);
+  test('an intra-team duel is refused at creation', async ({ browser }) => {
+    // Rule 20: an intra-team duel is strictly forbidden.
+    const antoine = await asPlayer(browser, 'antoine');
+    await antoine.goto('/games');
+    await antoine.getByRole('link', { name: /Palet/ }).click();
 
-    expect(pointTotal(PLAYERS.antoine.id)).toBe(18);
-    expect(teamPointTotal('julien')).toBe(0);
-    expect(teamPointEventTypes('julien')).toEqual([]);
-
-    const player = await asPlayer(browser, 'hugo');
-    await player.goto('/teams');
-    const julien = player.locator('[data-team="julien"]');
-    await expect(julien).toHaveAttribute('data-points', '18');
-    await expect(julien).toContainText('18 pts individuels · 0 pt de clash');
-    await expect(julien).toContainText('0 partie gagnée');
+    // Baptiste is in the same team as Antoine (Team Julien).
+    const baptisteOption = antoine.getByRole('button', {
+      name: new RegExp(`^${PLAYERS.baptiste.name}`),
+    });
+    await expect(baptisteOption).toBeDisabled();
+    await expect(antoine.getByText('même équipe').first()).toBeVisible();
   });
 
   test('an admin adjustment on a player is reflected in the team total score', async ({

@@ -184,6 +184,21 @@ export async function createMatch(input: {
           return { ok: false, message: 'Camp invalide' };
         }
       }
+      const roster = tx
+        .select({ id: users.id, name: users.name, teamId: users.teamId })
+        .from(users)
+        .where(
+          inArray(
+            users.id,
+            withCreator.map((a) => a.userId),
+          ),
+        )
+        .all();
+      const nameOf = new Map(roster.map((r) => [r.id, r.name]));
+      if (nameOf.size !== withCreator.length) {
+        return { ok: false, message: 'Joueur inconnu dans la sélection' };
+      }
+
       // Side labels: the players' names, or the team names for a clash
       // (spec 0017, rule 30).
       let clashTeamNames: Map<number, string> | null = null;
@@ -207,6 +222,44 @@ export async function createMatch(input: {
               message: `Il manque des joueurs dans le camp ${sideIndex} (${count}/${game.playersPerSide})`,
             };
           }
+        }
+
+        // Every match strictly opposes the two teams (spec 0017, rule 20).
+        if (roster.some((u) => !u.teamId)) {
+          return { ok: false, message: 'Tous les participants doivent avoir choisi une équipe' };
+        }
+
+        const teamByUserId = new Map(roster.map((u) => [u.id, u.teamId!]));
+        const side1Teams = new Set(
+          withCreator.filter((a) => a.sideIndex === 1).map((a) => teamByUserId.get(a.userId)!),
+        );
+        const side2Teams = new Set(
+          withCreator.filter((a) => a.sideIndex === 2).map((a) => teamByUserId.get(a.userId)!),
+        );
+
+        if (side1Teams.size !== 1) {
+          return {
+            ok: false,
+            message: 'Le camp 1 ne doit comporter que des joueurs de la même équipe',
+          };
+        }
+        if (side2Teams.size !== 1) {
+          return {
+            ok: false,
+            message: 'Le camp 2 ne doit comporter que des joueurs de la même équipe',
+          };
+        }
+
+        const side1Team = [...side1Teams][0];
+        const side2Team = [...side2Teams][0];
+        if (side1Team === side2Team) {
+          return {
+            ok: false,
+            message:
+              game.mode === 'duel'
+                ? 'Deux joueurs de la même équipe ne peuvent pas s’affronter'
+                : 'Les deux camps doivent être d’équipes opposées',
+          };
         }
       }
 
@@ -294,21 +347,6 @@ export async function createMatch(input: {
           updatedAt: now,
         })
         .run();
-
-      const roster = tx
-        .select({ id: users.id, name: users.name })
-        .from(users)
-        .where(
-          inArray(
-            users.id,
-            withCreator.map((a) => a.userId),
-          ),
-        )
-        .all();
-      const nameOf = new Map(roster.map((r) => [r.id, r.name]));
-      if (nameOf.size !== withCreator.length) {
-        return { ok: false, message: 'Joueur inconnu dans la sélection' };
-      }
 
       for (let sideIndex = 1; sideIndex <= game.sidesCount; sideIndex += 1) {
         const names = withCreator

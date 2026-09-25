@@ -64,7 +64,7 @@ test.describe('History', { tag: '@spec-0007' }, () => {
   });
 
   test('a finished match appears with its score and its winner', async ({ browser }) => {
-    await playAndWin(browser, 'antoine', 'baptiste', ['13', '4']);
+    await playAndWin(browser, 'antoine', 'lucas', ['13', '4']);
 
     const player = await asPlayer(browser, 'hugo');
     await player.goto('/history');
@@ -99,7 +99,7 @@ test.describe('History', { tag: '@spec-0007' }, () => {
   });
 
   test('the history filters by game and by player', async ({ browser }) => {
-    await playAndWin(browser, 'antoine', 'baptiste', ['13', '2']);
+    await playAndWin(browser, 'antoine', 'lucas', ['13', '2']);
 
     const player = await asPlayer(browser, 'hugo');
     await player.goto('/history');
@@ -113,7 +113,7 @@ test.describe('History', { tag: '@spec-0007' }, () => {
 
 test.describe('A player profile and the ledger', { tag: '@spec-0005' }, () => {
   test('the ledger lists every point and sums to the headline total', async ({ browser }) => {
-    await playAndWin(browser, 'antoine', 'baptiste', ['13', '2']);
+    await playAndWin(browser, 'antoine', 'lucas', ['13', '2']);
     expect(pointTotal(PLAYERS.antoine.id)).toBe(21);
 
     const player = await asPlayer(browser, 'clement');
@@ -145,7 +145,7 @@ test.describe('A player profile and the ledger', { tag: '@spec-0005' }, () => {
   });
 
   test('every player name links to their profile', async ({ browser }) => {
-    await playAndWin(browser, 'antoine', 'baptiste', ['13', '2']);
+    await playAndWin(browser, 'antoine', 'lucas', ['13', '2']);
     const player = await asPlayer(browser, 'hugo');
     await player.goto('/leaderboard');
 
