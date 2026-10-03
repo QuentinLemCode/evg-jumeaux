@@ -41,6 +41,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Lowercase the repository path for GHCR
+        run: echo "REPO_LOWER=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_ENV"
+
       - uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
@@ -61,5 +64,42 @@ jobs:
         env:
           TF_VAR_project_id: ${{ secrets.GCP_PROJECT_ID }}
           TF_VAR_tailscale_authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
+
+          # --- Cloudflare: DNS + ingress -----------------------------------
+          TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          TF_VAR_cloudflare_account_id: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+          TF_VAR_domain: ${{ secrets.DOMAIN }}
+          TF_VAR_site_subdomain: ${{ vars.SITE_SUBDOMAIN }}
+          TF_VAR_ingress_mode: ${{ vars.INGRESS_MODE }}
+
+          # --- Agent Platform key, shared by Hermes and the OpenCode agents -
           TF_VAR_gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
+          TF_VAR_llm_provider: ${{ vars.LLM_PROVIDER }}
+          TF_VAR_agents_service_account: ${{ vars.AGENTS_SERVICE_ACCOUNT }}
+          TF_VAR_llm_base_url: ${{ vars.LLM_BASE_URL }}
+          TF_VAR_llm_model: ${{ vars.LLM_MODEL }}
+
+          # --- messaging and alerts ----------------------------------------
+          TF_VAR_discord_bot_token: ${{ secrets.DISCORD_BOT_TOKEN }}
+          TF_VAR_discord_allowed_users: ${{ secrets.DISCORD_ALLOWED_USERS }}
+          TF_VAR_discord_webhook_url: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          TF_VAR_telegram_bot_token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TF_VAR_telegram_allowed_users: ${{ secrets.TELEGRAM_ALLOWED_USERS }}
+          TF_VAR_telegram_chat_id: ${{ secrets.TELEGRAM_CHAT_ID }}
+
+          # --- GitHub: the code agent opens pull requests -------------------
+          TF_VAR_github_token: ${{ secrets.AGENT_GITHUB_TOKEN }}
+
+          # --- the app -----------------------------------------------------
+          TF_VAR_site_repo_url: ${{ vars.SITE_REPO_URL }}
           TF_VAR_auth_secret: ${{ secrets.AUTH_SECRET }}
+          TF_VAR_seed_pin_hashes: ${{ secrets.SEED_PIN_HASHES }}
+          TF_VAR_vapid_public_key: ${{ secrets.VAPID_PUBLIC_KEY }}
+          TF_VAR_vapid_private_key: ${{ secrets.VAPID_PRIVATE_KEY }}
+          TF_VAR_vapid_subject: ${{ vars.VAPID_SUBJECT }}
+          # GHCR rejects an uppercase path, and GitHub org names often have one.
+          TF_VAR_image_repository: ghcr.io/${{ env.REPO_LOWER }}
+          TF_VAR_image_tag: ${{ vars.IMAGE_TAG || 'main' }}
+          TF_VAR_ghcr_username: ${{ github.repository_owner }}
+          TF_VAR_ghcr_token: ${{ secrets.GHCR_PULL_TOKEN }}
